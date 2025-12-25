@@ -4,16 +4,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 import { format, addWeeks, subWeeks, addMonths, subMonths } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExternalBlock } from "@/types/block";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
+import { DayStatus } from "@/types/dayStatus";
 import { WeekView } from "@/components/calendar/WeekView";
 import { MonthView } from "@/components/calendar/MonthView";
 import { ExternalBlockFormModal } from "@/components/calendar/ExternalBlockFormModal";
+import { DayStatusModal } from "@/components/calendar/DayStatusModal";
 
 // Get dates for this week's seed blocks
 const getThisWeekDates = () => {
@@ -134,9 +139,18 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<"week" | "month">("week");
   const [blocks, setBlocks] = useState<ExternalBlock[]>(seedBlocks);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [dayStatuses, setDayStatuses] = useState<DayStatus[]>([]);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<ExternalBlock | undefined>();
   const [defaultDate, setDefaultDate] = useState<Date | undefined>();
+  const [statusModalDate, setStatusModalDate] = useState<Date | undefined>();
+  const [dismissedBanners, setDismissedBanners] = useState<string[]>([]);
+
+  // Get non-normal statuses for banner
+  const affectedStatuses = dayStatuses.filter(
+    (s) => s.status !== "normal" && !dismissedBanners.includes(s.date)
+  );
 
   const handlePrev = () => {
     setCurrentDate((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)));
@@ -153,13 +167,13 @@ export default function Calendar() {
   const handleAddBlock = (date?: Date) => {
     setEditingBlock(undefined);
     setDefaultDate(date);
-    setIsModalOpen(true);
+    setIsBlockModalOpen(true);
   };
 
   const handleEditBlock = (block: ExternalBlock) => {
     setEditingBlock(block);
     setDefaultDate(undefined);
-    setIsModalOpen(true);
+    setIsBlockModalOpen(true);
   };
 
   const handleDeleteBlock = (id: string) => {
@@ -178,13 +192,70 @@ export default function Calendar() {
       };
       setBlocks((prev) => [...prev, newBlock]);
     }
-    setIsModalOpen(false);
+    setIsBlockModalOpen(false);
     setEditingBlock(undefined);
     setDefaultDate(undefined);
   };
 
+  const handleDayStatusClick = (date: Date) => {
+    setStatusModalDate(date);
+    setIsStatusModalOpen(true);
+  };
+
+  const handleSaveStatus = (status: DayStatus) => {
+    setDayStatuses((prev) => {
+      const existing = prev.findIndex((s) => s.date === status.date);
+      if (status.status === "normal") {
+        return prev.filter((s) => s.date !== status.date);
+      }
+      if (existing >= 0) {
+        return prev.map((s) => (s.date === status.date ? status : s));
+      }
+      return [...prev, status];
+    });
+    // Remove from dismissed if re-added
+    setDismissedBanners((prev) => prev.filter((d) => d !== status.date));
+  };
+
+  const handleClearStatus = (date: string) => {
+    setDayStatuses((prev) => prev.filter((s) => s.date !== date));
+    setDismissedBanners((prev) => prev.filter((d) => d !== date));
+  };
+
+  const handleDismissBanner = (date: string) => {
+    setDismissedBanners((prev) => [...prev, date]);
+  };
+
+  const getExistingStatus = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return dayStatuses.find((s) => s.date === dateStr);
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-4">
+      {/* Adjustment Banners */}
+      {affectedStatuses.map((status) => (
+        <Alert key={status.date} variant="destructive" className="bg-destructive/10 border-destructive/30">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between flex-1">
+            <span>
+              Plan adjustment needed — you've marked{" "}
+              <strong>{format(new Date(status.date), "MMM d")}</strong> as{" "}
+              <strong>{status.status}</strong>
+              {status.notes && ` (${status.notes})`}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 ml-2"
+              onClick={() => handleDismissBanner(status.date)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ))}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -233,9 +304,11 @@ export default function Calendar() {
           blocks={blocks}
           races={seedRaces}
           focusPeriods={seedFocusPeriods}
+          dayStatuses={dayStatuses}
           onEditBlock={handleEditBlock}
           onDeleteBlock={handleDeleteBlock}
           onAddBlock={handleAddBlock}
+          onDayStatusClick={handleDayStatusClick}
         />
       ) : (
         <MonthView
@@ -243,18 +316,29 @@ export default function Calendar() {
           blocks={blocks}
           races={seedRaces}
           focusPeriods={seedFocusPeriods}
+          dayStatuses={dayStatuses}
           onEditBlock={handleEditBlock}
-          onDayClick={handleAddBlock}
+          onDayClick={handleDayStatusClick}
         />
       )}
 
-      {/* Form Modal */}
+      {/* Block Form Modal */}
       <ExternalBlockFormModal
-        open={isModalOpen}
-        onOpenChange={setIsModalOpen}
+        open={isBlockModalOpen}
+        onOpenChange={setIsBlockModalOpen}
         block={editingBlock}
         onSubmit={handleSaveBlock}
         defaultDate={defaultDate}
+      />
+
+      {/* Day Status Modal */}
+      <DayStatusModal
+        open={isStatusModalOpen}
+        onOpenChange={setIsStatusModalOpen}
+        defaultDate={statusModalDate}
+        existingStatus={statusModalDate ? getExistingStatus(statusModalDate) : undefined}
+        onSubmit={handleSaveStatus}
+        onClear={handleClearStatus}
       />
     </div>
   );

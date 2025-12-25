@@ -1,8 +1,9 @@
 import { format, startOfWeek, addDays, isSameDay, isToday } from "date-fns";
-import { Trophy, Plus } from "lucide-react";
+import { Trophy, Plus, Thermometer, AlertCircle, Plane } from "lucide-react";
 import { ExternalBlock } from "@/types/block";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
+import { DayStatus } from "@/types/dayStatus";
 import { BlockCard } from "./BlockCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,9 +13,11 @@ interface WeekViewProps {
   blocks: ExternalBlock[];
   races: Race[];
   focusPeriods: FocusPeriod[];
+  dayStatuses: DayStatus[];
   onEditBlock: (block: ExternalBlock) => void;
   onDeleteBlock: (id: string) => void;
   onAddBlock: (date: Date) => void;
+  onDayStatusClick: (date: Date) => void;
 }
 
 const focusColors: Record<string, string> = {
@@ -24,14 +27,28 @@ const focusColors: Record<string, string> = {
   Balanced: "bg-purple-500/10",
 };
 
+const statusColors: Record<string, string> = {
+  sick: "bg-red-500/20 border-red-500/50",
+  injured: "bg-orange-500/20 border-orange-500/50",
+  traveling: "bg-muted/50 border-muted-foreground/30",
+};
+
+const statusIcons: Record<string, typeof Thermometer> = {
+  sick: Thermometer,
+  injured: AlertCircle,
+  traveling: Plane,
+};
+
 export function WeekView({
   currentDate,
   blocks,
   races,
   focusPeriods,
+  dayStatuses,
   onEditBlock,
   onDeleteBlock,
   onAddBlock,
+  onDayStatusClick,
 }: WeekViewProps) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -47,13 +64,24 @@ export function WeekView({
       (period) => day >= period.startDate && day <= period.endDate
     );
 
+  const getStatusForDay = (day: Date) => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    return dayStatuses.find((s) => s.date === dateStr);
+  };
+
   return (
     <div className="grid grid-cols-7 gap-1 md:gap-2">
       {weekDays.map((day) => {
         const dayBlocks = getBlocksForDay(day);
         const dayRaces = getRacesForDay(day);
         const focusPeriod = getFocusForDay(day);
-        const focusBg = focusPeriod
+        const dayStatus = getStatusForDay(day);
+        const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
+        
+        // Status color takes priority over focus color
+        const bgClass = dayStatus?.status && dayStatus.status !== "normal"
+          ? statusColors[dayStatus.status]
+          : focusPeriod
           ? focusColors[focusPeriod.primaryDiscipline] || ""
           : "";
 
@@ -62,14 +90,19 @@ export function WeekView({
             key={day.toISOString()}
             className={cn(
               "min-h-[140px] md:min-h-[180px] rounded-lg border border-border p-1.5 md:p-2 flex flex-col",
-              focusBg,
+              bgClass,
               isToday(day) && "ring-2 ring-primary"
             )}
           >
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-center">
-                <div className="text-[10px] md:text-xs text-muted-foreground uppercase">
+              <div
+                className="text-center cursor-pointer hover:opacity-70"
+                onClick={() => onDayStatusClick(day)}
+                title="Set day status"
+              >
+                <div className="text-[10px] md:text-xs text-muted-foreground uppercase flex items-center gap-1">
                   {format(day, "EEE")}
+                  {StatusIcon && <StatusIcon className="h-2.5 w-2.5" />}
                 </div>
                 <div
                   className={cn(

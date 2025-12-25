@@ -9,10 +9,11 @@ import {
   isSameDay,
   isToday,
 } from "date-fns";
-import { Trophy, Lock } from "lucide-react";
+import { Trophy, Lock, Thermometer, AlertCircle, Plane } from "lucide-react";
 import { ExternalBlock } from "@/types/block";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
+import { DayStatus } from "@/types/dayStatus";
 import { cn } from "@/lib/utils";
 
 interface MonthViewProps {
@@ -20,6 +21,7 @@ interface MonthViewProps {
   blocks: ExternalBlock[];
   races: Race[];
   focusPeriods: FocusPeriod[];
+  dayStatuses: DayStatus[];
   onEditBlock: (block: ExternalBlock) => void;
   onDayClick: (date: Date) => void;
 }
@@ -29,6 +31,18 @@ const focusColors: Record<string, string> = {
   Bike: "bg-blue-500/10",
   Swim: "bg-cyan-500/10",
   Balanced: "bg-purple-500/10",
+};
+
+const statusColors: Record<string, string> = {
+  sick: "bg-red-500/20 border-red-500/50",
+  injured: "bg-orange-500/20 border-orange-500/50",
+  traveling: "bg-muted/50 border-muted-foreground/30",
+};
+
+const statusIcons: Record<string, typeof Thermometer> = {
+  sick: Thermometer,
+  injured: AlertCircle,
+  traveling: Plane,
 };
 
 const disciplineColors: Record<string, string> = {
@@ -43,6 +57,7 @@ export function MonthView({
   blocks,
   races,
   focusPeriods,
+  dayStatuses,
   onEditBlock,
   onDayClick,
 }: MonthViewProps) {
@@ -67,6 +82,11 @@ export function MonthView({
   const getFocusForDay = (d: Date) =>
     focusPeriods.find((period) => d >= period.startDate && d <= period.endDate);
 
+  const getStatusForDay = (d: Date) => {
+    const dateStr = format(d, "yyyy-MM-dd");
+    return dayStatuses.find((s) => s.date === dateStr);
+  };
+
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   return (
@@ -86,7 +106,13 @@ export function MonthView({
           const dayBlocks = getBlocksForDay(d);
           const dayRaces = getRacesForDay(d);
           const focusPeriod = getFocusForDay(d);
-          const focusBg = focusPeriod
+          const dayStatus = getStatusForDay(d);
+          const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
+          
+          // Status color takes priority over focus color
+          const bgClass = dayStatus?.status && dayStatus.status !== "normal"
+            ? statusColors[dayStatus.status]
+            : focusPeriod
             ? focusColors[focusPeriod.primaryDiscipline] || ""
             : "";
           const inMonth = isSameMonth(d, currentDate);
@@ -97,18 +123,19 @@ export function MonthView({
               onClick={() => onDayClick(d)}
               className={cn(
                 "min-h-[80px] md:min-h-[100px] rounded border border-border p-1 cursor-pointer hover:bg-accent/50 transition-colors",
-                focusBg,
+                bgClass,
                 !inMonth && "opacity-40",
                 isToday(d) && "ring-2 ring-primary"
               )}
             >
               <div
                 className={cn(
-                  "text-xs md:text-sm font-medium mb-1",
+                  "text-xs md:text-sm font-medium mb-1 flex items-center gap-1",
                   isToday(d) && "text-primary"
                 )}
               >
-                {format(d, "d")}
+                {StatusIcon && <StatusIcon className="h-3 w-3" />}
+                <span>{format(d, "d")}</span>
               </div>
 
               {/* Races */}
