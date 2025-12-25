@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
+import { WeeklyAvailabilitySection } from "@/components/settings/WeeklyAvailabilitySection";
 
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();
@@ -49,6 +50,8 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      <WeeklyAvailabilitySection />
 
       <Card>
         <CardHeader>
