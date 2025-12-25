@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { format } from "date-fns";
 import { HeroSection } from "@/components/dashboard/HeroSection";
 import { SeasonTimeline } from "@/components/dashboard/SeasonTimeline";
@@ -129,7 +130,7 @@ const seedBlocks: ExternalBlock[] = [
 
 export default function Dashboard() {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [dayStatuses, setDayStatuses] = useState<DayStatus[]>([]);
+  const [dayStatuses, setDayStatuses] = useLocalStorage<DayStatus[]>("trainelo-day-statuses", []);
 
   const handleRaceClick = (race: Race) => {
     toast.info(`${race.name} - ${race.distance}${race.distanceUnit}`, {
