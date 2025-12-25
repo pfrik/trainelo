@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { HeroSection } from "@/components/dashboard/HeroSection";
 import { SeasonTimeline } from "@/components/dashboard/SeasonTimeline";
 import { ThisWeekCard } from "@/components/dashboard/ThisWeekCard";
 import { QuickStats } from "@/components/dashboard/QuickStats";
+import { DayStatusModal } from "@/components/calendar/DayStatusModal";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
 import { ExternalBlock } from "@/types/block";
+import { DayStatus } from "@/types/dayStatus";
 
 // Seed data (same as other pages for consistency)
 const seedRaces: Race[] = [
@@ -124,6 +128,9 @@ const seedBlocks: ExternalBlock[] = [
 ];
 
 export default function Dashboard() {
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [dayStatuses, setDayStatuses] = useState<DayStatus[]>([]);
+
   const handleRaceClick = (race: Race) => {
     toast.info(`${race.name} - ${race.distance}${race.distanceUnit}`, {
       description: race.goalValue,
@@ -131,9 +138,30 @@ export default function Dashboard() {
   };
 
   const handleMarkDayStatus = () => {
-    toast.info("Day status adjustment coming soon", {
-      description: "This will let you mark days as sick, injured, or traveling.",
+    setIsStatusModalOpen(true);
+  };
+
+  const handleSaveStatus = (status: DayStatus) => {
+    setDayStatuses((prev) => {
+      const existing = prev.findIndex((s) => s.date === status.date);
+      if (status.status === "normal") {
+        return prev.filter((s) => s.date !== status.date);
+      }
+      if (existing >= 0) {
+        return prev.map((s) => (s.date === status.date ? status : s));
+      }
+      return [...prev, status];
     });
+    
+    if (status.status !== "normal") {
+      toast.success(`Marked ${format(new Date(status.date), "MMM d")} as ${status.status}`, {
+        description: "Plan adjustment needed. Check the calendar for details.",
+      });
+    }
+  };
+
+  const handleClearStatus = (date: string) => {
+    setDayStatuses((prev) => prev.filter((s) => s.date !== date));
   };
 
   return (
@@ -155,6 +183,15 @@ export default function Dashboard() {
         </div>
         <ThisWeekCard blocks={seedBlocks} onMarkDayStatus={handleMarkDayStatus} />
       </div>
+
+      {/* Day Status Modal */}
+      <DayStatusModal
+        open={isStatusModalOpen}
+        onOpenChange={setIsStatusModalOpen}
+        defaultDate={new Date()}
+        onSubmit={handleSaveStatus}
+        onClear={handleClearStatus}
+      />
     </div>
   );
 }
