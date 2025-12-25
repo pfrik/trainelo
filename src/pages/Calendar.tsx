@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -138,8 +139,8 @@ const seedFocusPeriods: FocusPeriod[] = [
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<"week" | "month">("week");
-  const [blocks, setBlocks] = useState<ExternalBlock[]>(seedBlocks);
-  const [dayStatuses, setDayStatuses] = useState<DayStatus[]>([]);
+  const [blocks, setBlocks] = useLocalStorage<ExternalBlock[]>("trainelo-blocks", seedBlocks);
+  const [dayStatuses, setDayStatuses] = useLocalStorage<DayStatus[]>("trainelo-day-statuses", []);
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<ExternalBlock | undefined>();
