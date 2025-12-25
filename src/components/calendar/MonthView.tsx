@@ -15,6 +15,7 @@ import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
 import { DayStatus } from "@/types/dayStatus";
 import { cn } from "@/lib/utils";
+import { getSportConfig, formatDuration } from "@/lib/sportConfig";
 
 interface MonthViewProps {
   currentDate: Date;
@@ -43,13 +44,6 @@ const statusIcons: Record<string, typeof Thermometer> = {
   sick: Thermometer,
   injured: AlertCircle,
   traveling: Plane,
-};
-
-const disciplineColors: Record<string, string> = {
-  Bike: "bg-blue-500",
-  Run: "bg-green-500",
-  Swim: "bg-cyan-500",
-  Strength: "bg-orange-500",
 };
 
 export function MonthView({
@@ -154,29 +148,33 @@ export function MonthView({
                 </div>
               ))}
 
-              {/* Block indicators */}
-              <div className="flex flex-wrap gap-0.5">
-                {dayBlocks.slice(0, 3).map((block) => (
-                  <div
-                    key={block.id}
-                    className={cn(
-                      "w-2 h-2 md:w-2.5 md:h-2.5 rounded-sm flex items-center justify-center",
-                      disciplineColors[block.discipline]
-                    )}
-                    title={block.title}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditBlock(block);
-                    }}
-                  >
-                    {block.isFixed && (
-                      <Lock className="h-1.5 w-1.5 text-white" />
-                    )}
-                  </div>
-                ))}
+              {/* Block pills with icons and duration */}
+              <div className="flex flex-col gap-0.5">
+                {dayBlocks.slice(0, 3).map((block) => {
+                  const config = getSportConfig(block.discipline);
+                  const Icon = config.icon;
+                  return (
+                    <div
+                      key={block.id}
+                      className={cn(
+                        "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5",
+                        config.badgeClass
+                      )}
+                      title={block.title}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditBlock(block);
+                      }}
+                    >
+                      <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />
+                      <span className="font-semibold">{formatDuration(block.duration)}</span>
+                      {block.isFixed && <Lock className="h-1.5 w-1.5 opacity-60" />}
+                    </div>
+                  );
+                })}
                 {dayBlocks.length > 3 && (
                   <span className="text-[8px] text-muted-foreground">
-                    +{dayBlocks.length - 3}
+                    +{dayBlocks.length - 3} more
                   </span>
                 )}
               </div>
