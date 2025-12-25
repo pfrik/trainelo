@@ -143,6 +143,47 @@ export type Database = {
           },
         ]
       }
+      phases: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          name: string
+          start_date: string
+          type: string
+          user_id: string
+          weekly_hours_target: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          name: string
+          start_date: string
+          type: string
+          user_id: string
+          weekly_hours_target?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          name?: string
+          start_date?: string
+          type?: string
+          user_id?: string
+          weekly_hours_target?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null

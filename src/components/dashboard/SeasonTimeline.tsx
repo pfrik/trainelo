@@ -3,12 +3,14 @@ import { format, differenceInDays, addMonths, startOfMonth } from "date-fns";
 import { Trophy, ChevronLeft, ChevronRight } from "lucide-react";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
+import { Phase, phaseColors, phaseLabels } from "@/types/phase";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface SeasonTimelineProps {
   races: Race[];
   focusPeriods: FocusPeriod[];
+  phases: Phase[];
   onRaceClick?: (race: Race) => void;
 }
 
@@ -19,7 +21,7 @@ const focusColors: Record<string, string> = {
   Balanced: "bg-purple-500/20",
 };
 
-export function SeasonTimeline({ races, focusPeriods, onRaceClick }: SeasonTimelineProps) {
+export function SeasonTimeline({ races, focusPeriods, phases, onRaceClick }: SeasonTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const today = new Date();
   
@@ -104,26 +106,24 @@ export function SeasonTimeline({ races, focusPeriods, onRaceClick }: SeasonTimel
             ))}
           </div>
 
-          {/* Training phases placeholder */}
+          {/* Training phases */}
           <div className="absolute top-14 left-0 right-0 h-4">
-            <div
-              className="absolute h-full bg-accent/50 rounded-sm text-[9px] flex items-center px-1 text-muted-foreground"
-              style={{ left: "5%", width: "30%" }}
-            >
-              Base Phase
-            </div>
-            <div
-              className="absolute h-full bg-primary/30 rounded-sm text-[9px] flex items-center px-1 text-muted-foreground"
-              style={{ left: "35%", width: "25%" }}
-            >
-              Build Phase
-            </div>
-            <div
-              className="absolute h-full bg-destructive/30 rounded-sm text-[9px] flex items-center px-1 text-muted-foreground"
-              style={{ left: "60%", width: "15%" }}
-            >
-              Peak
-            </div>
+            {phases.map((phase) => (
+              <div
+                key={phase.id}
+                className={cn(
+                  "absolute h-full rounded-sm text-[9px] flex items-center px-1 text-foreground/70",
+                  phaseColors[phase.type]
+                )}
+                style={{
+                  left: `${getPosition(phase.startDate)}%`,
+                  width: `${getWidth(phase.startDate, phase.endDate)}%`,
+                }}
+                title={`${phase.name}: ${format(phase.startDate, "MMM d")} - ${format(phase.endDate, "MMM d")}`}
+              >
+                {getWidth(phase.startDate, phase.endDate) > 5 && phaseLabels[phase.type]}
+              </div>
+            ))}
           </div>
 
           {/* Race markers */}
