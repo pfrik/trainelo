@@ -14,7 +14,209 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      day_status: {
+        Row: {
+          date: string
+          id: string
+          notes: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          date: string
+          id?: string
+          notes?: string | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          date?: string
+          id?: string
+          notes?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "day_status_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_blocks: {
+        Row: {
+          created_at: string | null
+          date: string
+          discipline: string | null
+          duration_minutes: number | null
+          id: string
+          is_fixed: boolean | null
+          source: string | null
+          start_time: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          discipline?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_fixed?: boolean | null
+          source?: string | null
+          start_time?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          discipline?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_fixed?: boolean | null
+          source?: string | null
+          start_time?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_blocks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      focus_periods: {
+        Row: {
+          bike_pct: number | null
+          created_at: string | null
+          end_date: string
+          id: string
+          name: string | null
+          primary_discipline: string | null
+          run_pct: number | null
+          start_date: string
+          strength_pct: number | null
+          swim_pct: number | null
+          user_id: string
+        }
+        Insert: {
+          bike_pct?: number | null
+          created_at?: string | null
+          end_date: string
+          id?: string
+          name?: string | null
+          primary_discipline?: string | null
+          run_pct?: number | null
+          start_date: string
+          strength_pct?: number | null
+          swim_pct?: number | null
+          user_id: string
+        }
+        Update: {
+          bike_pct?: number | null
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          name?: string | null
+          primary_discipline?: string | null
+          run_pct?: number | null
+          start_date?: string
+          strength_pct?: number | null
+          swim_pct?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "focus_periods_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          experience_level: string | null
+          id: string
+          injury_notes: string | null
+          name: string | null
+          weekly_hours_available: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          experience_level?: string | null
+          id: string
+          injury_notes?: string | null
+          name?: string | null
+          weekly_hours_available?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          experience_level?: string | null
+          id?: string
+          injury_notes?: string | null
+          name?: string | null
+          weekly_hours_available?: number | null
+        }
+        Relationships: []
+      }
+      races: {
+        Row: {
+          created_at: string | null
+          date: string
+          distance_km: number | null
+          goal_type: string | null
+          goal_value: string | null
+          id: string
+          name: string
+          priority: string
+          sport: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          distance_km?: number | null
+          goal_type?: string | null
+          goal_value?: string | null
+          id?: string
+          name: string
+          priority: string
+          sport: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          distance_km?: number | null
+          goal_type?: string | null
+          goal_value?: string | null
+          id?: string
+          name?: string
+          priority?: string
+          sport?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "races_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

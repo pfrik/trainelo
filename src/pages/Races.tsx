@@ -3,57 +3,12 @@ import { Plus, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RaceCard } from "@/components/races/RaceCard";
 import { RaceFormModal } from "@/components/races/RaceFormModal";
+import { useRaces } from "@/hooks/useRaces";
 import type { Race } from "@/types/race";
-
-const seedRaces: Race[] = [
-  {
-    id: "1",
-    name: "Vondelparkloop - 10km",
-    date: new Date("2026-01-18"),
-    sport: "Run",
-    distance: 10,
-    distanceUnit: "km",
-    priority: "B",
-    goalType: "Finish",
-    goalValue: "Test fitness",
-  },
-  {
-    id: "2",
-    name: "Amstel Gold Race",
-    date: new Date("2026-04-18"),
-    sport: "Bike",
-    distance: 250,
-    distanceUnit: "km",
-    priority: "B",
-    goalType: "Finish",
-    goalValue: "Finish strong",
-  },
-  {
-    id: "3",
-    name: "Sprint Triathlon",
-    date: new Date("2026-05-17"),
-    sport: "Triathlon",
-    distance: 25,
-    distanceUnit: "km",
-    priority: "A",
-    goalType: "Finish",
-    goalValue: "Finish strong",
-  },
-  {
-    id: "4",
-    name: "Zestig van Texel",
-    date: new Date("2026-03-29"),
-    sport: "Run",
-    distance: 60,
-    distanceUnit: "km",
-    priority: "A",
-    goalType: "Finish",
-    goalValue: "Finish strong",
-  },
-];
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Races() {
-  const [races, setRaces] = useState<Race[]>(seedRaces);
+  const { races, loading, addRace, updateRace, deleteRace } = useRaces();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRace, setEditingRace] = useState<Race | null>(null);
 
@@ -61,17 +16,11 @@ export default function Races() {
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
-  const handleSubmit = (data: Omit<Race, "id"> & { id?: string }) => {
+  const handleSubmit = async (data: Omit<Race, "id"> & { id?: string }) => {
     if (data.id) {
-      setRaces((prev) =>
-        prev.map((r) => (r.id === data.id ? { ...data, id: data.id } as Race : r))
-      );
+      await updateRace(data.id, data);
     } else {
-      const newRace: Race = {
-        ...data,
-        id: crypto.randomUUID(),
-      };
-      setRaces((prev) => [...prev, newRace]);
+      await addRace(data);
     }
     setEditingRace(null);
   };
@@ -81,8 +30,8 @@ export default function Races() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setRaces((prev) => prev.filter((r) => r.id !== id));
+  const handleDelete = async (id: string) => {
+    await deleteRace(id);
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -91,6 +40,24 @@ export default function Races() {
       setEditingRace(null);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 pb-24 md:pb-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Trophy className="h-6 w-6 text-primary" />
+            <h1 className="text-xl font-semibold text-foreground">Races</h1>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-40 rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-6">
