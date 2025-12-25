@@ -3,13 +3,15 @@ import { Target, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
+import { Phase, phaseLabels } from "@/types/phase";
 
 interface HeroSectionProps {
   races: Race[];
   focusPeriods: FocusPeriod[];
+  phases: Phase[];
 }
 
-export function HeroSection({ races, focusPeriods }: HeroSectionProps) {
+export function HeroSection({ races, focusPeriods, phases }: HeroSectionProps) {
   const today = new Date();
   
   // Find next A-race
@@ -22,6 +24,11 @@ export function HeroSection({ races, focusPeriods }: HeroSectionProps) {
   // Find current focus period
   const currentFocus = focusPeriods.find(
     (fp) => today >= fp.startDate && today <= fp.endDate
+  );
+
+  // Find current phase
+  const currentPhase = phases.find(
+    (p) => today >= p.startDate && today <= p.endDate
   );
 
   return (
@@ -43,10 +50,12 @@ export function HeroSection({ races, focusPeriods }: HeroSectionProps) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary" className="text-sm py-1.5 px-3">
-            <Zap className="h-3.5 w-3.5 mr-1.5" />
-            Base Phase
-          </Badge>
+          {currentPhase && (
+            <Badge variant="secondary" className="text-sm py-1.5 px-3">
+              <Zap className="h-3.5 w-3.5 mr-1.5" />
+              {phaseLabels[currentPhase.type]} Phase
+            </Badge>
+          )}
           {currentFocus && (
             <Badge variant="outline" className="text-sm py-1.5 px-3">
               <Target className="h-3.5 w-3.5 mr-1.5" />
