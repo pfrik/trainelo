@@ -13,4 +13,5 @@ export interface ExternalBlock {
   isFixed: boolean;
   completed: boolean;
   workoutType?: WorkoutType;
+  description?: string;
 }

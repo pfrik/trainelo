@@ -11,6 +11,7 @@ interface BlockCardProps {
   onEdit: (block: ExternalBlock) => void;
   onDelete: (id: string) => void;
   onToggleComplete?: (id: string) => void;
+  onClick?: (block: ExternalBlock) => void;
   compact?: boolean;
 }
 
@@ -34,15 +35,15 @@ function getBlockStatus(block: ExternalBlock): "planned" | "completed" | "missed
   return "planned";
 }
 
-export function BlockCard({ block, onEdit, onDelete, onToggleComplete, compact = false }: BlockCardProps) {
+export function BlockCard({ block, onEdit, onDelete, onToggleComplete, onClick, compact = false }: BlockCardProps) {
   const config = getSportConfig(block.discipline);
   const Icon = config.icon;
   const status = getBlockStatus(block);
 
   const handleClick = (e: React.MouseEvent) => {
-    if (onToggleComplete) {
+    if (onClick) {
       e.stopPropagation();
-      onToggleComplete(block.id);
+      onClick(block);
     }
   };
 
@@ -57,7 +58,7 @@ export function BlockCard({ block, onEdit, onDelete, onToggleComplete, compact =
           status === "missed" && "border-l-destructive opacity-60"
         )}
         onClick={handleClick}
-        title={`${block.title} (${block.duration}min) - Click to toggle complete`}
+        title={`${block.title} (${block.duration}min) - Click to view details`}
       >
         <div className="flex items-center gap-1.5">
           <Icon className="h-3 w-3 flex-shrink-0" />

@@ -27,6 +27,7 @@ interface MonthViewProps {
   dayStatuses: DayStatus[];
   onEditBlock: (block: ExternalBlock) => void;
   onToggleComplete: (id: string) => void;
+  onBlockClick: (block: ExternalBlock) => void;
   onDayClick: (date: Date) => void;
 }
 
@@ -69,6 +70,7 @@ export function MonthView({
   dayStatuses,
   onEditBlock,
   onToggleComplete,
+  onBlockClick,
   onDayClick,
 }: MonthViewProps) {
   const monthStart = startOfMonth(currentDate);
@@ -180,10 +182,10 @@ export function MonthView({
                         status === "completed" && "opacity-100",
                         status === "missed" && "border-l-2 border-destructive opacity-60"
                       )}
-                      title={`${block.title} - Click to toggle complete`}
+                      title={`${block.title} - Click to view details`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        onToggleComplete(block.id);
+                        onBlockClick(block);
                       }}
                     >
                       <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />

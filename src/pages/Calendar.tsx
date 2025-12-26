@@ -21,13 +21,14 @@ import { MonthView } from "@/components/calendar/MonthView";
 import { ExternalBlockFormModal } from "@/components/calendar/ExternalBlockFormModal";
 import { DayStatusModal } from "@/components/calendar/DayStatusModal";
 import { WeeklySummaryPanel } from "@/components/calendar/WeeklySummaryPanel";
+import { WorkoutDetailDrawer } from "@/components/calendar/WorkoutDetailDrawer";
 import { useBlocks } from "@/hooks/useBlocks";
 import { useRaces } from "@/hooks/useRaces";
 import { useFocusPeriods } from "@/hooks/useFocusPeriods";
 import { useDayStatuses } from "@/hooks/useDayStatuses";
 
 export default function Calendar() {
-  const { blocks, loading: loadingBlocks, addBlock, updateBlock, deleteBlock, toggleComplete } = useBlocks();
+  const { blocks, loading: loadingBlocks, addBlock, updateBlock, deleteBlock, toggleComplete, updateDescription } = useBlocks();
   const { races, loading: loadingRaces } = useRaces();
   const { focusPeriods, loading: loadingPeriods } = useFocusPeriods();
   const { dayStatuses, loading: loadingStatuses, saveStatus, clearStatus } = useDayStatuses();
@@ -41,6 +42,8 @@ export default function Calendar() {
   const [statusModalDate, setStatusModalDate] = useState<Date | undefined>();
   const [dismissedBanners, setDismissedBanners] = useState<string[]>([]);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [selectedBlock, setSelectedBlock] = useState<ExternalBlock | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const loading = loadingBlocks || loadingRaces || loadingPeriods || loadingStatuses;
 
@@ -75,6 +78,13 @@ export default function Calendar() {
 
   const handleDeleteBlock = async (id: string) => {
     await deleteBlock(id);
+    setDrawerOpen(false);
+    setSelectedBlock(null);
+  };
+
+  const handleBlockClick = (block: ExternalBlock) => {
+    setSelectedBlock(block);
+    setDrawerOpen(true);
   };
 
   const handleSaveBlock = async (data: Omit<ExternalBlock, "id">) => {
@@ -222,6 +232,7 @@ export default function Calendar() {
             onEditBlock={handleEditBlock}
             onDeleteBlock={handleDeleteBlock}
             onToggleComplete={toggleComplete}
+            onBlockClick={handleBlockClick}
             onAddBlock={handleAddBlock}
             onDayStatusClick={handleDayStatusClick}
           />
@@ -234,6 +245,7 @@ export default function Calendar() {
             dayStatuses={dayStatuses}
             onEditBlock={handleEditBlock}
             onToggleComplete={toggleComplete}
+            onBlockClick={handleBlockClick}
             onDayClick={handleDayStatusClick}
           />
         )}
@@ -255,6 +267,18 @@ export default function Calendar() {
           existingStatus={statusModalDate ? getExistingStatus(statusModalDate) : undefined}
           onSubmit={handleSaveStatus}
           onClear={handleClearStatus}
+        />
+
+        {/* Workout Detail Drawer */}
+        <WorkoutDetailDrawer
+          block={selectedBlock}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          onEdit={handleEditBlock}
+          onDelete={handleDeleteBlock}
+          onToggleComplete={toggleComplete}
+          onDescriptionChange={updateDescription}
+          description={selectedBlock?.description || ""}
         />
       </div>
 
