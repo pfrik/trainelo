@@ -51,7 +51,7 @@ export function BlockCard({ block, onEdit, onDelete, onToggleComplete, onClick, 
     return (
       <div
         className={cn(
-          "text-xs p-1.5 rounded border-l-2 cursor-pointer transition-all duration-200",
+          "text-xs p-1.5 rounded border-l-2 cursor-pointer transition-all duration-200 overflow-hidden",
           config.badgeClass,
           status === "planned" && "opacity-80",
           status === "completed" && "opacity-100",
@@ -67,7 +67,7 @@ export function BlockCard({ block, onEdit, onDelete, onToggleComplete, onClick, 
           {block.isFixed && status !== "completed" && <Lock className="h-2.5 w-2.5 flex-shrink-0 opacity-60" />}
         </div>
         <div className={cn(
-          "text-[10px] opacity-75 truncate mt-0.5",
+          "text-[10px] opacity-75 mt-0.5 break-words",
           status === "missed" && "line-through"
         )}>
           {block.title}
@@ -89,7 +89,7 @@ export function BlockCard({ block, onEdit, onDelete, onToggleComplete, onClick, 
   return (
     <div 
       className={cn(
-        "p-2 rounded-md border-l-4 cursor-pointer transition-all duration-200 hover:shadow-sm",
+        "p-2 rounded-md border-l-4 cursor-pointer transition-all duration-200 hover:shadow-sm overflow-hidden",
         config.badgeClass,
         status === "planned" && "opacity-85 hover:opacity-100",
         status === "completed" && "opacity-100 ring-1 ring-emerald-500/30",
@@ -110,7 +110,7 @@ export function BlockCard({ block, onEdit, onDelete, onToggleComplete, onClick, 
             {block.isFixed && status !== "completed" && <Lock className="h-3 w-3 flex-shrink-0 opacity-60" />}
           </div>
           <div className={cn(
-            "text-xs opacity-75 mt-0.5 truncate",
+            "text-xs opacity-75 mt-0.5 break-words",
             status === "missed" && "line-through"
           )}>
             {block.title}
