@@ -106,6 +106,7 @@ export function useBlocks() {
         isFixed: b.is_fixed ?? true,
         completed: b.completed ?? false,
         workoutType: (b.workout_type as WorkoutType) || undefined,
+        description: b.description || undefined,
       }));
       setBlocks(mapped);
       
@@ -182,6 +183,7 @@ export function useBlocks() {
         is_fixed: block.isFixed,
         completed: block.completed,
         workout_type: block.workoutType,
+        description: block.description || null,
       })
       .eq("id", id);
 
@@ -228,5 +230,23 @@ export function useBlocks() {
     }
   };
 
-  return { blocks, loading, addBlock, updateBlock, deleteBlock, toggleComplete, refetch: fetchBlocks };
+  const updateDescription = async (id: string, description: string) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("external_blocks")
+      .update({ description })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating description:", error);
+      toast.error("Failed to save notes");
+    } else {
+      setBlocks(prev => prev.map(b =>
+        b.id === id ? { ...b, description } : b
+      ));
+    }
+  };
+
+  return { blocks, loading, addBlock, updateBlock, deleteBlock, toggleComplete, updateDescription, refetch: fetchBlocks };
 }
