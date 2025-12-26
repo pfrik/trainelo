@@ -1,15 +1,31 @@
-import { format as fnsFormat, parse } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { format as fnsFormat } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 
 // Default timezone for the app (Dutch time)
 export const APP_TIMEZONE = "Europe/Amsterdam";
 
 /**
- * Format a date in DD-MM-YYYY format (European)
+ * Format a date in DD-MM-YYYY format (European) for display
  */
-export function formatDateEU(date: Date): string {
+export function formatDisplayDate(date: Date): string {
   const zonedDate = toZonedTime(date, APP_TIMEZONE);
   return fnsFormat(zonedDate, "dd-MM-yyyy");
+}
+
+/**
+ * Format a date in short display format (dd MMM)
+ */
+export function formatDisplayDateShort(date: Date): string {
+  const zonedDate = toZonedTime(date, APP_TIMEZONE);
+  return fnsFormat(zonedDate, "d MMM");
+}
+
+/**
+ * Format a date in long display format (EEEE, d MMMM yyyy)
+ */
+export function formatDisplayDateLong(date: Date): string {
+  const zonedDate = toZonedTime(date, APP_TIMEZONE);
+  return fnsFormat(zonedDate, "EEEE, d MMMM yyyy");
 }
 
 /**
@@ -44,18 +60,39 @@ export function toDateString(date: Date): string {
 }
 
 /**
- * Parse a YYYY-MM-DD database string to a Date object in Amsterdam timezone
+ * Parse a YYYY-MM-DD database string to a Date object
+ * Uses noon to avoid DST issues
  */
 export function fromDateString(dateStr: string): Date {
-  // Parse as local date in Amsterdam timezone
   const [year, month, day] = dateStr.split("-").map(Number);
-  const localDate = new Date(year, month - 1, day, 12, 0, 0); // noon to avoid DST issues
-  return localDate;
+  // Use noon to avoid DST boundary issues
+  return new Date(year, month - 1, day, 12, 0, 0);
 }
 
 /**
- * Format a date for display in various formats
+ * Format date for display in calendar header
  */
+export function formatCalendarHeader(date: Date, view: "week" | "month"): string {
+  const zonedDate = toZonedTime(date, APP_TIMEZONE);
+  if (view === "week") {
+    return fnsFormat(zonedDate, "d MMM yyyy");
+  }
+  return fnsFormat(zonedDate, "MMMM yyyy");
+}
+
+/**
+ * Format date range for summary panel (d MMM - d MMM yyyy)
+ */
+export function formatDateRange(start: Date, end: Date): string {
+  const zonedStart = toZonedTime(start, APP_TIMEZONE);
+  const zonedEnd = toZonedTime(end, APP_TIMEZONE);
+  return `${fnsFormat(zonedStart, "d MMM")} - ${fnsFormat(zonedEnd, "d MMM yyyy")}`;
+}
+
+/**
+ * Legacy exports for compatibility
+ */
+export const formatDateEU = formatDisplayDate;
 export function formatDate(date: Date, style: "short" | "medium" | "long" | "day" = "medium"): string {
   const zonedDate = toZonedTime(date, APP_TIMEZONE);
   
@@ -71,24 +108,4 @@ export function formatDate(date: Date, style: "short" | "medium" | "long" | "day
     default:
       return fnsFormat(zonedDate, "dd-MM-yyyy");
   }
-}
-
-/**
- * Format date for display in calendar header
- */
-export function formatCalendarHeader(date: Date, view: "week" | "month"): string {
-  const zonedDate = toZonedTime(date, APP_TIMEZONE);
-  if (view === "week") {
-    return fnsFormat(zonedDate, "d MMM yyyy");
-  }
-  return fnsFormat(zonedDate, "MMMM yyyy");
-}
-
-/**
- * Format date range for summary panel
- */
-export function formatDateRange(start: Date, end: Date): string {
-  const zonedStart = toZonedTime(start, APP_TIMEZONE);
-  const zonedEnd = toZonedTime(end, APP_TIMEZONE);
-  return `${fnsFormat(zonedStart, "d MMM")} - ${fnsFormat(zonedEnd, "d MMM yyyy")}`;
 }

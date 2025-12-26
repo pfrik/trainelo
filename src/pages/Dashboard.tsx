@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { HeroSection } from "@/components/dashboard/HeroSection";
 import { SeasonTimeline } from "@/components/dashboard/SeasonTimeline";
 import { ThisWeekCard } from "@/components/dashboard/ThisWeekCard";
@@ -15,6 +14,7 @@ import { useFocusPeriods } from "@/hooks/useFocusPeriods";
 import { useBlocks } from "@/hooks/useBlocks";
 import { useDayStatuses } from "@/hooks/useDayStatuses";
 import { usePhases } from "@/hooks/usePhases";
+import { formatDisplayDateShort } from "@/lib/dateUtils";
 
 export default function Dashboard() {
   const { races, loading: loadingRaces } = useRaces();
@@ -47,7 +47,7 @@ export default function Dashboard() {
     await saveStatus(status);
     
     if (status.status !== "normal") {
-      toast.success(`Marked ${format(new Date(status.date), "MMM d")} as ${status.status}`, {
+      toast.success(`Marked ${formatDisplayDateShort(new Date(status.date))} as ${status.status}`, {
         description: "Plan adjustment needed. Check the calendar for details.",
       });
     }

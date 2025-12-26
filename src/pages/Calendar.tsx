@@ -9,7 +9,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { addWeeks, subWeeks, addMonths, subMonths } from "date-fns";
-import { DndContext, DragEndEvent, DragOverlay, pointerWithin } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, pointerWithin, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -51,6 +51,15 @@ export default function Calendar() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeBlock, setActiveBlock] = useState<ExternalBlock | null>(null);
   const [summaryCollapsed] = useLocalStorage("summary-collapsed", false);
+
+  // Configure drag sensor with distance threshold to allow clicks
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts
+      },
+    })
+  );
 
   const loading = loadingBlocks || loadingRaces || loadingPeriods || loadingStatuses;
 
@@ -172,6 +181,7 @@ export default function Calendar() {
 
   return (
     <DndContext
+      sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}

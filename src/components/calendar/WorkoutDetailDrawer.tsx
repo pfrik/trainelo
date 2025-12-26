@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { X, Lock, Pencil, Trash2, Check, Clock, CalendarDays } from "lucide-react";
 import { ExternalBlock } from "@/types/block";
 import { getSportConfig, formatDuration } from "@/lib/sportConfig";
@@ -7,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { formatDisplayDateLong } from "@/lib/dateUtils";
 import {
   Sheet,
   SheetContent,
@@ -107,7 +107,7 @@ export function WorkoutDetailDrawer({
               </SheetTitle>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <CalendarDays className="h-3.5 w-3.5" />
-                {format(block.date, "EEEE, MMMM d, yyyy")}
+                {formatDisplayDateLong(block.date)}
               </div>
             </div>
           </div>

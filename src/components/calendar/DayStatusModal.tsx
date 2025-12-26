@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
+import { toDateString, formatDisplayDate } from "@/lib/dateUtils";
 import {
   Dialog,
   DialogContent,
@@ -97,7 +97,7 @@ export function DayStatusModal({
 
   const handleSubmit = (data: DayStatusFormData) => {
     onSubmit({
-      date: format(data.date, "yyyy-MM-dd"),
+      date: toDateString(data.date),
       status: data.status,
       notes: data.notes || undefined,
     });
@@ -105,7 +105,7 @@ export function DayStatusModal({
   };
 
   const handleClear = () => {
-    const dateStr = format(form.getValues("date"), "yyyy-MM-dd");
+    const dateStr = toDateString(form.getValues("date"));
     onClear?.(dateStr);
     onOpenChange(false);
   };
@@ -136,7 +136,7 @@ export function DayStatusModal({
                             !field.value && "text-muted-foreground"
                           )}
                         >
-                          {field.value ? format(field.value, "PPP") : "Pick date"}
+                          {field.value ? formatDisplayDate(field.value) : "Pick date"}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
