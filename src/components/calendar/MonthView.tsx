@@ -1,5 +1,4 @@
 import {
-  format,
   startOfMonth,
   endOfMonth,
   startOfWeek,
@@ -20,6 +19,7 @@ import { DraggableBlock } from "./DraggableBlock";
 import { DroppableDay } from "./DroppableDay";
 import { cn } from "@/lib/utils";
 import { getSportConfig, formatDuration } from "@/lib/sportConfig";
+import { toDateString, formatInTimezone } from "@/lib/dateUtils";
 
 interface MonthViewProps {
   currentDate: Date;
@@ -31,6 +31,7 @@ interface MonthViewProps {
   onToggleComplete: (id: string) => void;
   onBlockClick: (block: ExternalBlock) => void;
   onDayClick: (date: Date) => void;
+  onAddBlock: (date: Date) => void;
 }
 
 function getBlockStatus(block: ExternalBlock): "planned" | "completed" | "missed" {
@@ -67,6 +68,7 @@ export function MonthView({
   onToggleComplete,
   onBlockClick,
   onDayClick,
+  onAddBlock,
 }: MonthViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -87,7 +89,7 @@ export function MonthView({
     races.filter((race) => isSameDay(race.date, d));
 
   const getStatusForDay = (d: Date) => {
-    const dateStr = format(d, "yyyy-MM-dd");
+    const dateStr = toDateString(d);
     return dayStatuses.find((s) => s.date === dateStr);
   };
 
@@ -111,9 +113,8 @@ export function MonthView({
           const dayRaces = getRacesForDay(d);
           const dayStatus = getStatusForDay(d);
           const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
-          const dateStr = format(d, "yyyy-MM-dd");
+          const dateStr = toDateString(d);
           
-          // Status color takes priority, otherwise use neutral card background
           const bgClass = dayStatus?.status && dayStatus.status !== "normal"
             ? statusColors[dayStatus.status]
             : "bg-card";
@@ -130,73 +131,80 @@ export function MonthView({
                 isToday(d) && "ring-2 ring-primary"
               )}
             >
-              <div
-                onClick={() => onDayClick(d)}
-                className={cn(
-                  "text-xs md:text-sm font-medium mb-1 flex items-center gap-1",
-                  isToday(d) && "text-primary"
-                )}
+              <div 
+                className="h-full flex flex-col"
+                onClick={() => onAddBlock(d)}
               >
-                {StatusIcon && <StatusIcon className="h-3 w-3" />}
-                <span>{format(d, "d")}</span>
-              </div>
-
-              {/* Races */}
-              {dayRaces.map((race) => (
                 <div
-                  key={race.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDayClick(d);
+                  }}
                   className={cn(
-                    "text-[9px] md:text-[10px] p-0.5 rounded mb-0.5 flex items-center gap-0.5",
-                    race.priority === "A"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
+                    "text-xs md:text-sm font-medium mb-1 flex items-center gap-1 cursor-pointer hover:text-primary",
+                    isToday(d) && "text-primary"
                   )}
                 >
-                  <Trophy className="h-2 w-2 flex-shrink-0" />
-                  <span className="truncate">{race.name}</span>
+                  {StatusIcon && <StatusIcon className="h-3 w-3" />}
+                  <span>{formatInTimezone(d, "d")}</span>
                 </div>
-              ))}
 
-              {/* Block pills with icons and duration */}
-              <div className="flex flex-col gap-0.5">
-                {dayBlocks.slice(0, 3).map((block) => {
-                  const config = getSportConfig(block.discipline);
-                  const Icon = config.icon;
-                  const status = getBlockStatus(block);
-                  return (
-                    <DraggableBlock key={block.id} block={block}>
-                      <div
-                        className={cn(
-                          "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer transition-all duration-200",
-                          config.badgeClass,
-                          status === "planned" && "opacity-80",
-                          status === "completed" && "opacity-100",
-                          status === "missed" && "border-l-2 border-destructive opacity-60"
-                        )}
-                        title={`${block.title} - Click to view details`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onBlockClick(block);
-                        }}
-                      >
-                        <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />
-                        <span className={cn(
-                          "font-semibold",
-                          status === "missed" && "line-through"
-                        )}>
-                          {formatDuration(block.duration)}
-                        </span>
-                        {status === "completed" && <Check className="h-1.5 w-1.5 text-emerald-600" />}
-                        {block.isFixed && status !== "completed" && <Lock className="h-1.5 w-1.5 opacity-60" />}
-                      </div>
-                    </DraggableBlock>
-                  );
-                })}
-                {dayBlocks.length > 3 && (
-                  <span className="text-[8px] text-muted-foreground">
-                    +{dayBlocks.length - 3} more
-                  </span>
-                )}
+                {dayRaces.map((race) => (
+                  <div
+                    key={race.id}
+                    className={cn(
+                      "text-[9px] md:text-[10px] p-0.5 rounded mb-0.5 flex items-center gap-0.5",
+                      race.priority === "A"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Trophy className="h-2 w-2 flex-shrink-0" />
+                    <span className="truncate">{race.name}</span>
+                  </div>
+                ))}
+
+                <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  {dayBlocks.slice(0, 3).map((block) => {
+                    const config = getSportConfig(block.discipline);
+                    const Icon = config.icon;
+                    const status = getBlockStatus(block);
+                    return (
+                      <DraggableBlock key={block.id} block={block}>
+                        <div
+                          className={cn(
+                            "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer transition-all duration-200",
+                            config.badgeClass,
+                            status === "planned" && "opacity-80",
+                            status === "completed" && "opacity-100",
+                            status === "missed" && "border-l-2 border-destructive opacity-60"
+                          )}
+                          title={`${block.title} - Click to view details`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onBlockClick(block);
+                          }}
+                        >
+                          <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />
+                          <span className={cn(
+                            "font-semibold",
+                            status === "missed" && "line-through"
+                          )}>
+                            {formatDuration(block.duration)}
+                          </span>
+                          {status === "completed" && <Check className="h-1.5 w-1.5 text-emerald-600" />}
+                          {block.isFixed && status !== "completed" && <Lock className="h-1.5 w-1.5 opacity-60" />}
+                        </div>
+                      </DraggableBlock>
+                    );
+                  })}
+                  {dayBlocks.length > 3 && (
+                    <span className="text-[8px] text-muted-foreground">
+                      +{dayBlocks.length - 3} more
+                    </span>
+                  )}
+                </div>
               </div>
             </DroppableDay>
           );

@@ -1,4 +1,4 @@
-import { format, startOfWeek, addDays, isSameDay, isToday } from "date-fns";
+import { startOfWeek, addDays, isSameDay, isToday } from "date-fns";
 import { Trophy, Plus, Thermometer, AlertCircle, Plane } from "lucide-react";
 import { ExternalBlock } from "@/types/block";
 import { Race } from "@/types/race";
@@ -9,6 +9,7 @@ import { DraggableBlock } from "./DraggableBlock";
 import { DroppableDay } from "./DroppableDay";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toDateString, formatInTimezone } from "@/lib/dateUtils";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -64,7 +65,7 @@ export function WeekView({
     );
 
   const getStatusForDay = (day: Date) => {
-    const dateStr = format(day, "yyyy-MM-dd");
+    const dateStr = toDateString(day);
     return dayStatuses.find((s) => s.date === dateStr);
   };
 
@@ -76,7 +77,7 @@ export function WeekView({
         const focusPeriod = getFocusForDay(day);
         const dayStatus = getStatusForDay(day);
         const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
-        const dateStr = format(day, "yyyy-MM-dd");
+        const dateStr = toDateString(day);
         
         // Status color takes priority, otherwise use neutral background
         const bgClass = dayStatus?.status && dayStatus.status !== "normal"
@@ -93,65 +94,78 @@ export function WeekView({
               isToday(day) && "ring-2 ring-primary"
             )}
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <div
-                className="text-center cursor-pointer hover:opacity-70"
-                onClick={() => onDayStatusClick(day)}
-                title="Set day status"
-              >
-                <div className="text-[10px] md:text-xs text-muted-foreground uppercase flex items-center gap-1">
-                  {format(day, "EEE")}
-                  {StatusIcon && <StatusIcon className="h-2.5 w-2.5" />}
-                </div>
+            {/* Clickable area for adding workouts */}
+            <div 
+              className="flex-1 flex flex-col cursor-pointer"
+              onClick={() => onAddBlock(day)}
+            >
+              <div className="flex items-center justify-between mb-1.5">
                 <div
-                  className={cn(
-                    "text-sm md:text-lg font-semibold",
-                    isToday(day) && "text-primary"
-                  )}
+                  className="text-center cursor-pointer hover:opacity-70"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDayStatusClick(day);
+                  }}
+                  title="Set day status"
                 >
-                  {format(day, "d")}
+                  <div className="text-[10px] md:text-xs text-muted-foreground uppercase flex items-center gap-1">
+                    {formatInTimezone(day, "EEE")}
+                    {StatusIcon && <StatusIcon className="h-2.5 w-2.5" />}
+                  </div>
+                  <div
+                    className={cn(
+                      "text-sm md:text-lg font-semibold",
+                      isToday(day) && "text-primary"
+                    )}
+                  >
+                    {formatInTimezone(day, "d")}
+                  </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-50 hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddBlock(day);
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-50 hover:opacity-100"
-                onClick={() => onAddBlock(day)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
 
-            {/* Races */}
-            {dayRaces.map((race) => (
-              <div
-                key={race.id}
-                className={cn(
-                  "text-[10px] md:text-xs p-1 rounded mb-1 flex items-center gap-1",
-                  race.priority === "A"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                <Trophy className="h-2.5 w-2.5 flex-shrink-0" />
-                <span className="truncate">{race.name}</span>
-              </div>
-            ))}
-
-            {/* Blocks */}
-            <div className="flex-1 space-y-1">
-              {dayBlocks.map((block) => (
-                <DraggableBlock key={block.id} block={block}>
-                  <BlockCard
-                    block={block}
-                    onEdit={onEditBlock}
-                    onDelete={onDeleteBlock}
-                    onToggleComplete={onToggleComplete}
-                    onClick={onBlockClick}
-                    compact
-                  />
-                </DraggableBlock>
+              {/* Races */}
+              {dayRaces.map((race) => (
+                <div
+                  key={race.id}
+                  className={cn(
+                    "text-[10px] md:text-xs p-1 rounded mb-1 flex items-center gap-1",
+                    race.priority === "A"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Trophy className="h-2.5 w-2.5 flex-shrink-0" />
+                  <span className="truncate">{race.name}</span>
+                </div>
               ))}
+
+              {/* Blocks */}
+              <div className="flex-1 space-y-1" onClick={(e) => e.stopPropagation()}>
+                {dayBlocks.map((block) => (
+                  <DraggableBlock key={block.id} block={block}>
+                    <BlockCard
+                      block={block}
+                      onEdit={onEditBlock}
+                      onDelete={onDeleteBlock}
+                      onToggleComplete={onToggleComplete}
+                      onClick={onBlockClick}
+                      compact
+                    />
+                  </DraggableBlock>
+                ))}
+              </div>
             </div>
           </DroppableDay>
         );

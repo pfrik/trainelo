@@ -8,7 +8,7 @@ import {
   X,
   BarChart3,
 } from "lucide-react";
-import { format, addWeeks, subWeeks, addMonths, subMonths, parseISO } from "date-fns";
+import { addWeeks, subWeeks, addMonths, subMonths } from "date-fns";
 import { DndContext, DragEndEvent, DragOverlay, pointerWithin } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,7 +28,9 @@ import { useBlocks } from "@/hooks/useBlocks";
 import { useRaces } from "@/hooks/useRaces";
 import { useFocusPeriods } from "@/hooks/useFocusPeriods";
 import { useDayStatuses } from "@/hooks/useDayStatuses";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { toast } from "sonner";
+import { toDateString, formatCalendarHeader, formatInTimezone, fromDateString } from "@/lib/dateUtils";
 
 export default function Calendar() {
   const { blocks, loading: loadingBlocks, addBlock, updateBlock, deleteBlock, toggleComplete, updateDescription } = useBlocks();
@@ -48,6 +50,7 @@ export default function Calendar() {
   const [selectedBlock, setSelectedBlock] = useState<ExternalBlock | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeBlock, setActiveBlock] = useState<ExternalBlock | null>(null);
+  const [summaryCollapsed] = useLocalStorage("summary-collapsed", false);
 
   const loading = loadingBlocks || loadingRaces || loadingPeriods || loadingStatuses;
 
@@ -123,7 +126,7 @@ export default function Calendar() {
   };
 
   const getExistingStatus = (date: Date) => {
-    const dateStr = format(date, "yyyy-MM-dd");
+    const dateStr = toDateString(date);
     return dayStatuses.find((s) => s.date === dateStr);
   };
 
@@ -146,13 +149,13 @@ export default function Calendar() {
     
     if (!block || block.isFixed) return;
     
-    const currentDateStr = format(block.date, "yyyy-MM-dd");
+    const currentDateStr = toDateString(block.date);
     if (currentDateStr === targetDateStr) return;
     
-    const newDate = parseISO(targetDateStr);
+    const newDate = fromDateString(targetDateStr);
     
     await updateBlock(block.id, { ...block, date: newDate });
-    toast.success(`Workout moved to ${format(newDate, "EEEE, MMM d")}`);
+    toast.success(`Workout moved to ${formatInTimezone(newDate, "EEEE, d MMM")}`);
   };
 
   if (loading) {
@@ -183,7 +186,7 @@ export default function Calendar() {
               <AlertDescription className="flex items-center justify-between flex-1">
                 <span>
                   Plan adjustment needed — you've marked{" "}
-                  <strong>{format(new Date(status.date), "MMM d")}</strong> as{" "}
+                  <strong>{formatInTimezone(fromDateString(status.date), "d MMM")}</strong> as{" "}
                   <strong>{status.status}</strong>
                   {status.notes && ` (${status.notes})`}
                 </span>
@@ -244,9 +247,7 @@ export default function Calendar() {
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <span className="text-lg font-medium ml-2">
-                {view === "week"
-                  ? format(currentDate, "MMM d, yyyy")
-                  : format(currentDate, "MMMM yyyy")}
+                {formatCalendarHeader(currentDate, view)}
               </span>
             </div>
 
@@ -284,6 +285,7 @@ export default function Calendar() {
               onToggleComplete={toggleComplete}
               onBlockClick={handleBlockClick}
               onDayClick={handleDayStatusClick}
+              onAddBlock={handleAddBlock}
             />
           )}
 

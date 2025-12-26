@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ExternalBlock, BlockDiscipline, BlockSource, WorkoutType } from "@/types/block";
 import { toast } from "sonner";
-
+import { toDateString, fromDateString } from "@/lib/dateUtils";
 // Get dates for this week's seed blocks
 const getThisWeekDates = () => {
   const today = new Date();
@@ -98,7 +98,7 @@ export function useBlocks() {
       const mapped: ExternalBlock[] = (data || []).map((b) => ({
         id: b.id,
         title: b.title,
-        date: new Date(b.date),
+        date: fromDateString(b.date),
         startTime: b.start_time?.slice(0, 5) || "06:00",
         duration: b.duration_minutes || 60,
         discipline: (b.discipline || "Bike") as BlockDiscipline,
@@ -126,7 +126,7 @@ export function useBlocks() {
       await supabase.from("external_blocks").insert({
         user_id: user.id,
         title: block.title,
-        date: block.date.toISOString().split("T")[0],
+        date: toDateString(block.date),
         start_time: block.startTime,
         duration_minutes: block.duration,
         discipline: block.discipline,
@@ -150,7 +150,7 @@ export function useBlocks() {
     const { error } = await supabase.from("external_blocks").insert({
       user_id: user.id,
       title: block.title,
-      date: block.date.toISOString().split("T")[0],
+      date: toDateString(block.date),
       start_time: block.startTime,
       duration_minutes: block.duration,
       discipline: block.discipline,
@@ -175,7 +175,7 @@ export function useBlocks() {
       .from("external_blocks")
       .update({
         title: block.title,
-        date: block.date.toISOString().split("T")[0],
+        date: toDateString(block.date),
         start_time: block.startTime,
         duration_minutes: block.duration,
         discipline: block.discipline,

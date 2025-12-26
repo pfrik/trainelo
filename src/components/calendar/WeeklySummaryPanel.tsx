@@ -1,6 +1,6 @@
-import { useMemo, useEffect } from "react";
-import { format, startOfWeek, endOfWeek, differenceInWeeks } from "date-fns";
-import { Target, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
+import { useMemo } from "react";
+import { startOfWeek, endOfWeek, differenceInWeeks } from "date-fns";
+import { Target, CalendarDays, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExternalBlock } from "@/types/block";
@@ -8,6 +8,7 @@ import { Race } from "@/types/race";
 import { getSportConfig, SportType } from "@/lib/sportConfig";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { formatDateRange } from "@/lib/dateUtils";
 
 interface WeeklySummaryPanelProps {
   currentDate: Date;
@@ -84,8 +85,24 @@ export function WeeklySummaryPanel({
     ? differenceInWeeks(nextARace.date, new Date())
     : null;
 
+  // If collapsed, show a minimal side tab
+  if (collapsed) {
+    return (
+      <div 
+        className="flex items-center justify-center bg-card border border-border rounded-lg cursor-pointer hover:bg-accent/50 transition-all duration-300 p-2"
+        onClick={() => setCollapsed(false)}
+      >
+        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          <CalendarDays className="h-4 w-4" />
+          <span className="font-medium">Summary</span>
+          <ChevronRight className="h-4 w-4" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Card className="h-fit">
+    <Card className="h-fit transition-all duration-300">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
@@ -93,100 +110,96 @@ export function WeeklySummaryPanel({
               <CalendarDays className="h-4 w-4" />
               Summary
             </CardTitle>
-            {!collapsed && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d, yyyy")}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatDateRange(weekStart, weekEnd)}
+            </p>
           </div>
           <Button
             variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(!collapsed)}
-            className="h-6 w-6"
+            size="sm"
+            onClick={() => setCollapsed(true)}
+            className="h-6 px-2 text-xs text-muted-foreground"
           >
-            {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            Hide
           </Button>
         </div>
       </CardHeader>
-      {!collapsed && (
-        <CardContent className="space-y-4">
-          {/* Total Duration */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                Total Duration
-              </span>
-              <span className="text-lg font-semibold text-foreground">
-                {formatDurationHHMM(totalMinutes)}
-              </span>
-            </div>
-          </div>
-
-          {/* TSS Placeholder */}
-          <div className="flex items-center justify-between py-2 border-t border-border">
-            <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Target className="h-3 w-3" />
-              Training Stress
+      <CardContent className="space-y-4">
+        {/* Total Duration */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">
+              Total Duration
             </span>
-            <span className="text-sm font-medium text-muted-foreground">
-              142 TSS
+            <span className="text-lg font-semibold text-foreground">
+              {formatDurationHHMM(totalMinutes)}
             </span>
           </div>
+        </div>
 
-          {/* Sport Breakdown */}
-          {sportBreakdown.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-border">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                By Sport
-              </span>
-              <div className="space-y-2">
-                {sportBreakdown.map(({ sport, minutes, count }) => {
-                  const config = getSportConfig(sport);
-                  const Icon = config.icon;
-                  return (
-                    <div
-                      key={sport}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <div className={cn("flex items-center gap-2", config.textClass)}>
-                        <Icon className="h-4 w-4" />
-                        <span className="font-medium">{sport}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({count})
-                        </span>
-                      </div>
-                      <span className="font-mono text-xs">
-                        {formatDurationLong(minutes)}
+        {/* TSS Placeholder */}
+        <div className="flex items-center justify-between py-2 border-t border-border">
+          <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+            <Target className="h-3 w-3" />
+            Training Stress
+          </span>
+          <span className="text-sm font-medium text-muted-foreground">
+            142 TSS
+          </span>
+        </div>
+
+        {/* Sport Breakdown */}
+        {sportBreakdown.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-border">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">
+              By Sport
+            </span>
+            <div className="space-y-2">
+              {sportBreakdown.map(({ sport, minutes, count }) => {
+                const config = getSportConfig(sport);
+                const Icon = config.icon;
+                return (
+                  <div
+                    key={sport}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div className={cn("flex items-center gap-2", config.textClass)}>
+                      <Icon className="h-4 w-4" />
+                      <span className="font-medium">{sport}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({count})
                       </span>
                     </div>
-                  );
-                })}
-              </div>
+                    <span className="font-mono text-xs">
+                      {formatDurationLong(minutes)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {weekBlocks.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4">
-              No workouts scheduled
-            </div>
-          )}
+        {weekBlocks.length === 0 && (
+          <div className="text-sm text-muted-foreground text-center py-4">
+            No workouts scheduled
+          </div>
+        )}
 
-          {/* Event Countdown */}
-          {nextARace && weeksToARace !== null && (
-            <div className="pt-2 border-t border-border">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  {nextARace.name}
-                </span>
-                <span className="text-xs font-medium text-primary">
-                  {weeksToARace} weeks
-                </span>
-              </div>
+        {/* Event Countdown */}
+        {nextARace && weeksToARace !== null && (
+          <div className="pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {nextARace.name}
+              </span>
+              <span className="text-xs font-medium text-primary">
+                {weeksToARace} weeks
+              </span>
             </div>
-          )}
-        </CardContent>
-      )}
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }
