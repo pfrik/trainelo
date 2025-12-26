@@ -35,7 +35,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { ExternalBlock, BlockDiscipline, BlockSource } from "@/types/block";
+import { ExternalBlock, BlockDiscipline, BlockSource, WorkoutType } from "@/types/block";
 
 const blockFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -45,6 +45,7 @@ const blockFormSchema = z.object({
   discipline: z.enum(["Bike", "Run", "Swim", "Strength"]),
   source: z.enum(["TrainerRoad", "Coach", "Manual"]),
   isFixed: z.boolean(),
+  workoutType: z.enum(["Easy", "Tempo", "Intervals", "Long", "Recovery"]).optional(),
 });
 
 type BlockFormData = z.infer<typeof blockFormSchema>;
@@ -74,6 +75,7 @@ export function ExternalBlockFormModal({
       discipline: "Bike",
       source: "TrainerRoad",
       isFixed: true,
+      workoutType: undefined,
     },
   });
 
@@ -88,6 +90,7 @@ export function ExternalBlockFormModal({
           discipline: block.discipline,
           source: block.source,
           isFixed: block.isFixed,
+          workoutType: block.workoutType,
         });
       } else {
         form.reset({
@@ -98,6 +101,7 @@ export function ExternalBlockFormModal({
           discipline: "Bike",
           source: "TrainerRoad",
           isFixed: true,
+          workoutType: undefined,
         });
       }
     }
@@ -112,6 +116,8 @@ export function ExternalBlockFormModal({
       discipline: data.discipline as BlockDiscipline,
       source: data.source as BlockSource,
       isFixed: data.isFixed,
+      completed: block?.completed ?? false,
+      workoutType: data.workoutType as WorkoutType | undefined,
     });
     onOpenChange(false);
   };
@@ -256,26 +262,48 @@ export function ExternalBlockFormModal({
 
               <FormField
                 control={form.control}
-                name="isFixed"
+                name="workoutType"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Fixed Block</FormLabel>
-                    <FormControl>
-                      <div className="flex items-center gap-2 h-10">
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {field.value ? "Locked" : "Flexible"}
-                        </span>
-                      </div>
-                    </FormControl>
+                  <FormItem>
+                    <FormLabel>Workout Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Easy">Easy</SelectItem>
+                        <SelectItem value="Tempo">Tempo</SelectItem>
+                        <SelectItem value="Intervals">Intervals</SelectItem>
+                        <SelectItem value="Long">Long</SelectItem>
+                        <SelectItem value="Recovery">Recovery</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="isFixed"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center gap-3">
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormLabel className="!mt-0">
+                    Fixed Block {field.value ? "(Locked)" : "(Flexible)"}
+                  </FormLabel>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -27,7 +27,7 @@ import { useFocusPeriods } from "@/hooks/useFocusPeriods";
 import { useDayStatuses } from "@/hooks/useDayStatuses";
 
 export default function Calendar() {
-  const { blocks, loading: loadingBlocks, addBlock, updateBlock, deleteBlock } = useBlocks();
+  const { blocks, loading: loadingBlocks, addBlock, updateBlock, deleteBlock, toggleComplete } = useBlocks();
   const { races, loading: loadingRaces } = useRaces();
   const { focusPeriods, loading: loadingPeriods } = useFocusPeriods();
   const { dayStatuses, loading: loadingStatuses, saveStatus, clearStatus } = useDayStatuses();
@@ -221,6 +221,7 @@ export default function Calendar() {
             dayStatuses={dayStatuses}
             onEditBlock={handleEditBlock}
             onDeleteBlock={handleDeleteBlock}
+            onToggleComplete={toggleComplete}
             onAddBlock={handleAddBlock}
             onDayStatusClick={handleDayStatusClick}
           />
@@ -232,6 +233,7 @@ export default function Calendar() {
             focusPeriods={focusPeriods}
             dayStatuses={dayStatuses}
             onEditBlock={handleEditBlock}
+            onToggleComplete={toggleComplete}
             onDayClick={handleDayStatusClick}
           />
         )}

@@ -16,6 +16,7 @@ interface WeekViewProps {
   dayStatuses: DayStatus[];
   onEditBlock: (block: ExternalBlock) => void;
   onDeleteBlock: (id: string) => void;
+  onToggleComplete: (id: string) => void;
   onAddBlock: (date: Date) => void;
   onDayStatusClick: (date: Date) => void;
 }
@@ -47,6 +48,7 @@ export function WeekView({
   dayStatuses,
   onEditBlock,
   onDeleteBlock,
+  onToggleComplete,
   onAddBlock,
   onDayStatusClick,
 }: WeekViewProps) {
@@ -147,6 +149,7 @@ export function WeekView({
                   block={block}
                   onEdit={onEditBlock}
                   onDelete={onDeleteBlock}
+                  onToggleComplete={onToggleComplete}
                   compact
                 />
               ))}

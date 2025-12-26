@@ -8,8 +8,10 @@ import {
   isSameMonth,
   isSameDay,
   isToday,
+  isPast,
+  startOfDay,
 } from "date-fns";
-import { Trophy, Lock, Thermometer, AlertCircle, Plane } from "lucide-react";
+import { Trophy, Lock, Check, Thermometer, AlertCircle, Plane } from "lucide-react";
 import { ExternalBlock } from "@/types/block";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
@@ -24,7 +26,20 @@ interface MonthViewProps {
   focusPeriods: FocusPeriod[];
   dayStatuses: DayStatus[];
   onEditBlock: (block: ExternalBlock) => void;
+  onToggleComplete: (id: string) => void;
   onDayClick: (date: Date) => void;
+}
+
+function getBlockStatus(block: ExternalBlock): "planned" | "completed" | "missed" {
+  if (block.completed) return "completed";
+  
+  const blockDate = startOfDay(block.date);
+  const today = startOfDay(new Date());
+  
+  if (isPast(blockDate) && !isToday(block.date)) {
+    return "missed";
+  }
+  return "planned";
 }
 
 const focusColors: Record<string, string> = {
@@ -53,6 +68,7 @@ export function MonthView({
   focusPeriods,
   dayStatuses,
   onEditBlock,
+  onToggleComplete,
   onDayClick,
 }: MonthViewProps) {
   const monthStart = startOfMonth(currentDate);
@@ -153,22 +169,32 @@ export function MonthView({
                 {dayBlocks.slice(0, 3).map((block) => {
                   const config = getSportConfig(block.discipline);
                   const Icon = config.icon;
+                  const status = getBlockStatus(block);
                   return (
                     <div
                       key={block.id}
                       className={cn(
-                        "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5",
-                        config.badgeClass
+                        "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer transition-all duration-200",
+                        config.badgeClass,
+                        status === "planned" && "opacity-80",
+                        status === "completed" && "opacity-100",
+                        status === "missed" && "border-l-2 border-destructive opacity-60"
                       )}
-                      title={block.title}
+                      title={`${block.title} - Click to toggle complete`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        onEditBlock(block);
+                        onToggleComplete(block.id);
                       }}
                     >
                       <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />
-                      <span className="font-semibold">{formatDuration(block.duration)}</span>
-                      {block.isFixed && <Lock className="h-1.5 w-1.5 opacity-60" />}
+                      <span className={cn(
+                        "font-semibold",
+                        status === "missed" && "line-through"
+                      )}>
+                        {formatDuration(block.duration)}
+                      </span>
+                      {status === "completed" && <Check className="h-1.5 w-1.5 text-emerald-600" />}
+                      {block.isFixed && status !== "completed" && <Lock className="h-1.5 w-1.5 opacity-60" />}
                     </div>
                   );
                 })}
