@@ -48,6 +48,7 @@ export type Database = {
       }
       external_blocks: {
         Row: {
+          completed: boolean | null
           created_at: string | null
           date: string
           discipline: string | null
@@ -58,8 +59,10 @@ export type Database = {
           start_time: string | null
           title: string
           user_id: string
+          workout_type: string | null
         }
         Insert: {
+          completed?: boolean | null
           created_at?: string | null
           date: string
           discipline?: string | null
@@ -70,8 +73,10 @@ export type Database = {
           start_time?: string | null
           title: string
           user_id: string
+          workout_type?: string | null
         }
         Update: {
+          completed?: boolean | null
           created_at?: string | null
           date?: string
           discipline?: string | null
@@ -82,6 +87,7 @@ export type Database = {
           start_time?: string | null
           title?: string
           user_id?: string
+          workout_type?: string | null
         }
         Relationships: [
           {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ExternalBlock, BlockDiscipline, BlockSource } from "@/types/block";
+import { ExternalBlock, BlockDiscipline, BlockSource, WorkoutType } from "@/types/block";
 import { toast } from "sonner";
 
 // Get dates for this week's seed blocks
@@ -29,6 +29,8 @@ const getSeedBlocks = (): Omit<ExternalBlock, "id">[] => {
       discipline: "Bike",
       source: "TrainerRoad",
       isFixed: true,
+      completed: false,
+      workoutType: "Easy",
     },
     {
       title: "TR: Geiger",
@@ -38,6 +40,8 @@ const getSeedBlocks = (): Omit<ExternalBlock, "id">[] => {
       discipline: "Bike",
       source: "TrainerRoad",
       isFixed: true,
+      completed: false,
+      workoutType: "Intervals",
     },
     {
       title: "TR: Tallac",
@@ -47,6 +51,8 @@ const getSeedBlocks = (): Omit<ExternalBlock, "id">[] => {
       discipline: "Bike",
       source: "TrainerRoad",
       isFixed: true,
+      completed: false,
+      workoutType: "Long",
     },
   ];
 };
@@ -98,6 +104,8 @@ export function useBlocks() {
         discipline: (b.discipline || "Bike") as BlockDiscipline,
         source: mapSource(b.source),
         isFixed: b.is_fixed ?? true,
+        completed: b.completed ?? false,
+        workoutType: (b.workout_type as WorkoutType) || undefined,
       }));
       setBlocks(mapped);
       
@@ -123,6 +131,8 @@ export function useBlocks() {
         discipline: block.discipline,
         source: toDbSource(block.source),
         is_fixed: block.isFixed,
+        completed: block.completed,
+        workout_type: block.workoutType,
       });
     }
     
@@ -145,6 +155,8 @@ export function useBlocks() {
       discipline: block.discipline,
       source: toDbSource(block.source),
       is_fixed: block.isFixed,
+      completed: block.completed,
+      workout_type: block.workoutType,
     });
 
     if (error) {
@@ -168,6 +180,8 @@ export function useBlocks() {
         discipline: block.discipline,
         source: toDbSource(block.source),
         is_fixed: block.isFixed,
+        completed: block.completed,
+        workout_type: block.workoutType,
       })
       .eq("id", id);
 
@@ -192,5 +206,27 @@ export function useBlocks() {
     }
   };
 
-  return { blocks, loading, addBlock, updateBlock, deleteBlock, refetch: fetchBlocks };
+  const toggleComplete = async (id: string) => {
+    if (!user) return;
+    
+    const block = blocks.find(b => b.id === id);
+    if (!block) return;
+
+    const { error } = await supabase
+      .from("external_blocks")
+      .update({ completed: !block.completed })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error toggling completion:", error);
+      toast.error("Failed to update workout status");
+    } else {
+      // Optimistic update for snappy UI
+      setBlocks(prev => prev.map(b => 
+        b.id === id ? { ...b, completed: !b.completed } : b
+      ));
+    }
+  };
+
+  return { blocks, loading, addBlock, updateBlock, deleteBlock, toggleComplete, refetch: fetchBlocks };
 }
