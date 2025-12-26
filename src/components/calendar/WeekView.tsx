@@ -24,13 +24,6 @@ interface WeekViewProps {
   onDayStatusClick: (date: Date) => void;
 }
 
-const focusColors: Record<string, string> = {
-  Run: "bg-green-500/10",
-  Bike: "bg-blue-500/10",
-  Swim: "bg-cyan-500/10",
-  Balanced: "bg-purple-500/10",
-};
-
 const statusColors: Record<string, string> = {
   sick: "bg-red-500/20 border-red-500/50",
   injured: "bg-orange-500/20 border-orange-500/50",
@@ -85,12 +78,10 @@ export function WeekView({
         const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
         const dateStr = format(day, "yyyy-MM-dd");
         
-        // Status color takes priority over focus color
+        // Status color takes priority, otherwise use neutral background
         const bgClass = dayStatus?.status && dayStatus.status !== "normal"
           ? statusColors[dayStatus.status]
-          : focusPeriod
-          ? focusColors[focusPeriod.primaryDiscipline] || ""
-          : "";
+          : "bg-card";
 
         return (
           <DroppableDay
@@ -148,7 +139,7 @@ export function WeekView({
             ))}
 
             {/* Blocks */}
-            <div className="flex-1 space-y-1 overflow-y-auto">
+            <div className="flex-1 space-y-1">
               {dayBlocks.map((block) => (
                 <DraggableBlock key={block.id} block={block}>
                   <BlockCard
