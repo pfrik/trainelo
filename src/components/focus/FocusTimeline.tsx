@@ -1,9 +1,10 @@
-import { format, differenceInDays, eachMonthOfInterval, startOfMonth, isSameMonth } from "date-fns";
+import { differenceInDays, eachMonthOfInterval, startOfMonth, isSameMonth } from "date-fns";
 import { Pencil, Trash2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { FocusPeriod } from "@/types/focus";
 import type { Race } from "@/types/race";
+import { formatDisplayDate, formatInTimezone } from "@/lib/dateUtils";
 
 interface FocusTimelineProps {
   periods: FocusPeriod[];
@@ -76,7 +77,7 @@ export function FocusTimeline({ periods, races, onEdit, onDelete }: FocusTimelin
                 className="text-xs text-muted-foreground truncate"
                 style={{ width: `${width}%` }}
               >
-                {format(month, "MMM yy")}
+                {formatInTimezone(month, "MMM yy")}
               </div>
             );
           })}
@@ -95,7 +96,7 @@ export function FocusTimeline({ periods, races, onEdit, onDelete }: FocusTimelin
                 left: `${getPosition(period.startDate)}%`,
                 width: `${getWidth(period.startDate, period.endDate)}%`,
               }}
-              title={`${period.name}: ${format(new Date(period.startDate), "MMM d")} - ${format(new Date(period.endDate), "MMM d, yyyy")}`}
+              title={`${period.name}: ${formatDisplayDate(new Date(period.startDate))} - ${formatDisplayDate(new Date(period.endDate))}`}
             >
               <span className="text-xs font-medium text-primary-foreground truncate">
                 {period.name}
@@ -167,7 +168,7 @@ export function FocusTimeline({ periods, races, onEdit, onDelete }: FocusTimelin
                   <h3 className="font-medium text-foreground">{period.name}</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(period.startDate), "MMM d, yyyy")} — {format(new Date(period.endDate), "MMM d, yyyy")}
+                  {formatDisplayDate(new Date(period.startDate))} — {formatDisplayDate(new Date(period.endDate))}
                 </p>
               </div>
               <div className="flex gap-1">

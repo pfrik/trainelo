@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
+import { formatDisplayDate } from "@/lib/dateUtils";
 import {
   Dialog,
   DialogContent,
@@ -161,7 +161,7 @@ export function ExternalBlockFormModal({
                               !field.value && "text-muted-foreground"
                             )}
                           >
-                            {field.value ? format(field.value, "MMM d") : "Pick date"}
+                            {field.value ? formatDisplayDate(field.value) : "Pick date"}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>

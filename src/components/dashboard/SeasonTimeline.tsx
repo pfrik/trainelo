@@ -1,11 +1,12 @@
 import { useRef } from "react";
-import { format, differenceInDays, addMonths, startOfMonth } from "date-fns";
+import { differenceInDays, addMonths, startOfMonth } from "date-fns";
 import { Trophy, ChevronLeft, ChevronRight } from "lucide-react";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
 import { Phase, phaseColors, phaseLabels } from "@/types/phase";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatInTimezone, formatDisplayDate } from "@/lib/dateUtils";
 
 interface SeasonTimelineProps {
   races: Race[];
@@ -86,7 +87,7 @@ export function SeasonTimeline({ races, focusPeriods, phases, onRaceClick }: Sea
                 className="text-[10px] text-muted-foreground border-l border-border pl-1"
                 style={{ width: `${100 / months.length}%` }}
               >
-                {format(month, "MMM yy")}
+                {formatInTimezone(month, "MMM yy")}
               </div>
             ))}
           </div>
@@ -119,7 +120,7 @@ export function SeasonTimeline({ races, focusPeriods, phases, onRaceClick }: Sea
                   left: `${getPosition(phase.startDate)}%`,
                   width: `${getWidth(phase.startDate, phase.endDate)}%`,
                 }}
-                title={`${phase.name}: ${format(phase.startDate, "MMM d")} - ${format(phase.endDate, "MMM d")}`}
+                title={`${phase.name}: ${formatInTimezone(phase.startDate, "d MMM")} - ${formatInTimezone(phase.endDate, "d MMM")}`}
               >
                 {getWidth(phase.startDate, phase.endDate) > 5 && phaseLabels[phase.type]}
               </div>
@@ -137,7 +138,7 @@ export function SeasonTimeline({ races, focusPeriods, phases, onRaceClick }: Sea
                 )}
                 style={{ left: `${getPosition(race.date)}%`, transform: "translateX(-50%)" }}
                 onClick={() => onRaceClick?.(race)}
-                title={`${race.name} - ${format(race.date, "MMM d, yyyy")}`}
+                title={`${race.name} - ${formatDisplayDate(race.date)}`}
               >
                 <div
                   className={cn(

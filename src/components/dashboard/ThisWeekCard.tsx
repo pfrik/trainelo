@@ -1,10 +1,11 @@
-import { format, startOfWeek, endOfWeek, isSameDay } from "date-fns";
+import { startOfWeek, endOfWeek, isSameDay } from "date-fns";
 import { Lock, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExternalBlock } from "@/types/block";
 import { cn } from "@/lib/utils";
 import { getSportConfig, formatDuration } from "@/lib/sportConfig";
+import { formatInTimezone } from "@/lib/dateUtils";
 
 interface ThisWeekCardProps {
   blocks: ExternalBlock[];
@@ -60,7 +61,7 @@ export function ThisWeekCard({ blocks, onMarkDayStatus }: ThisWeekCardProps) {
                         {block.title}
                       </div>
                       <div className="text-[10px] text-muted-foreground/70">
-                        {format(block.date, "EEE")} • {block.startTime}
+                        {formatInTimezone(block.date, "EEE")} • {block.startTime}
                       </div>
                     </div>
                     {isSameDay(block.date, today) && (

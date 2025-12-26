@@ -1,10 +1,10 @@
-import { format } from "date-fns";
 import { Calendar, MapPin, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PriorityBadge } from "./PriorityBadge";
 import { cn } from "@/lib/utils";
 import type { Race } from "@/types/race";
+import { formatDisplayDate } from "@/lib/dateUtils";
 
 interface RaceCardProps {
   race: Race;
@@ -40,7 +40,7 @@ export function RaceCard({ race, onEdit, onDelete }: RaceCardProps) {
               </h3>
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Calendar className="h-3 w-3" />
-                {format(race.date, "MMM d, yyyy")}
+                {formatDisplayDate(race.date)}
               </div>
             </div>
           </div>
