@@ -16,6 +16,8 @@ import { ExternalBlock } from "@/types/block";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
 import { DayStatus } from "@/types/dayStatus";
+import { DraggableBlock } from "./DraggableBlock";
+import { DroppableDay } from "./DroppableDay";
 import { cn } from "@/lib/utils";
 import { getSportConfig, formatDuration } from "@/lib/sportConfig";
 
@@ -120,6 +122,7 @@ export function MonthView({
           const focusPeriod = getFocusForDay(d);
           const dayStatus = getStatusForDay(d);
           const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
+          const dateStr = format(d, "yyyy-MM-dd");
           
           // Status color takes priority over focus color
           const bgClass = dayStatus?.status && dayStatus.status !== "normal"
@@ -130,9 +133,9 @@ export function MonthView({
           const inMonth = isSameMonth(d, currentDate);
 
           return (
-            <div
+            <DroppableDay
               key={d.toISOString()}
-              onClick={() => onDayClick(d)}
+              dateStr={dateStr}
               className={cn(
                 "min-h-[80px] md:min-h-[100px] rounded border border-border p-1 cursor-pointer hover:bg-accent/50 transition-colors",
                 bgClass,
@@ -141,6 +144,7 @@ export function MonthView({
               )}
             >
               <div
+                onClick={() => onDayClick(d)}
                 className={cn(
                   "text-xs md:text-sm font-medium mb-1 flex items-center gap-1",
                   isToday(d) && "text-primary"
@@ -173,31 +177,32 @@ export function MonthView({
                   const Icon = config.icon;
                   const status = getBlockStatus(block);
                   return (
-                    <div
-                      key={block.id}
-                      className={cn(
-                        "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer transition-all duration-200",
-                        config.badgeClass,
-                        status === "planned" && "opacity-80",
-                        status === "completed" && "opacity-100",
-                        status === "missed" && "border-l-2 border-destructive opacity-60"
-                      )}
-                      title={`${block.title} - Click to view details`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onBlockClick(block);
-                      }}
-                    >
-                      <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />
-                      <span className={cn(
-                        "font-semibold",
-                        status === "missed" && "line-through"
-                      )}>
-                        {formatDuration(block.duration)}
-                      </span>
-                      {status === "completed" && <Check className="h-1.5 w-1.5 text-emerald-600" />}
-                      {block.isFixed && status !== "completed" && <Lock className="h-1.5 w-1.5 opacity-60" />}
-                    </div>
+                    <DraggableBlock key={block.id} block={block}>
+                      <div
+                        className={cn(
+                          "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer transition-all duration-200",
+                          config.badgeClass,
+                          status === "planned" && "opacity-80",
+                          status === "completed" && "opacity-100",
+                          status === "missed" && "border-l-2 border-destructive opacity-60"
+                        )}
+                        title={`${block.title} - Click to view details`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onBlockClick(block);
+                        }}
+                      >
+                        <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />
+                        <span className={cn(
+                          "font-semibold",
+                          status === "missed" && "line-through"
+                        )}>
+                          {formatDuration(block.duration)}
+                        </span>
+                        {status === "completed" && <Check className="h-1.5 w-1.5 text-emerald-600" />}
+                        {block.isFixed && status !== "completed" && <Lock className="h-1.5 w-1.5 opacity-60" />}
+                      </div>
+                    </DraggableBlock>
                   );
                 })}
                 {dayBlocks.length > 3 && (
@@ -206,7 +211,7 @@ export function MonthView({
                   </span>
                 )}
               </div>
-            </div>
+            </DroppableDay>
           );
         })}
       </div>

@@ -5,6 +5,8 @@ import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
 import { DayStatus } from "@/types/dayStatus";
 import { BlockCard } from "./BlockCard";
+import { DraggableBlock } from "./DraggableBlock";
+import { DroppableDay } from "./DroppableDay";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +83,7 @@ export function WeekView({
         const focusPeriod = getFocusForDay(day);
         const dayStatus = getStatusForDay(day);
         const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
+        const dateStr = format(day, "yyyy-MM-dd");
         
         // Status color takes priority over focus color
         const bgClass = dayStatus?.status && dayStatus.status !== "normal"
@@ -90,8 +93,9 @@ export function WeekView({
           : "";
 
         return (
-          <div
+          <DroppableDay
             key={day.toISOString()}
+            dateStr={dateStr}
             className={cn(
               "min-h-[140px] md:min-h-[180px] rounded-lg border border-border p-1.5 md:p-2 flex flex-col",
               bgClass,
@@ -146,18 +150,19 @@ export function WeekView({
             {/* Blocks */}
             <div className="flex-1 space-y-1 overflow-y-auto">
               {dayBlocks.map((block) => (
-                <BlockCard
-                  key={block.id}
-                  block={block}
-                  onEdit={onEditBlock}
-                  onDelete={onDeleteBlock}
-                  onToggleComplete={onToggleComplete}
-                  onClick={onBlockClick}
-                  compact
-                />
+                <DraggableBlock key={block.id} block={block}>
+                  <BlockCard
+                    block={block}
+                    onEdit={onEditBlock}
+                    onDelete={onDeleteBlock}
+                    onToggleComplete={onToggleComplete}
+                    onClick={onBlockClick}
+                    compact
+                  />
+                </DraggableBlock>
               ))}
             </div>
-          </div>
+          </DroppableDay>
         );
       })}
     </div>
