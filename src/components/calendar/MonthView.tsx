@@ -45,13 +45,6 @@ function getBlockStatus(block: ExternalBlock): "planned" | "completed" | "missed
   return "planned";
 }
 
-const focusColors: Record<string, string> = {
-  Run: "bg-green-500/10",
-  Bike: "bg-blue-500/10",
-  Swim: "bg-cyan-500/10",
-  Balanced: "bg-purple-500/10",
-};
-
 const statusColors: Record<string, string> = {
   sick: "bg-red-500/20 border-red-500/50",
   injured: "bg-orange-500/20 border-orange-500/50",
@@ -93,9 +86,6 @@ export function MonthView({
   const getRacesForDay = (d: Date) =>
     races.filter((race) => isSameDay(race.date, d));
 
-  const getFocusForDay = (d: Date) =>
-    focusPeriods.find((period) => d >= period.startDate && d <= period.endDate);
-
   const getStatusForDay = (d: Date) => {
     const dateStr = format(d, "yyyy-MM-dd");
     return dayStatuses.find((s) => s.date === dateStr);
@@ -119,17 +109,14 @@ export function MonthView({
         {days.map((d) => {
           const dayBlocks = getBlocksForDay(d);
           const dayRaces = getRacesForDay(d);
-          const focusPeriod = getFocusForDay(d);
           const dayStatus = getStatusForDay(d);
           const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
           const dateStr = format(d, "yyyy-MM-dd");
           
-          // Status color takes priority over focus color
+          // Status color takes priority, otherwise use neutral card background
           const bgClass = dayStatus?.status && dayStatus.status !== "normal"
             ? statusColors[dayStatus.status]
-            : focusPeriod
-            ? focusColors[focusPeriod.primaryDiscipline] || ""
-            : "";
+            : "bg-card";
           const inMonth = isSameMonth(d, currentDate);
 
           return (
