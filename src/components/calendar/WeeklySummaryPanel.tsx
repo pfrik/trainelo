@@ -3,7 +3,7 @@ import { startOfWeek, endOfWeek, differenceInWeeks } from "date-fns";
 import { Target, CalendarDays, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalBlock } from "@/types/block";
+import { PlannedWorkout } from "@/types/plannedWorkout";
 import { Race } from "@/types/race";
 import { getSportConfig, SportType } from "@/lib/sportConfig";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ import { formatDateRange } from "@/lib/dateUtils";
 
 interface WeeklySummaryPanelProps {
   currentDate: Date;
-  blocks: ExternalBlock[];
+  workouts: PlannedWorkout[];
   races: Race[];
 }
 
@@ -33,44 +33,44 @@ function formatDurationLong(totalMinutes: number): string {
 
 export function WeeklySummaryPanel({
   currentDate,
-  blocks,
+  workouts,
   races,
 }: WeeklySummaryPanelProps) {
   const [collapsed, setCollapsed] = useLocalStorage("summary-collapsed", false);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
 
-  // Filter blocks for current week
-  const weekBlocks = useMemo(() => {
-    return blocks.filter((b) => b.date >= weekStart && b.date <= weekEnd);
-  }, [blocks, weekStart, weekEnd]);
+  // Filter workouts for current week
+  const weekWorkouts = useMemo(() => {
+    return workouts.filter((w) => w.date >= weekStart && w.date <= weekEnd);
+  }, [workouts, weekStart, weekEnd]);
 
   // Calculate totals
   const totalMinutes = useMemo(() => {
-    return weekBlocks.reduce((sum, b) => sum + b.duration, 0);
-  }, [weekBlocks]);
+    return weekWorkouts.reduce((sum, w) => sum + w.duration, 0);
+  }, [weekWorkouts]);
 
-  // Group by sport
+  // Group by workout type
   const sportBreakdown = useMemo(() => {
     const breakdown: Record<string, { minutes: number; count: number }> = {};
-    
-    weekBlocks.forEach((block) => {
-      const sport = block.discipline || "Other";
-      if (!breakdown[sport]) {
-        breakdown[sport] = { minutes: 0, count: 0 };
+
+    weekWorkouts.forEach((workout) => {
+      const type = workout.workoutType || "Other";
+      if (!breakdown[type]) {
+        breakdown[type] = { minutes: 0, count: 0 };
       }
-      breakdown[sport].minutes += block.duration;
-      breakdown[sport].count += 1;
+      breakdown[type].minutes += workout.duration;
+      breakdown[type].count += 1;
     });
 
-    // Sort by SPORT_ORDER
-    return SPORT_ORDER
-      .filter((sport) => breakdown[sport])
-      .map((sport) => ({
-        sport,
-        ...breakdown[sport],
-      }));
-  }, [weekBlocks]);
+    // Return all workout types found
+    return Object.entries(breakdown)
+      .map(([type, data]) => ({
+        sport: type,
+        ...data,
+      }))
+      .sort((a, b) => b.minutes - a.minutes); // Sort by total minutes descending
+  }, [weekWorkouts]);
 
   // Find next A-race
   const nextARace = useMemo(() => {
@@ -152,20 +152,17 @@ export function WeeklySummaryPanel({
         {sportBreakdown.length > 0 && (
           <div className="space-y-2 pt-2 border-t border-border">
             <span className="text-xs text-muted-foreground uppercase tracking-wide">
-              By Sport
+              By Type
             </span>
             <div className="space-y-2">
               {sportBreakdown.map(({ sport, minutes, count }) => {
-                const config = getSportConfig(sport);
-                const Icon = config.icon;
                 return (
                   <div
                     key={sport}
                     className="flex items-center justify-between text-sm"
                   >
-                    <div className={cn("flex items-center gap-2", config.textClass)}>
-                      <Icon className="h-4 w-4" />
-                      <span className="font-medium">{sport}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium capitalize">{sport}</span>
                       <span className="text-xs text-muted-foreground">
                         ({count})
                       </span>
@@ -180,7 +177,7 @@ export function WeeklySummaryPanel({
           </div>
         )}
 
-        {weekBlocks.length === 0 && (
+        {weekWorkouts.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-4">
             No workouts scheduled
           </div>

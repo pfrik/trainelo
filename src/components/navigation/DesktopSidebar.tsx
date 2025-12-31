@@ -1,10 +1,11 @@
-import { Home, Trophy, Target, Calendar, Settings, ChevronLeft, ChevronRight } from "lucide-react";
+import { Home, Trophy, Target, Calendar, Settings, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 const navItems = [
+  { to: "/today", label: "Today", icon: Zap },
   { to: "/dashboard", label: "Dashboard", icon: Home },
   { to: "/races", label: "Races", icon: Trophy },
   { to: "/focus", label: "Focus", icon: Target },

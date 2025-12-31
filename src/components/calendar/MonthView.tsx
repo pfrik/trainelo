@@ -11,11 +11,11 @@ import {
   startOfDay,
 } from "date-fns";
 import { Trophy, Lock, Check, Thermometer, AlertCircle, Plane } from "lucide-react";
-import { ExternalBlock } from "@/types/block";
+import { PlannedWorkout } from "@/types/plannedWorkout";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
 import { DayStatus } from "@/types/dayStatus";
-import { DraggableBlock } from "./DraggableBlock";
+import { DraggableWorkout } from "./DraggableWorkout";
 import { DroppableDay } from "./DroppableDay";
 import { cn } from "@/lib/utils";
 import { getSportConfig, formatDuration } from "@/lib/sportConfig";
@@ -23,28 +23,17 @@ import { toDateString, formatInTimezone } from "@/lib/dateUtils";
 
 interface MonthViewProps {
   currentDate: Date;
-  blocks: ExternalBlock[];
+  workouts: PlannedWorkout[];
   races: Race[];
   focusPeriods: FocusPeriod[];
   dayStatuses: DayStatus[];
-  onEditBlock: (block: ExternalBlock) => void;
-  onToggleComplete: (id: string) => void;
-  onBlockClick: (block: ExternalBlock) => void;
+  onEditWorkout: (workout: PlannedWorkout) => void;
+  onWorkoutClick: (workout: PlannedWorkout) => void;
   onDayClick: (date: Date) => void;
-  onAddBlock: (date: Date) => void;
+  onAddWorkout: (date: Date) => void;
 }
 
-function getBlockStatus(block: ExternalBlock): "planned" | "completed" | "missed" {
-  if (block.completed) return "completed";
-  
-  const blockDate = startOfDay(block.date);
-  const today = startOfDay(new Date());
-  
-  if (isPast(blockDate) && !isToday(block.date)) {
-    return "missed";
-  }
-  return "planned";
-}
+// TODO: Add workout status tracking when workout completion is implemented
 
 const statusColors: Record<string, string> = {
   sick: "bg-red-500/20 border-red-500/50",
@@ -60,15 +49,14 @@ const statusIcons: Record<string, typeof Thermometer> = {
 
 export function MonthView({
   currentDate,
-  blocks,
+  workouts,
   races,
   focusPeriods,
   dayStatuses,
-  onEditBlock,
-  onToggleComplete,
-  onBlockClick,
+  onEditWorkout,
+  onWorkoutClick,
   onDayClick,
-  onAddBlock,
+  onAddWorkout,
 }: MonthViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -82,8 +70,8 @@ export function MonthView({
     day = addDays(day, 1);
   }
 
-  const getBlocksForDay = (d: Date) =>
-    blocks.filter((block) => isSameDay(block.date, d));
+  const getWorkoutsForDay = (d: Date) =>
+    workouts.filter((workout) => isSameDay(workout.date, d));
 
   const getRacesForDay = (d: Date) =>
     races.filter((race) => isSameDay(race.date, d));
@@ -109,7 +97,7 @@ export function MonthView({
       </div>
       <div className="grid grid-cols-7 gap-1">
         {days.map((d) => {
-          const dayBlocks = getBlocksForDay(d);
+          const dayWorkouts = getWorkoutsForDay(d);
           const dayRaces = getRacesForDay(d);
           const dayStatus = getStatusForDay(d);
           const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
@@ -131,9 +119,9 @@ export function MonthView({
                 isToday(d) && "ring-2 ring-primary"
               )}
             >
-              <div 
+              <div
                 className="h-full flex flex-col"
-                onClick={() => onAddBlock(d)}
+                onClick={() => onAddWorkout(d)}
               >
                 <div
                   onClick={(e) => {
@@ -166,42 +154,36 @@ export function MonthView({
                 ))}
 
                 <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
-                  {dayBlocks.slice(0, 3).map((block) => {
-                    const config = getSportConfig(block.discipline);
-                    const Icon = config.icon;
-                    const status = getBlockStatus(block);
+                  {dayWorkouts.slice(0, 3).map((workout) => {
                     return (
-                      <DraggableBlock key={block.id} block={block}>
+                      <DraggableWorkout key={workout.id} workout={workout}>
                         <div
                           className={cn(
                             "text-[8px] md:text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 cursor-pointer transition-all duration-200",
-                            config.badgeClass,
-                            status === "planned" && "opacity-80",
-                            status === "completed" && "opacity-100",
-                            status === "missed" && "border-l-2 border-destructive opacity-60"
+                            "bg-primary/10 text-primary border border-primary/20"
                           )}
-                          title={`${block.title} - Click to view details`}
+                          title={`${workout.title} - Click to view details`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onBlockClick(block);
+                            onWorkoutClick(workout);
                           }}
                         >
-                          <Icon className="h-2 w-2 md:h-2.5 md:w-2.5 flex-shrink-0" />
-                          <span className={cn(
-                            "font-semibold",
-                            status === "missed" && "line-through"
-                          )}>
-                            {formatDuration(block.duration)}
-                          </span>
-                          {status === "completed" && <Check className="h-1.5 w-1.5 text-emerald-600" />}
-                          {block.isFixed && status !== "completed" && <Lock className="h-1.5 w-1.5 opacity-60" />}
+                          <span className="font-semibold capitalize">{workout.workoutType}</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span>{workout.duration}m</span>
+                          {workout.distance && (
+                            <>
+                              <span className="text-muted-foreground">•</span>
+                              <span>{workout.distance}km</span>
+                            </>
+                          )}
                         </div>
-                      </DraggableBlock>
+                      </DraggableWorkout>
                     );
                   })}
-                  {dayBlocks.length > 3 && (
+                  {dayWorkouts.length > 3 && (
                     <span className="text-[8px] text-muted-foreground">
-                      +{dayBlocks.length - 3} more
+                      +{dayWorkouts.length - 3} more
                     </span>
                   )}
                 </div>

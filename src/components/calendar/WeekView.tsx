@@ -1,11 +1,11 @@
 import { startOfWeek, addDays, isSameDay, isToday } from "date-fns";
 import { Trophy, Plus, Thermometer, AlertCircle, Plane } from "lucide-react";
-import { ExternalBlock } from "@/types/block";
+import { PlannedWorkout } from "@/types/plannedWorkout";
 import { Race } from "@/types/race";
 import { FocusPeriod } from "@/types/focus";
 import { DayStatus } from "@/types/dayStatus";
-import { BlockCard } from "./BlockCard";
-import { DraggableBlock } from "./DraggableBlock";
+import { WorkoutCard } from "./WorkoutCard";
+import { DraggableWorkout } from "./DraggableWorkout";
 import { DroppableDay } from "./DroppableDay";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,15 +13,14 @@ import { toDateString, formatInTimezone } from "@/lib/dateUtils";
 
 interface WeekViewProps {
   currentDate: Date;
-  blocks: ExternalBlock[];
+  workouts: PlannedWorkout[];
   races: Race[];
   focusPeriods: FocusPeriod[];
   dayStatuses: DayStatus[];
-  onEditBlock: (block: ExternalBlock) => void;
-  onDeleteBlock: (id: string) => void;
-  onToggleComplete: (id: string) => void;
-  onBlockClick: (block: ExternalBlock) => void;
-  onAddBlock: (date: Date) => void;
+  onEditWorkout: (workout: PlannedWorkout) => void;
+  onDeleteWorkout: (id: string) => void;
+  onWorkoutClick: (workout: PlannedWorkout) => void;
+  onAddWorkout: (date: Date) => void;
   onDayStatusClick: (date: Date) => void;
 }
 
@@ -39,22 +38,21 @@ const statusIcons: Record<string, typeof Thermometer> = {
 
 export function WeekView({
   currentDate,
-  blocks,
+  workouts,
   races,
   focusPeriods,
   dayStatuses,
-  onEditBlock,
-  onDeleteBlock,
-  onToggleComplete,
-  onBlockClick,
-  onAddBlock,
+  onEditWorkout,
+  onDeleteWorkout,
+  onWorkoutClick,
+  onAddWorkout,
   onDayStatusClick,
 }: WeekViewProps) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  const getBlocksForDay = (day: Date) =>
-    blocks.filter((block) => isSameDay(block.date, day));
+  const getWorkoutsForDay = (day: Date) =>
+    workouts.filter((workout) => isSameDay(workout.date, day));
 
   const getRacesForDay = (day: Date) =>
     races.filter((race) => isSameDay(race.date, day));
@@ -72,7 +70,7 @@ export function WeekView({
   return (
     <div className="grid grid-cols-7 gap-1 md:gap-2">
       {weekDays.map((day) => {
-        const dayBlocks = getBlocksForDay(day);
+        const dayWorkouts = getWorkoutsForDay(day);
         const dayRaces = getRacesForDay(day);
         const focusPeriod = getFocusForDay(day);
         const dayStatus = getStatusForDay(day);
@@ -95,9 +93,9 @@ export function WeekView({
             )}
           >
             {/* Clickable area for adding workouts */}
-            <div 
+            <div
               className="flex-1 flex flex-col cursor-pointer"
-              onClick={() => onAddBlock(day)}
+              onClick={() => onAddWorkout(day)}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <div
@@ -127,7 +125,7 @@ export function WeekView({
                   className="h-6 w-6 opacity-50 hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onAddBlock(day);
+                    onAddWorkout(day);
                   }}
                 >
                   <Plus className="h-3 w-3" />
@@ -151,19 +149,18 @@ export function WeekView({
                 </div>
               ))}
 
-              {/* Blocks */}
+              {/* Workouts */}
               <div className="flex-1 space-y-1" onClick={(e) => e.stopPropagation()}>
-                {dayBlocks.map((block) => (
-                  <DraggableBlock key={block.id} block={block}>
-                    <BlockCard
-                      block={block}
-                      onEdit={onEditBlock}
-                      onDelete={onDeleteBlock}
-                      onToggleComplete={onToggleComplete}
-                      onClick={onBlockClick}
+                {dayWorkouts.map((workout) => (
+                  <DraggableWorkout key={workout.id} workout={workout}>
+                    <WorkoutCard
+                      workout={workout}
+                      onEdit={onEditWorkout}
+                      onDelete={onDeleteWorkout}
+                      onClick={onWorkoutClick}
                       compact
                     />
-                  </DraggableBlock>
+                  </DraggableWorkout>
                 ))}
               </div>
             </div>

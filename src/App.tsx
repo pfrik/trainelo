@@ -13,6 +13,9 @@ import Calendar from "./pages/Calendar";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import SetupPlanPage from "./pages/setup-plan";
+import Today from "./pages/Today";
+import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
 
@@ -46,7 +49,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/today" replace />;
   }
 
   return <>{children}</>;
@@ -54,7 +57,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 
 const AppRoutes = () => (
   <Routes>
-    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+    <Route path="/" element={<Navigate to="/today" replace />} />
     <Route
       path="/auth"
       element={
@@ -70,11 +73,13 @@ const AppRoutes = () => (
         </ProtectedRoute>
       }
     >
+      <Route path="/today" element={<Today />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/races" element={<Races />} />
       <Route path="/focus" element={<Focus />} />
       <Route path="/calendar" element={<Calendar />} />
       <Route path="/settings" element={<Settings />} />
+      <Route path="/setup-plan" element={<SetupPlanPage />} />
     </Route>
     <Route path="*" element={<NotFound />} />
   </Routes>
@@ -89,6 +94,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <AppRoutes />
+            <PWAInstallPrompt />
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

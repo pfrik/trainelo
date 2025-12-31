@@ -1,8 +1,9 @@
-import { Home, Trophy, Target, Calendar } from "lucide-react";
+import { Home, Trophy, Target, Calendar, Zap } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const navItems = [
+  { to: "/today", label: "Today", icon: Zap },
   { to: "/dashboard", label: "Dashboard", icon: Home },
   { to: "/races", label: "Races", icon: Trophy },
   { to: "/focus", label: "Focus", icon: Target },

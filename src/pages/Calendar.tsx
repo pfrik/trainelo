@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ExternalBlock } from "@/types/block";
+import { PlannedWorkout } from "@/types/plannedWorkout";
 import { DayStatus } from "@/types/dayStatus";
 import { WeekView } from "@/components/calendar/WeekView";
 import { MonthView } from "@/components/calendar/MonthView";
@@ -23,8 +23,8 @@ import { ExternalBlockFormModal } from "@/components/calendar/ExternalBlockFormM
 import { DayStatusModal } from "@/components/calendar/DayStatusModal";
 import { WeeklySummaryPanel } from "@/components/calendar/WeeklySummaryPanel";
 import { WorkoutDetailDrawer } from "@/components/calendar/WorkoutDetailDrawer";
-import { BlockCard } from "@/components/calendar/BlockCard";
-import { useBlocks } from "@/hooks/useBlocks";
+import { WorkoutCard } from "@/components/calendar/WorkoutCard";
+import { usePlannedWorkouts } from "@/hooks/usePlannedWorkouts";
 import { useRaces } from "@/hooks/useRaces";
 import { useFocusPeriods } from "@/hooks/useFocusPeriods";
 import { useDayStatuses } from "@/hooks/useDayStatuses";
@@ -33,23 +33,23 @@ import { toast } from "sonner";
 import { toDateString, formatCalendarHeader, formatInTimezone, fromDateString } from "@/lib/dateUtils";
 
 export default function Calendar() {
-  const { blocks, loading: loadingBlocks, addBlock, updateBlock, deleteBlock, toggleComplete, updateDescription } = useBlocks();
+  const { workouts, loading: loadingWorkouts, addWorkout, updateWorkout, deleteWorkout } = usePlannedWorkouts();
   const { races, loading: loadingRaces } = useRaces();
   const { focusPeriods, loading: loadingPeriods } = useFocusPeriods();
   const { dayStatuses, loading: loadingStatuses, saveStatus, clearStatus } = useDayStatuses();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<"week" | "month">("week");
-  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [isWorkoutModalOpen, setIsWorkoutModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<ExternalBlock | undefined>();
+  const [editingWorkout, setEditingWorkout] = useState<PlannedWorkout | undefined>();
   const [defaultDate, setDefaultDate] = useState<Date | undefined>();
   const [statusModalDate, setStatusModalDate] = useState<Date | undefined>();
   const [dismissedBanners, setDismissedBanners] = useState<string[]>([]);
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<ExternalBlock | null>(null);
+  const [selectedWorkout, setSelectedWorkout] = useState<PlannedWorkout | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeBlock, setActiveBlock] = useState<ExternalBlock | null>(null);
+  const [activeWorkout, setActiveWorkout] = useState<PlannedWorkout | null>(null);
   const [summaryCollapsed] = useLocalStorage("summary-collapsed", false);
 
   // Configure drag sensor with distance threshold to allow clicks
@@ -61,7 +61,7 @@ export default function Calendar() {
     })
   );
 
-  const loading = loadingBlocks || loadingRaces || loadingPeriods || loadingStatuses;
+  const loading = loadingWorkouts || loadingRaces || loadingPeriods || loadingStatuses;
 
   // Get non-normal statuses for banner
   const affectedStatuses = dayStatuses.filter(
@@ -80,37 +80,37 @@ export default function Calendar() {
     setCurrentDate(new Date());
   };
 
-  const handleAddBlock = (date?: Date) => {
-    setEditingBlock(undefined);
+  const handleAddWorkout = (date?: Date) => {
+    setEditingWorkout(undefined);
     setDefaultDate(date);
-    setIsBlockModalOpen(true);
+    setIsWorkoutModalOpen(true);
   };
 
-  const handleEditBlock = (block: ExternalBlock) => {
-    setEditingBlock(block);
+  const handleEditWorkout = (workout: PlannedWorkout) => {
+    setEditingWorkout(workout);
     setDefaultDate(undefined);
-    setIsBlockModalOpen(true);
+    setIsWorkoutModalOpen(true);
   };
 
-  const handleDeleteBlock = async (id: string) => {
-    await deleteBlock(id);
+  const handleDeleteWorkout = async (id: string) => {
+    await deleteWorkout(id);
     setDrawerOpen(false);
-    setSelectedBlock(null);
+    setSelectedWorkout(null);
   };
 
-  const handleBlockClick = (block: ExternalBlock) => {
-    setSelectedBlock(block);
+  const handleWorkoutClick = (workout: PlannedWorkout) => {
+    setSelectedWorkout(workout);
     setDrawerOpen(true);
   };
 
-  const handleSaveBlock = async (data: Omit<ExternalBlock, "id">) => {
-    if (editingBlock) {
-      await updateBlock(editingBlock.id, data);
+  const handleSaveWorkout = async (data: Omit<PlannedWorkout, "id">) => {
+    if (editingWorkout) {
+      await updateWorkout(editingWorkout.id, data);
     } else {
-      await addBlock(data);
+      await addWorkout(data);
     }
-    setIsBlockModalOpen(false);
-    setEditingBlock(undefined);
+    setIsWorkoutModalOpen(false);
+    setEditingWorkout(undefined);
     setDefaultDate(undefined);
   };
 
@@ -139,31 +139,31 @@ export default function Calendar() {
     return dayStatuses.find((s) => s.date === dateStr);
   };
 
-  const handleDragStart = (event: { active: { data: { current?: { block?: ExternalBlock } } } }) => {
-    const block = event.active.data.current?.block;
-    if (block) {
-      setActiveBlock(block);
+  const handleDragStart = (event: { active: { data: { current?: { workout?: PlannedWorkout } } } }) => {
+    const workout = event.active.data.current?.workout;
+    if (workout) {
+      setActiveWorkout(workout);
     }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveBlock(null);
-    
+    setActiveWorkout(null);
+
     const { active, over } = event;
-    
+
     if (!over) return;
-    
-    const block = active.data.current?.block as ExternalBlock | undefined;
+
+    const workout = active.data.current?.workout as PlannedWorkout | undefined;
     const targetDateStr = over.id as string;
-    
-    if (!block || block.isFixed) return;
-    
-    const currentDateStr = toDateString(block.date);
+
+    if (!workout) return;
+
+    const currentDateStr = toDateString(workout.date);
     if (currentDateStr === targetDateStr) return;
-    
+
     const newDate = fromDateString(targetDateStr);
-    
-    await updateBlock(block.id, { ...block, date: newDate });
+
+    await updateWorkout(workout.id, { ...workout, date: newDate });
     toast.success(`Workout moved to ${formatInTimezone(newDate, "EEEE, d MMM")}`);
   };
 
@@ -232,14 +232,14 @@ export default function Calendar() {
                 <SheetContent side="right" className="w-80 p-4">
                   <WeeklySummaryPanel
                     currentDate={currentDate}
-                    blocks={blocks}
+                    workouts={workouts}
                     races={races}
                   />
                 </SheetContent>
               </Sheet>
-              <Button onClick={() => handleAddBlock()} size="sm">
+              <Button onClick={() => handleAddWorkout()} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Block
+                Add Workout
               </Button>
             </div>
           </div>
@@ -273,40 +273,38 @@ export default function Calendar() {
           {view === "week" ? (
             <WeekView
               currentDate={currentDate}
-              blocks={blocks}
+              workouts={workouts}
               races={races}
               focusPeriods={focusPeriods}
               dayStatuses={dayStatuses}
-              onEditBlock={handleEditBlock}
-              onDeleteBlock={handleDeleteBlock}
-              onToggleComplete={toggleComplete}
-              onBlockClick={handleBlockClick}
-              onAddBlock={handleAddBlock}
+              onEditWorkout={handleEditWorkout}
+              onDeleteWorkout={handleDeleteWorkout}
+              onWorkoutClick={handleWorkoutClick}
+              onAddWorkout={handleAddWorkout}
               onDayStatusClick={handleDayStatusClick}
             />
           ) : (
             <MonthView
               currentDate={currentDate}
-              blocks={blocks}
+              workouts={workouts}
               races={races}
               focusPeriods={focusPeriods}
               dayStatuses={dayStatuses}
-              onEditBlock={handleEditBlock}
-              onToggleComplete={toggleComplete}
-              onBlockClick={handleBlockClick}
+              onEditWorkout={handleEditWorkout}
+              onWorkoutClick={handleWorkoutClick}
               onDayClick={handleDayStatusClick}
-              onAddBlock={handleAddBlock}
+              onAddWorkout={handleAddWorkout}
             />
           )}
 
-          {/* Block Form Modal */}
-          <ExternalBlockFormModal
-            open={isBlockModalOpen}
-            onOpenChange={setIsBlockModalOpen}
-            block={editingBlock}
-            onSubmit={handleSaveBlock}
+          {/* TODO: Create WorkoutFormModal */}
+          {/* <WorkoutFormModal
+            open={isWorkoutModalOpen}
+            onOpenChange={setIsWorkoutModalOpen}
+            workout={editingWorkout}
+            onSubmit={handleSaveWorkout}
             defaultDate={defaultDate}
-          />
+          /> */}
 
           {/* Day Status Modal */}
           <DayStatusModal
@@ -318,17 +316,14 @@ export default function Calendar() {
             onClear={handleClearStatus}
           />
 
-          {/* Workout Detail Drawer */}
-          <WorkoutDetailDrawer
-            block={selectedBlock}
+          {/* TODO: Create WorkoutDetailDrawer */}
+          {/* <WorkoutDetailDrawer
+            workout={selectedWorkout}
             open={drawerOpen}
             onOpenChange={setDrawerOpen}
-            onEdit={handleEditBlock}
-            onDelete={handleDeleteBlock}
-            onToggleComplete={toggleComplete}
-            onDescriptionChange={updateDescription}
-            description={selectedBlock?.description || ""}
-          />
+            onEdit={handleEditWorkout}
+            onDelete={handleDeleteWorkout}
+          /> */}
         </div>
 
         {/* Desktop Summary Sidebar */}
@@ -336,7 +331,7 @@ export default function Calendar() {
           <div className="sticky top-6">
             <WeeklySummaryPanel
               currentDate={currentDate}
-              blocks={blocks}
+              workouts={workouts}
               races={races}
             />
           </div>
@@ -345,10 +340,10 @@ export default function Calendar() {
 
       {/* Drag Overlay */}
       <DragOverlay>
-        {activeBlock ? (
+        {activeWorkout ? (
           <div className="opacity-80 rotate-3 scale-105 pointer-events-none">
-            <BlockCard
-              block={activeBlock}
+            <WorkoutCard
+              workout={activeWorkout}
               onEdit={() => {}}
               onDelete={() => {}}
               compact

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(node src/scripts/generate-pwa-icons.js:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

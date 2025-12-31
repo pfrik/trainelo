@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PWA Safe Area Support */
+@supports (padding: max(0px)) {
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .pt-safe {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+}
+
 /* Trainelo Design System - Dark theme default with coral accent */
 
 @layer base {
