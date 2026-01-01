@@ -1,10 +1,9 @@
 import { useMemo } from "react";
-import { startOfWeek, endOfWeek, differenceInWeeks } from "date-fns";
+import { startOfWeek, endOfWeek } from "date-fns";
 import { Target, CalendarDays, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlannedWorkout } from "@/types/plannedWorkout";
-import { Race } from "@/types/race";
 import { getSportConfig, SportType } from "@/lib/sportConfig";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -13,7 +12,6 @@ import { formatDateRange } from "@/lib/dateUtils";
 interface WeeklySummaryPanelProps {
   currentDate: Date;
   workouts: PlannedWorkout[];
-  races: Race[];
 }
 
 const SPORT_ORDER: SportType[] = ["Bike", "Run", "Swim", "Strength", "Other"];
@@ -34,7 +32,6 @@ function formatDurationLong(totalMinutes: number): string {
 export function WeeklySummaryPanel({
   currentDate,
   workouts,
-  races,
 }: WeeklySummaryPanelProps) {
   const [collapsed, setCollapsed] = useLocalStorage("summary-collapsed", false);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -72,18 +69,6 @@ export function WeeklySummaryPanel({
       .sort((a, b) => b.minutes - a.minutes); // Sort by total minutes descending
   }, [weekWorkouts]);
 
-  // Find next A-race
-  const nextARace = useMemo(() => {
-    const today = new Date();
-    const aRaces = races
-      .filter((r) => r.priority === "A" && r.date >= today)
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
-    return aRaces[0] || null;
-  }, [races]);
-
-  const weeksToARace = nextARace
-    ? differenceInWeeks(nextARace.date, new Date())
-    : null;
 
   // If collapsed, show a minimal side tab
   if (collapsed) {
@@ -183,19 +168,6 @@ export function WeeklySummaryPanel({
           </div>
         )}
 
-        {/* Event Countdown */}
-        {nextARace && weeksToARace !== null && (
-          <div className="pt-2 border-t border-border">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                {nextARace.name}
-              </span>
-              <span className="text-xs font-medium text-primary">
-                {weeksToARace} weeks
-              </span>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

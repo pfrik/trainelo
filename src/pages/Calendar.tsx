@@ -25,8 +25,6 @@ import { WeeklySummaryPanel } from "@/components/calendar/WeeklySummaryPanel";
 import { WorkoutDetailDrawer } from "@/components/calendar/WorkoutDetailDrawer";
 import { WorkoutCard } from "@/components/calendar/WorkoutCard";
 import { usePlannedWorkouts } from "@/hooks/usePlannedWorkouts";
-import { useRaces } from "@/hooks/useRaces";
-import { useFocusPeriods } from "@/hooks/useFocusPeriods";
 import { useDayStatuses } from "@/hooks/useDayStatuses";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { toast } from "sonner";
@@ -34,8 +32,6 @@ import { toDateString, formatCalendarHeader, formatInTimezone, fromDateString } 
 
 export default function Calendar() {
   const { workouts, loading: loadingWorkouts, addWorkout, updateWorkout, deleteWorkout } = usePlannedWorkouts();
-  const { races, loading: loadingRaces } = useRaces();
-  const { focusPeriods, loading: loadingPeriods } = useFocusPeriods();
   const { dayStatuses, loading: loadingStatuses, saveStatus, clearStatus } = useDayStatuses();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -61,7 +57,7 @@ export default function Calendar() {
     })
   );
 
-  const loading = loadingWorkouts || loadingRaces || loadingPeriods || loadingStatuses;
+  const loading = loadingWorkouts || loadingStatuses;
 
   // Get non-normal statuses for banner
   const affectedStatuses = dayStatuses.filter(
@@ -233,7 +229,6 @@ export default function Calendar() {
                   <WeeklySummaryPanel
                     currentDate={currentDate}
                     workouts={workouts}
-                    races={races}
                   />
                 </SheetContent>
               </Sheet>
@@ -274,8 +269,6 @@ export default function Calendar() {
             <WeekView
               currentDate={currentDate}
               workouts={workouts}
-              races={races}
-              focusPeriods={focusPeriods}
               dayStatuses={dayStatuses}
               onEditWorkout={handleEditWorkout}
               onDeleteWorkout={handleDeleteWorkout}
@@ -287,8 +280,6 @@ export default function Calendar() {
             <MonthView
               currentDate={currentDate}
               workouts={workouts}
-              races={races}
-              focusPeriods={focusPeriods}
               dayStatuses={dayStatuses}
               onEditWorkout={handleEditWorkout}
               onWorkoutClick={handleWorkoutClick}
@@ -332,7 +323,6 @@ export default function Calendar() {
             <WeeklySummaryPanel
               currentDate={currentDate}
               workouts={workouts}
-              races={races}
             />
           </div>
         </div>

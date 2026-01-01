@@ -10,10 +10,8 @@ import {
   isPast,
   startOfDay,
 } from "date-fns";
-import { Trophy, Lock, Check, Thermometer, AlertCircle, Plane } from "lucide-react";
+import { Lock, Check, Thermometer, AlertCircle, Plane } from "lucide-react";
 import { PlannedWorkout } from "@/types/plannedWorkout";
-import { Race } from "@/types/race";
-import { FocusPeriod } from "@/types/focus";
 import { DayStatus } from "@/types/dayStatus";
 import { DraggableWorkout } from "./DraggableWorkout";
 import { DroppableDay } from "./DroppableDay";
@@ -24,8 +22,6 @@ import { toDateString, formatInTimezone } from "@/lib/dateUtils";
 interface MonthViewProps {
   currentDate: Date;
   workouts: PlannedWorkout[];
-  races: Race[];
-  focusPeriods: FocusPeriod[];
   dayStatuses: DayStatus[];
   onEditWorkout: (workout: PlannedWorkout) => void;
   onWorkoutClick: (workout: PlannedWorkout) => void;
@@ -50,8 +46,6 @@ const statusIcons: Record<string, typeof Thermometer> = {
 export function MonthView({
   currentDate,
   workouts,
-  races,
-  focusPeriods,
   dayStatuses,
   onEditWorkout,
   onWorkoutClick,
@@ -72,9 +66,6 @@ export function MonthView({
 
   const getWorkoutsForDay = (d: Date) =>
     workouts.filter((workout) => isSameDay(workout.date, d));
-
-  const getRacesForDay = (d: Date) =>
-    races.filter((race) => isSameDay(race.date, d));
 
   const getStatusForDay = (d: Date) => {
     const dateStr = toDateString(d);
@@ -98,7 +89,6 @@ export function MonthView({
       <div className="grid grid-cols-7 gap-1">
         {days.map((d) => {
           const dayWorkouts = getWorkoutsForDay(d);
-          const dayRaces = getRacesForDay(d);
           const dayStatus = getStatusForDay(d);
           const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
           const dateStr = toDateString(d);
@@ -136,22 +126,6 @@ export function MonthView({
                   {StatusIcon && <StatusIcon className="h-3 w-3" />}
                   <span>{formatInTimezone(d, "d")}</span>
                 </div>
-
-                {dayRaces.map((race) => (
-                  <div
-                    key={race.id}
-                    className={cn(
-                      "text-[9px] md:text-[10px] p-0.5 rounded mb-0.5 flex items-center gap-0.5",
-                      race.priority === "A"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    )}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Trophy className="h-2 w-2 flex-shrink-0" />
-                    <span className="truncate">{race.name}</span>
-                  </div>
-                ))}
 
                 <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
                   {dayWorkouts.slice(0, 3).map((workout) => {

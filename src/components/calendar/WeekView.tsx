@@ -1,8 +1,6 @@
 import { startOfWeek, addDays, isSameDay, isToday } from "date-fns";
-import { Trophy, Plus, Thermometer, AlertCircle, Plane } from "lucide-react";
+import { Plus, Thermometer, AlertCircle, Plane } from "lucide-react";
 import { PlannedWorkout } from "@/types/plannedWorkout";
-import { Race } from "@/types/race";
-import { FocusPeriod } from "@/types/focus";
 import { DayStatus } from "@/types/dayStatus";
 import { WorkoutCard } from "./WorkoutCard";
 import { DraggableWorkout } from "./DraggableWorkout";
@@ -14,8 +12,6 @@ import { toDateString, formatInTimezone } from "@/lib/dateUtils";
 interface WeekViewProps {
   currentDate: Date;
   workouts: PlannedWorkout[];
-  races: Race[];
-  focusPeriods: FocusPeriod[];
   dayStatuses: DayStatus[];
   onEditWorkout: (workout: PlannedWorkout) => void;
   onDeleteWorkout: (id: string) => void;
@@ -39,8 +35,6 @@ const statusIcons: Record<string, typeof Thermometer> = {
 export function WeekView({
   currentDate,
   workouts,
-  races,
-  focusPeriods,
   dayStatuses,
   onEditWorkout,
   onDeleteWorkout,
@@ -54,14 +48,6 @@ export function WeekView({
   const getWorkoutsForDay = (day: Date) =>
     workouts.filter((workout) => isSameDay(workout.date, day));
 
-  const getRacesForDay = (day: Date) =>
-    races.filter((race) => isSameDay(race.date, day));
-
-  const getFocusForDay = (day: Date) =>
-    focusPeriods.find(
-      (period) => day >= period.startDate && day <= period.endDate
-    );
-
   const getStatusForDay = (day: Date) => {
     const dateStr = toDateString(day);
     return dayStatuses.find((s) => s.date === dateStr);
@@ -71,8 +57,6 @@ export function WeekView({
     <div className="grid grid-cols-7 gap-1 md:gap-2">
       {weekDays.map((day) => {
         const dayWorkouts = getWorkoutsForDay(day);
-        const dayRaces = getRacesForDay(day);
-        const focusPeriod = getFocusForDay(day);
         const dayStatus = getStatusForDay(day);
         const StatusIcon = dayStatus?.status ? statusIcons[dayStatus.status] : null;
         const dateStr = toDateString(day);
@@ -131,23 +115,6 @@ export function WeekView({
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
-
-              {/* Races */}
-              {dayRaces.map((race) => (
-                <div
-                  key={race.id}
-                  className={cn(
-                    "text-[10px] md:text-xs p-1 rounded mb-1 flex items-center gap-1",
-                    race.priority === "A"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Trophy className="h-2.5 w-2.5 flex-shrink-0" />
-                  <span className="truncate">{race.name}</span>
-                </div>
-              ))}
 
               {/* Workouts */}
               <div className="flex-1 space-y-1" onClick={(e) => e.stopPropagation()}>
