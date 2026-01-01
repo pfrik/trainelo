@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npm run dev:*)",
       "Bash(node src/scripts/generate-pwa-icons.js:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
