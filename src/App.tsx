@@ -6,11 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import Dashboard from "./pages/Dashboard";
-import Races from "./pages/Races";
-import Focus from "./pages/Focus";
 import Calendar from "./pages/Calendar";
-import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import SetupPlanPage from "./pages/setup-plan";
@@ -74,11 +70,7 @@ const AppRoutes = () => (
       }
     >
       <Route path="/today" element={<Today />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/races" element={<Races />} />
-      <Route path="/focus" element={<Focus />} />
       <Route path="/calendar" element={<Calendar />} />
-      <Route path="/settings" element={<Settings />} />
       <Route path="/setup-plan" element={<SetupPlanPage />} />
     </Route>
     <Route path="*" element={<NotFound />} />
