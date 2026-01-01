@@ -8,7 +8,6 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Calendar from "./pages/Calendar";
 import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
 import SetupPlanPage from "./pages/setup-plan";
 import Today from "./pages/Today";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
@@ -73,7 +72,7 @@ const AppRoutes = () => (
       <Route path="/calendar" element={<Calendar />} />
       <Route path="/setup-plan" element={<SetupPlanPage />} />
     </Route>
-    <Route path="*" element={<NotFound />} />
+    <Route path="*" element={<Navigate to="/today" replace />} />
   </Routes>
 );
 
