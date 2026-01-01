@@ -6,7 +6,11 @@
       "Bash(curl:*)",
       "Bash(rm:*)",
       "Bash(rmdir:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm run dev:reload:*)",
+      "Bash(npm run:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
