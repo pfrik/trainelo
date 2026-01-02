@@ -75,43 +75,68 @@ export function TodaysWorkoutCard({ workout, onStart }: TodaysWorkoutCardProps) 
         </div>
       </div>
 
-      {/* AI Notice */}
-      <div className="bg-white border border-amber-200 rounded-lg p-4">
-        <p className="text-sm text-amber-600 flex items-start gap-2">
+      {/* Short on Time Section */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="flex items-start gap-2 mb-3">
           <span className="text-lg">⚡</span>
-          <span>
-            Short on time?
-            <br />
-            The AI can adjust this workout to fit your schedule
-          </span>
-        </p>
+          <div>
+            <p className="text-sm font-semibold text-amber-700">Short on time?</p>
+            <p className="text-sm text-amber-600">The AI can adjust this workout to fit your schedule</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-white border-amber-200 hover:bg-amber-100 hover:border-amber-300"
+            onClick={() => console.log('Adjust to 30m')}
+          >
+            30m
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-white border-amber-200 hover:bg-amber-100 hover:border-amber-300"
+            onClick={() => console.log('Adjust to 45m')}
+          >
+            45m
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-white border-amber-200 hover:bg-amber-100 hover:border-amber-300"
+            onClick={() => console.log('Adjust to 60m')}
+          >
+            60m
+          </Button>
+        </div>
       </div>
 
-      {/* Timing Info */}
-      <div className="flex items-center gap-4 text-sm text-gray-600">
-        <div className="flex items-center gap-1">
-          <Clock className="h-5 w-5" />
-          <span>{formatDuration(workout.totalDuration)}</span>
+      {/* Footer with Stats and Start Button */}
+      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+        <div className="flex items-center gap-4 text-sm text-gray-600">
+          <div className="flex items-center gap-1">
+            <Clock className="h-4 w-4" />
+            <span>{formatDuration(workout.totalDuration)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Activity className="h-4 w-4" />
+            <span>Zone 2</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Heart className="h-4 w-4" />
+            <span>130-140 bpm</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Activity className="h-5 w-5" />
-          <span>Zone 2</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Heart className="h-5 w-5" />
-          <span>130-140 bpm</span>
-        </div>
+        <Button
+          onClick={onStart}
+          className="bg-emerald-700 hover:bg-emerald-800 text-white"
+          size="default"
+        >
+          <Play className="h-4 w-4 mr-2" />
+          Start Workout
+        </Button>
       </div>
-
-      {/* Start Button */}
-      <Button
-        onClick={onStart}
-        className="w-full bg-emerald-700 hover:bg-emerald-800 text-white h-12"
-        size="lg"
-      >
-        <Play className="h-5 w-5 mr-2" />
-        Start Workout
-      </Button>
     </div>
   );
 }

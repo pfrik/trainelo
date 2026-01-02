@@ -32,21 +32,21 @@ export function MorningCheckIn({ onCheckIn }: MorningCheckInProps) {
         isAnimating && 'opacity-0 transform -translate-y-4 scale-95'
       )}
     >
-      <div className="flex flex-wrap gap-3 mt-4">
+      <div className="flex flex-wrap gap-2 mt-4">
         {moodOptions.map((option) => (
           <Button
             key={option.value}
             variant="outline"
             className={cn(
-              'h-auto px-4 py-3 flex flex-col items-center gap-1 min-w-[80px]',
+              'h-8 px-3 py-1 text-sm font-medium rounded-full',
               'hover:border-emerald-500 hover:bg-emerald-50',
               'transition-all duration-200',
               selectedMood === option.value && 'border-emerald-500 bg-emerald-50'
             )}
             onClick={() => handleMoodSelect(option.value)}
           >
-            <span className="text-2xl">{option.emoji}</span>
-            <span className="text-sm font-medium">{option.label}</span>
+            <span className="mr-1">{option.emoji}</span>
+            <span>{option.label}</span>
           </Button>
         ))}
       </div>

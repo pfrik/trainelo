@@ -98,32 +98,29 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {/* Goal Event and AI Recommendation Row - Side by Side */}
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Marathon Goal Card */}
-            <Card className="bg-white p-6 shadow-sm">
-              <GoalProgressCard goal={data.currentGoal} />
-            </Card>
+          {/* Goal Event Card - Full Width */}
+          <Card className="bg-white p-6 shadow-sm">
+            <GoalProgressCard goal={data.currentGoal} />
+          </Card>
 
-            {/* AI Recommendation Card */}
-            <Card className="bg-white p-6 shadow-sm border-l-4 border-l-emerald-500">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <span className="text-emerald-600">✦</span>
-                  AI Recommendation: Adjust Today's Workout
-                </h3>
-                <p className="text-sm text-gray-600 mt-2">
-                  {data.aiRecommendation.reason}
-                </p>
-              </div>
-              <AiInsightCard
-                recommendation={data.aiRecommendation}
-                onAccept={handleAcceptWorkout}
-                onReject={handleRejectWorkout}
-                onKeepOriginal={handleKeepOriginalWorkout}
-              />
-            </Card>
-          </div>
+          {/* AI Recommendation Card - Full Width */}
+          <Card className="bg-white p-6 shadow-sm border-l-4 border-l-emerald-500">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <span className="text-emerald-600">✦</span>
+                AI Recommendation: Adjust Today's Workout
+              </h3>
+              <p className="text-sm text-gray-600 mt-2">
+                {data.aiRecommendation.reason}
+              </p>
+            </div>
+            <AiInsightCard
+              recommendation={data.aiRecommendation}
+              onAccept={handleAcceptWorkout}
+              onReject={handleRejectWorkout}
+              onKeepOriginal={handleKeepOriginalWorkout}
+            />
+          </Card>
 
           {/* Recovery Status Row - 3 Cards in a Row */}
           <Card className="bg-white p-6 shadow-sm">

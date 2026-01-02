@@ -13,6 +13,15 @@ export function AiInsightCard({
 
   return (
     <div className="space-y-4">
+      {/* Why this matters */}
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">Why this matters:</h4>
+        <p className="text-sm text-gray-600">
+          Based on your recent training load and recovery metrics, adjusting today's workout can help maintain
+          consistent progress while preventing overtraining and reducing injury risk.
+        </p>
+      </div>
+
       <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
         {/* Original Workout */}
         <div className="flex items-center gap-3">
@@ -52,9 +61,9 @@ export function AiInsightCard({
         <Button
           onClick={onKeepOriginal}
           variant="outline"
-          className="flex-1 hover:bg-gray-50"
+          className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
         >
-          Keep Original Workout
+          Keep Original
         </Button>
       </div>
     </div>
