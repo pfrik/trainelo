@@ -84,32 +84,32 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="p-6 max-w-7xl mx-auto">
         <div className="space-y-6">
-          {/* Morning Check-in Section */}
+          {/* Morning Check-in Section - Full Width */}
           {!hasCheckedIn && (
-            <Card className="p-6">
+            <Card className="bg-white p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <h2 className="text-lg font-semibold">Morning Check-in</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Morning Check-in</h2>
               </div>
-              <p className="text-gray-600">
+              <p className="text-sm text-gray-600">
                 How are you feeling today?
               </p>
               <MorningCheckIn onCheckIn={handleCheckIn} />
             </Card>
           )}
 
-          {/* Goal Event and AI Recommendation Row */}
+          {/* Goal Event and AI Recommendation Row - Side by Side */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* Marathon Goal Card */}
-            <Card className="p-6">
+            <Card className="bg-white p-6 shadow-sm">
               <GoalProgressCard goal={data.currentGoal} />
             </Card>
 
             {/* AI Recommendation Card */}
-            <Card className="p-6 border-l-4 border-l-emerald-500">
+            <Card className="bg-white p-6 shadow-sm border-l-4 border-l-emerald-500">
               <div className="mb-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="text-emerald-700">✦</span>
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <span className="text-emerald-600">✦</span>
                   AI Recommendation: Adjust Today's Workout
                 </h3>
                 <p className="text-sm text-gray-600 mt-2">
@@ -125,14 +125,14 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {/* Recovery Status Row */}
-          <div className="bg-white rounded-lg p-6">
-            <h3 className="font-semibold mb-4">Recovery Status</h3>
+          {/* Recovery Status Row - 3 Cards in a Row */}
+          <Card className="bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recovery Status</h3>
             <RecoveryStatusRow stats={data.todayStats} />
-          </div>
+          </Card>
 
-          {/* Today's Workout Section */}
-          <Card className="p-6">
+          {/* Today's Workout Section - Full Width */}
+          <Card className="bg-white p-6 shadow-sm">
             <TodaysWorkoutCard
               workout={data.aiRecommendation.recommendedPlan}
               onStart={handleStartWorkout}
@@ -140,9 +140,9 @@ export default function Dashboard() {
             <WorkoutTimingChart workout={data.aiRecommendation.recommendedPlan} />
           </Card>
 
-          {/* Weekly Training Chart */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">This Week's Training</h3>
+          {/* Weekly Training Chart - Full Width */}
+          <Card className="bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">This Week's Training</h3>
             <WeeklyTrainingChart weeklyData={data.weeklyTraining} />
           </Card>
         </div>

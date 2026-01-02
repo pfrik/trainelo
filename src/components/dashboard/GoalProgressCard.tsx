@@ -10,14 +10,14 @@ export function GoalProgressCard({ goal }: GoalProgressCardProps) {
     <div className="relative">
       <div className="flex items-center gap-2 mb-3">
         <Flag className="h-5 w-5 text-amber-600" />
-        <span className="text-sm font-medium text-amber-600 uppercase">Goal Event</span>
+        <span className="text-xs font-medium text-amber-600 uppercase tracking-wide">Goal Event</span>
       </div>
 
-      <h3 className="text-xl font-bold text-gray-900">
+      <h3 className="text-lg font-semibold text-gray-900">
         {goal.name} - {format(goal.date, 'MMMM d, yyyy')}
       </h3>
 
-      <p className="text-gray-600 mt-1">
+      <p className="text-sm text-gray-600 mt-1">
         Target: {goal.targetTime} • {goal.daysRemaining} days remaining
       </p>
 

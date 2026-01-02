@@ -88,18 +88,18 @@ export function WorkoutTimingChart({ workout }: WorkoutTimingChartProps) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-4 text-sm">
+      <div className="flex items-center gap-4 mt-4">
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-blue-400 rounded" />
-          <span className="text-gray-600">Warm-up</span>
+          <div className="w-3 h-3 bg-blue-400 rounded" />
+          <span className="text-xs text-gray-600">Warm-up</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-emerald-500 rounded" />
-          <span className="text-gray-600">Main Set</span>
+          <div className="w-3 h-3 bg-emerald-500 rounded" />
+          <span className="text-xs text-gray-600">Main Set</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-purple-400 rounded" />
-          <span className="text-gray-600">Cool-down</span>
+          <div className="w-3 h-3 bg-purple-400 rounded" />
+          <span className="text-xs text-gray-600">Cool-down</span>
         </div>
       </div>
     </div>

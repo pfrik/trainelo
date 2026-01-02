@@ -57,11 +57,11 @@ export function RecoveryStatusRow({ stats }: RecoveryStatusRowProps) {
   ];
 
   return (
-    <div className="grid md:grid-cols-3 gap-4">
+    <div className="grid md:grid-cols-3 gap-6">
       {metrics.map((metric, index) => (
         <div
           key={index}
-          className="bg-gray-50 rounded-lg p-4 border border-gray-200"
+          className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm"
         >
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -70,7 +70,7 @@ export function RecoveryStatusRow({ stats }: RecoveryStatusRowProps) {
                 <Badge
                   variant="outline"
                   className={cn(
-                    'text-xs font-medium px-2 py-0.5',
+                    'text-xs font-medium uppercase tracking-wide px-2 py-0.5',
                     getStatusColor(metric.status)
                   )}
                 >

@@ -76,13 +76,13 @@ export function WeeklyTrainingChart({ weeklyData }: WeeklyTrainingChartProps) {
 
             {/* Day label and status */}
             <div className="mt-2 text-center">
-              <div className="text-sm font-medium text-gray-700">
+              <div className="text-sm font-semibold text-gray-700">
                 {day.weekLabel}
               </div>
               {day.isCompleted ? (
-                <Check className="h-4 w-4 text-emerald-500 mx-auto mt-1" />
+                <Check className="h-5 w-5 text-emerald-500 mx-auto mt-1" />
               ) : !day.isRest ? (
-                <div className="h-4 w-4 rounded-full bg-gray-300 mx-auto mt-1" />
+                <div className="h-5 w-5 rounded-full bg-gray-300 mx-auto mt-1" />
               ) : null}
             </div>
           </div>
@@ -90,26 +90,26 @@ export function WeeklyTrainingChart({ weeklyData }: WeeklyTrainingChartProps) {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 mt-6 text-xs">
+      <div className="flex flex-wrap items-center gap-4 mt-6">
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-emerald-400 rounded" />
-          <span className="text-gray-600">Easy</span>
+          <span className="text-xs text-gray-600">Easy</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-blue-400 rounded" />
-          <span className="text-gray-600">Strength</span>
+          <span className="text-xs text-gray-600">Strength</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-amber-400 rounded" />
-          <span className="text-gray-600">Tempo</span>
+          <span className="text-xs text-gray-600">Tempo</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-purple-400 rounded" />
-          <span className="text-gray-600">Long Run</span>
+          <span className="text-xs text-gray-600">Long Run</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-gray-400 rounded" />
-          <span className="text-gray-600">Rest</span>
+          <span className="text-xs text-gray-600">Rest</span>
         </div>
       </div>
     </div>

@@ -32,11 +32,11 @@ export function TodaysWorkoutCard({ workout, onStart }: TodaysWorkoutCardProps) 
       <div>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <Badge className={getWorkoutTypeColor(workout.type)}>
-              {workout.type.toUpperCase()} WORKOUT
+            <Badge className={`${getWorkoutTypeColor(workout.type)} text-xs uppercase tracking-wide`}>
+              {workout.type} WORKOUT
             </Badge>
-            <h3 className="text-2xl font-bold mt-2">{workout.name}</h3>
-            <p className="text-gray-600 mt-1">{workout.description}</p>
+            <h3 className="text-lg font-semibold text-gray-900 mt-2">{workout.name}</h3>
+            <p className="text-sm text-gray-600 mt-1">{workout.description}</p>
           </div>
           <div className="text-right">
             <p className="text-3xl font-bold">{workout.recommendedPerceivedEffort || 5}.0</p>
@@ -47,8 +47,8 @@ export function TodaysWorkoutCard({ workout, onStart }: TodaysWorkoutCardProps) 
 
       {/* Workout Structure */}
       <div>
-        <h4 className="font-semibold mb-3 flex items-center gap-2">
-          <Activity className="h-4 w-4" />
+        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <Activity className="h-5 w-5 text-gray-600" />
           Workout Structure
         </h4>
         <div className="space-y-3">
@@ -76,8 +76,8 @@ export function TodaysWorkoutCard({ workout, onStart }: TodaysWorkoutCardProps) 
       </div>
 
       {/* AI Notice */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-        <p className="text-sm text-amber-700 flex items-start gap-2">
+      <div className="bg-white border border-amber-200 rounded-lg p-4">
+        <p className="text-sm text-amber-600 flex items-start gap-2">
           <span className="text-lg">⚡</span>
           <span>
             Short on time?
@@ -90,15 +90,15 @@ export function TodaysWorkoutCard({ workout, onStart }: TodaysWorkoutCardProps) 
       {/* Timing Info */}
       <div className="flex items-center gap-4 text-sm text-gray-600">
         <div className="flex items-center gap-1">
-          <Clock className="h-4 w-4" />
+          <Clock className="h-5 w-5" />
           <span>{formatDuration(workout.totalDuration)}</span>
         </div>
         <div className="flex items-center gap-1">
-          <Activity className="h-4 w-4" />
+          <Activity className="h-5 w-5" />
           <span>Zone 2</span>
         </div>
         <div className="flex items-center gap-1">
-          <Heart className="h-4 w-4" />
+          <Heart className="h-5 w-5" />
           <span>130-140 bpm</span>
         </div>
       </div>
