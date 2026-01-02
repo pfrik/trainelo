@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Calendar from "./pages/Calendar";
 import Auth from "./pages/Auth";
 import Today from "./pages/Today";
+import Dashboard from "./pages/Dashboard";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
@@ -43,7 +44,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    return <Navigate to="/today" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -51,7 +52,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 
 const AppRoutes = () => (
   <Routes>
-    <Route path="/" element={<Navigate to="/today" replace />} />
+    <Route path="/" element={<Navigate to="/dashboard" replace />} />
     <Route
       path="/auth"
       element={
@@ -67,10 +68,11 @@ const AppRoutes = () => (
         </ProtectedRoute>
       }
     >
+      <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/today" element={<Today />} />
       <Route path="/calendar" element={<Calendar />} />
     </Route>
-    <Route path="*" element={<Navigate to="/today" replace />} />
+    <Route path="*" element={<Navigate to="/dashboard" replace />} />
   </Routes>
 );
 

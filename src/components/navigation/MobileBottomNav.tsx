@@ -1,10 +1,12 @@
-import { Calendar, Zap } from "lucide-react";
+import { Calendar, Zap, LayoutDashboard, Dumbbell, Activity } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/today", label: "Today", icon: Zap },
+  { to: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { to: "/workouts", label: "Workouts", icon: Dumbbell },
   { to: "/calendar", label: "Calendar", icon: Calendar },
+  { to: "/recovery", label: "Recovery", icon: Activity },
 ];
 
 export function MobileBottomNav() {
