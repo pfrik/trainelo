@@ -1,41 +1,15 @@
-import { Bell, Plus } from 'lucide-react';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { format } from 'date-fns';
-import { MorningCheckIn } from '@/components/dashboard/MorningCheckIn';
-import { RecoveryStatusRow } from '@/components/dashboard/RecoveryStatusRow';
-import { AiInsightCard } from '@/components/dashboard/AiInsightCard';
-import { GoalProgressCard } from '@/components/dashboard/GoalProgressCard';
-import { TodaysWorkoutCard } from '@/components/dashboard/TodaysWorkoutCard';
-import { WeeklyTrainingChart } from '@/components/dashboard/WeeklyTrainingChart';
-import { useState } from 'react';
-import type { SubjectiveCheckIn } from '@/types/dashboard.types';
+import { Sidebar } from '@/components/dashboard/Sidebar';
+import { Header } from '@/components/dashboard/Header';
+import { AIRecommendationCard } from '@/components/dashboard/AIRecommendationCard';
+import { GoalCard } from '@/components/dashboard/GoalCard';
+import { MorningCheckin } from '@/components/dashboard/MorningCheckin';
+import { RecoveryStatus } from '@/components/dashboard/RecoveryStatus';
+import { WorkoutCard } from '@/components/dashboard/WorkoutCard';
+import { WeeklyView } from '@/components/dashboard/WeeklyView';
 
 export default function Dashboard() {
   const { data, loading } = useDashboardData();
-  const [hasCheckedIn, setHasCheckedIn] = useState(false);
-
-  const handleCheckIn = (mood: SubjectiveCheckIn['mood']) => {
-    console.log('Mood selected:', mood);
-    setHasCheckedIn(true);
-  };
-
-  const handleAcceptWorkout = () => {
-    console.log('Accepted workout recommendation');
-  };
-
-  const handleRejectWorkout = () => {
-    console.log('Rejected workout recommendation');
-  };
-
-  const handleKeepOriginalWorkout = () => {
-    console.log('Keeping original workout');
-  };
-
-  const handleStartWorkout = () => {
-    console.log('Starting workout');
-  };
 
   if (loading || !data) {
     return (
@@ -45,109 +19,39 @@ export default function Dashboard() {
     );
   }
 
-  const currentDate = new Date();
-  const greeting = getGreeting();
-
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Dashboard Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="text-center flex-1">
-              <h1 className="text-2xl font-semibold text-gray-900">
-                {greeting}, {data.user.name}
-              </h1>
-              <p className="text-sm text-gray-500">
-                {format(currentDate, 'EEEE, MMMM d, yyyy')}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                {data.notifications && data.notifications > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
-                    {data.notifications}
-                  </span>
-                )}
-              </Button>
-              <Button className="bg-emerald-700 hover:bg-emerald-800 text-white">
-                <Plus className="h-4 w-4 mr-2" />
-                Log Activity
-              </Button>
-            </div>
+    <div className="min-h-screen bg-[#FAF9F7] flex">
+      {/* Fixed Sidebar */}
+      <Sidebar />
+
+      {/* Main Content Area */}
+      <div className="flex-1 md:ml-64">
+        <div className="px-8 py-8 max-w-6xl mx-auto">
+          {/* Header */}
+          <Header />
+
+          {/* Main Content */}
+          <div className="space-y-0">
+            {/* Goal Card */}
+            <GoalCard />
+
+            {/* AI Recommendation Card */}
+            <AIRecommendationCard />
+
+            {/* Morning Check-in */}
+            <MorningCheckin />
+
+            {/* Recovery Status */}
+            <RecoveryStatus />
+
+            {/* Weekly View */}
+            <WeeklyView />
+
+            {/* Workout Card */}
+            <WorkoutCard />
           </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="p-6 max-w-5xl mx-auto">
-        <div className="space-y-6">
-          {/* Morning Check-in Section - Full Width */}
-          {!hasCheckedIn && (
-            <Card className="bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <h2 className="text-lg font-semibold text-gray-900">Morning Check-in</h2>
-              </div>
-              <p className="text-sm text-gray-600">
-                How are you feeling today?
-              </p>
-              <MorningCheckIn onCheckIn={handleCheckIn} />
-            </Card>
-          )}
-
-          {/* Goal Event Card - Full Width */}
-          <Card className="bg-white p-6 shadow-sm">
-            <GoalProgressCard goal={data.currentGoal} />
-          </Card>
-
-          {/* AI Recommendation Card - Full Width */}
-          <Card className="bg-white p-6 shadow-sm border-l-4 border-l-emerald-500">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                AI Recommendation: Adjust Today's Workout
-              </h3>
-              <p className="text-sm text-gray-600 mt-2">
-                {data.aiRecommendation.reason}
-              </p>
-            </div>
-            <AiInsightCard
-              recommendation={data.aiRecommendation}
-              onAccept={handleAcceptWorkout}
-              onReject={handleRejectWorkout}
-              onKeepOriginal={handleKeepOriginalWorkout}
-            />
-          </Card>
-
-          {/* Recovery Status Row - 3 Cards in a Row */}
-          <Card className="bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recovery Status</h3>
-            <RecoveryStatusRow stats={data.todayStats} />
-          </Card>
-
-          {/* Today's Workout Section - Full Width */}
-          <Card className="bg-white p-6 shadow-sm">
-            <TodaysWorkoutCard
-              workout={data.aiRecommendation.recommendedPlan}
-              onStart={handleStartWorkout}
-            />
-          </Card>
-
-          {/* Weekly Training Chart - Full Width */}
-          <Card className="bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">This Week's Training</h3>
-            <WeeklyTrainingChart weeklyData={data.weeklyTraining} />
-          </Card>
         </div>
       </div>
     </div>
   );
-}
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good Morning';
-  if (hour < 17) return 'Good Afternoon';
-  return 'Good Evening';
 }
