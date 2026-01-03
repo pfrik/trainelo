@@ -9,7 +9,7 @@ export function WeeklyView() {
   }, {
     day: 'TUE',
     status: 'active',
-    label: '5 mi Easy',
+    label: '8 km Easy',
     icon: Footprints
   }, {
     day: 'WED',
@@ -19,17 +19,17 @@ export function WeeklyView() {
   }, {
     day: 'THU',
     status: 'upcoming',
-    label: 'Tempo 8mi',
+    label: 'Tempo 13km',
     icon: Zap
   }, {
     day: 'FRI',
     status: 'upcoming',
-    label: '4 mi Easy',
+    label: '6 km Easy',
     icon: Footprints
   }, {
     day: 'SAT',
     status: 'upcoming',
-    label: 'Long 16mi',
+    label: 'Long 26km',
     icon: Footprints
   }, {
     day: 'SUN',

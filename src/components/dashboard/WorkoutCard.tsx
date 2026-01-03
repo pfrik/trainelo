@@ -44,8 +44,8 @@ export function WorkoutCard() {
           </p>
         </div>
         <div className="text-right">
-          <div className="text-3xl font-bold text-[#1f2937]">5.0</div>
-          <div className="text-sm text-[#6b7280] font-medium">miles</div>
+          <div className="text-3xl font-bold text-[#1f2937]">8.0</div>
+          <div className="text-sm text-[#6b7280] font-medium">km</div>
         </div>
       </div>
 

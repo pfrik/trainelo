@@ -26,29 +26,29 @@ export default function Dashboard() {
 
       {/* Main Content Area */}
       <div className="flex-1 md:ml-64">
-        <div className="px-8 py-8 max-w-6xl mx-auto">
+        <div className="px-4 py-8 max-w-6xl">
           {/* Header */}
           <Header />
 
           {/* Main Content */}
           <div className="space-y-0">
+            {/* Morning Check-in */}
+            <MorningCheckin />
+
             {/* Goal Card */}
             <GoalCard />
 
             {/* AI Recommendation Card */}
             <AIRecommendationCard />
 
-            {/* Morning Check-in */}
-            <MorningCheckin />
-
             {/* Recovery Status */}
             <RecoveryStatus />
 
-            {/* Weekly View */}
-            <WeeklyView />
-
             {/* Workout Card */}
             <WorkoutCard />
+
+            {/* Weekly View */}
+            <WeeklyView />
           </div>
         </div>
       </div>
