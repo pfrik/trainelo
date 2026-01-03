@@ -8,7 +8,6 @@ import { RecoveryStatusRow } from '@/components/dashboard/RecoveryStatusRow';
 import { AiInsightCard } from '@/components/dashboard/AiInsightCard';
 import { GoalProgressCard } from '@/components/dashboard/GoalProgressCard';
 import { TodaysWorkoutCard } from '@/components/dashboard/TodaysWorkoutCard';
-import { WorkoutTimingChart } from '@/components/dashboard/WorkoutTimingChart';
 import { WeeklyTrainingChart } from '@/components/dashboard/WeeklyTrainingChart';
 import { useState } from 'react';
 import type { SubjectiveCheckIn } from '@/types/dashboard.types';
@@ -82,7 +81,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 max-w-5xl mx-auto">
         <div className="space-y-6">
           {/* Morning Check-in Section - Full Width */}
           {!hasCheckedIn && (
@@ -106,8 +105,7 @@ export default function Dashboard() {
           {/* AI Recommendation Card - Full Width */}
           <Card className="bg-white p-6 shadow-sm border-l-4 border-l-emerald-500">
             <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <span className="text-emerald-600">✦</span>
+              <h3 className="text-lg font-semibold text-gray-900">
                 AI Recommendation: Adjust Today's Workout
               </h3>
               <p className="text-sm text-gray-600 mt-2">
@@ -134,7 +132,6 @@ export default function Dashboard() {
               workout={data.aiRecommendation.recommendedPlan}
               onStart={handleStartWorkout}
             />
-            <WorkoutTimingChart workout={data.aiRecommendation.recommendedPlan} />
           </Card>
 
           {/* Weekly Training Chart - Full Width */}

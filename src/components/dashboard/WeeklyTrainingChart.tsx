@@ -46,7 +46,7 @@ export function WeeklyTrainingChart({ weeklyData }: WeeklyTrainingChartProps) {
               className={cn(
                 'aspect-square rounded-lg p-3 flex flex-col items-center justify-center relative transition-all',
                 isCurrentDay
-                  ? 'bg-emerald-600 text-white shadow-md'
+                  ? 'bg-emerald-500 text-white shadow-md'
                   : 'bg-white border border-gray-200 hover:border-gray-300'
               )}
             >

@@ -35,7 +35,7 @@ export function RecoveryStatusRow({ stats }: RecoveryStatusRowProps) {
       icon: Moon,
       label: 'Sleep Duration',
       value: `${stats.sleep.duration}h ${Math.round((stats.sleep.duration % 1) * 60)}m`,
-      subtext: `Deep: ${stats.sleep.deepSleep}h • REM: ${stats.sleep.remSleep}h 😴`,
+      subtext: `Deep: ${stats.sleep.deepSleep}h • REM: ${stats.sleep.remSleep}h`,
       status: stats.sleep.quality,
     },
     {
@@ -65,7 +65,9 @@ export function RecoveryStatusRow({ stats }: RecoveryStatusRowProps) {
         >
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
-              <metric.icon className="h-5 w-5 text-gray-600" />
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <metric.icon className="h-5 w-5 text-emerald-600" />
+              </div>
               <div>
                 <Badge
                   variant="outline"

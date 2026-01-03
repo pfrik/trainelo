@@ -74,8 +74,8 @@ export function DesktopSidebar() {
                     cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors",
                       isActive
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        ? "bg-emerald-50 text-emerald-600"
+                        : "text-slate-600 hover:bg-gray-50 hover:text-gray-900"
                     )
                   }
                 >

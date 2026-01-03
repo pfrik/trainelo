@@ -45,7 +45,6 @@ export function MorningCheckIn({ onCheckIn }: MorningCheckInProps) {
             )}
             onClick={() => handleMoodSelect(option.value)}
           >
-            <span className="mr-1">{option.emoji}</span>
             <span>{option.label}</span>
           </Button>
         ))}

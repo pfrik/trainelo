@@ -54,7 +54,7 @@ export function TodaysWorkoutCard({ workout, onStart }: TodaysWorkoutCardProps) 
         <div className="space-y-3">
           {workout.segments.map((segment, index) => (
             <div key={index} className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium">
+              <div className="flex-shrink-0 w-8 h-8 rounded bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-600">
                 {index + 1}
               </div>
               <div className="flex-1">
@@ -78,7 +78,6 @@ export function TodaysWorkoutCard({ workout, onStart }: TodaysWorkoutCardProps) 
       {/* Short on Time Section */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
         <div className="flex items-start gap-2 mb-3">
-          <span className="text-lg">⚡</span>
           <div>
             <p className="text-sm font-semibold text-amber-700">Short on time?</p>
             <p className="text-sm text-amber-600">The AI can adjust this workout to fit your schedule</p>

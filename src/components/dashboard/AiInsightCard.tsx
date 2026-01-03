@@ -60,8 +60,8 @@ export function AiInsightCard({
         </Button>
         <Button
           onClick={onKeepOriginal}
-          variant="outline"
-          className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
+          variant="ghost"
+          className="flex-1 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
         >
           Keep Original
         </Button>
