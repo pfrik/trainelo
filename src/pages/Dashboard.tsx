@@ -18,7 +18,7 @@ const NavItem: React.FC<NavItemProps> = ({ icon, text, active = false }) => (
         : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface"
     }`}
   >
-    <span className={`material-symbols-outlined ${!active && "group-hover:text-primary transition-colors"}`}>
+    <span className={`material-symbols-outlined ${!active && "group-hover:text-primary transition-colors"}`} style={{ fontVariationSettings: '"FILL" 1' }}>
       {icon}
     </span>
     <span className="font-medium">{text}</span>
@@ -123,7 +123,7 @@ const Dashboard: React.FC = () => {
 
         <div className="p-6 border-t border-slate-200 dark:border-slate-800">
           <a className="flex items-center space-x-3 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors" href="#">
-            <span className="material-symbols-outlined">settings</span>
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>settings</span>
             <span className="font-medium">Settings</span>
           </a>
         </div>
@@ -154,7 +154,7 @@ const Dashboard: React.FC = () => {
                 <span className="text-xs text-blue-100">{currentGoal.name} - {currentGoal.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ({currentGoal.daysRemaining} days remaining)</span>
               </div>
               <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface rounded-full transition-colors relative">
-                <span className="material-symbols-outlined">notifications</span>
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>notifications</span>
                 {data.notifications && data.notifications > 0 && (
                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-light-base dark:border-dark-base"></span>
                 )}
@@ -184,35 +184,35 @@ const Dashboard: React.FC = () => {
                     onClick={() => setMood('drained')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-red-500/20 border border-slate-700 hover:border-red-500 transition-all group active:scale-95 ${mood === 'drained' ? 'border-red-500 bg-red-500/20' : ''}`}
                   >
-                    <span className="material-symbols-outlined text-red-400 mb-1 group-hover:scale-110 transition-transform text-2xl">battery_alert</span>
+                    <span className="material-symbols-outlined text-red-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>battery_alert</span>
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Drained</span>
                   </button>
                   <button
                     onClick={() => setMood('tired')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-orange-500/20 border border-slate-700 hover:border-orange-500 transition-all group active:scale-95 ${mood === 'tired' ? 'border-orange-500 bg-orange-500/20' : ''}`}
                   >
-                    <span className="material-symbols-outlined text-orange-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_dissatisfied</span>
+                    <span className="material-symbols-outlined text-orange-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_dissatisfied</span>
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Tired</span>
                   </button>
                   <button
                     onClick={() => setMood('okay')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-yellow-500/20 border border-slate-700 hover:border-yellow-500 transition-all group active:scale-95 ${mood === 'okay' ? 'border-yellow-500 bg-yellow-500/20' : ''}`}
                   >
-                    <span className="material-symbols-outlined text-yellow-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_neutral</span>
+                    <span className="material-symbols-outlined text-yellow-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_neutral</span>
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Okay</span>
                   </button>
                   <button
                     onClick={() => setMood('good')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-emerald-500/20 border border-slate-700 hover:border-emerald-500 transition-all group active:scale-95 ${mood === 'good' ? 'border-emerald-500 bg-emerald-500/20' : ''}`}
                   >
-                    <span className="material-symbols-outlined text-emerald-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_satisfied</span>
+                    <span className="material-symbols-outlined text-emerald-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_satisfied</span>
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Good</span>
                   </button>
                   <button
                     onClick={() => setMood('great')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-green-500/20 border border-slate-700 hover:border-green-500 transition-all group active:scale-95 ${mood === 'great' ? 'border-green-500 bg-green-500/20' : ''}`}
                   >
-                    <span className="material-symbols-outlined text-green-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_very_satisfied</span>
+                    <span className="material-symbols-outlined text-green-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_very_satisfied</span>
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Great</span>
                   </button>
                 </div>
@@ -263,7 +263,7 @@ const Dashboard: React.FC = () => {
                       <span>Start Workout</span>
                     </button>
                     <button className="group flex items-center space-x-2 px-4 py-2 rounded-lg bg-transparent border border-white/20 hover:border-white/40 transition-all text-slate-300 hover:text-white">
-                      <span className="material-symbols-outlined text-lg">schedule</span>
+                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>schedule</span>
                       <span className="text-sm font-medium">Short on time?</span>
                     </button>
                   </div>
@@ -408,7 +408,7 @@ const Dashboard: React.FC = () => {
                             <p className="text-xs text-slate-500 dark:text-slate-400">{action.detail}</p>
                         </div>
                         </div>
-                        <span className="material-symbols-outlined text-slate-400 dark:text-slate-600">{action.icon}</span>
+                        <span className="material-symbols-outlined text-slate-400 dark:text-slate-600" style={{ fontVariationSettings: '"FILL" 1' }}>{action.icon}</span>
                     </div>
                   ))}
                 </div>
