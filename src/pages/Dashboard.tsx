@@ -180,22 +180,41 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="w-full xl:w-auto">
                 <div className="grid grid-cols-5 gap-2 sm:gap-3">
-                  {[
-                    { icon: 'battery_alert', label: 'Drained' as const, color: 'red' },
-                    { icon: 'sentiment_dissatisfied', label: 'Tired' as const, color: 'orange' },
-                    { icon: 'sentiment_neutral', label: 'Okay' as const, color: 'yellow' },
-                    { icon: 'sentiment_satisfied', label: 'Good' as const, color: 'emerald' },
-                    { icon: 'sentiment_very_satisfied', label: 'Great' as const, color: 'green' },
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      onClick={() => setMood(item.label.toLowerCase() as SubjectiveCheckIn['mood'])}
-                      className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-${item.color}-500/20 border border-slate-700 hover:border-${item.color}-500 transition-all group active:scale-95 ${mood === item.label.toLowerCase() ? `border-${item.color}-500 bg-${item.color}-500/20` : ''}`}
-                    >
-                      <span className={`material-symbols-outlined text-${item.color}-400 mb-1 group-hover:scale-110 transition-transform text-2xl`}>{item.icon}</span>
-                      <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">{item.label}</span>
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => setMood('drained')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-red-500/20 border border-slate-700 hover:border-red-500 transition-all group active:scale-95 ${mood === 'drained' ? 'border-red-500 bg-red-500/20' : ''}`}
+                  >
+                    <span className="material-symbols-outlined text-red-400 mb-1 group-hover:scale-110 transition-transform text-2xl">battery_alert</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Drained</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('tired')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-orange-500/20 border border-slate-700 hover:border-orange-500 transition-all group active:scale-95 ${mood === 'tired' ? 'border-orange-500 bg-orange-500/20' : ''}`}
+                  >
+                    <span className="material-symbols-outlined text-orange-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_dissatisfied</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Tired</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('okay')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-yellow-500/20 border border-slate-700 hover:border-yellow-500 transition-all group active:scale-95 ${mood === 'okay' ? 'border-yellow-500 bg-yellow-500/20' : ''}`}
+                  >
+                    <span className="material-symbols-outlined text-yellow-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_neutral</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Okay</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('good')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-emerald-500/20 border border-slate-700 hover:border-emerald-500 transition-all group active:scale-95 ${mood === 'good' ? 'border-emerald-500 bg-emerald-500/20' : ''}`}
+                  >
+                    <span className="material-symbols-outlined text-emerald-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_satisfied</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Good</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('great')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-green-500/20 border border-slate-700 hover:border-green-500 transition-all group active:scale-95 ${mood === 'great' ? 'border-green-500 bg-green-500/20' : ''}`}
+                  >
+                    <span className="material-symbols-outlined text-green-400 mb-1 group-hover:scale-110 transition-transform text-2xl">sentiment_very_satisfied</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Great</span>
+                  </button>
                 </div>
               </div>
             </div>

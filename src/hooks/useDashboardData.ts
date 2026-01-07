@@ -114,62 +114,40 @@ export function useDashboardData() {
           },
           reason: 'Your HRV dropped 15% overnight and your resting heart rate is elevated by 8 bpm. We recommend switching today\'s tempo run to an easy aerobic flush to support recovery.',
         },
-        weeklyTraining: [
-          {
-            date: new Date('2025-01-13'),
-            weekLabel: 'MON',
-            isCompleted: true,
-            isRest: true,
-            workoutType: 'rest',
-          },
-          {
-            date: new Date('2025-01-14'),
-            weekLabel: 'TUE',
-            isCompleted: true,
-            isRest: false,
-            workoutType: 'easy',
-            minutes: 60,
-          },
-          {
-            date: new Date('2025-01-15'),
-            weekLabel: 'WED',
-            isCompleted: false,
-            isRest: false,
-            workoutType: 'strength',
-            minutes: 45,
-          },
-          {
-            date: new Date('2025-01-16'),
-            weekLabel: 'THU',
-            isCompleted: false,
-            isRest: false,
-            workoutType: 'tempo',
-            minutes: 50,
-          },
-          {
-            date: new Date('2025-01-17'),
-            weekLabel: 'FRI',
-            isCompleted: false,
-            isRest: false,
-            workoutType: 'easy',
-            minutes: 40,
-          },
-          {
-            date: new Date('2025-01-18'),
-            weekLabel: 'SAT',
-            isCompleted: false,
-            isRest: false,
-            workoutType: 'long',
-            minutes: 120,
-          },
-          {
-            date: new Date('2025-01-19'),
-            weekLabel: 'SUN',
-            isCompleted: false,
-            isRest: true,
-            workoutType: 'rest',
-          },
-        ],
+        weeklyTraining: (() => {
+          // Generate dates for the current week (Monday to Sunday)
+          const today = new Date();
+          const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+          const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+          const monday = new Date(today);
+          monday.setDate(today.getDate() + mondayOffset);
+
+          const weekDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+          const workoutSchedule = [
+            { isRest: true, workoutType: 'rest' as const },
+            { isRest: false, workoutType: 'easy' as const, minutes: 60 },
+            { isRest: false, workoutType: 'strength' as const, minutes: 45 },
+            { isRest: false, workoutType: 'tempo' as const, minutes: 50 },
+            { isRest: false, workoutType: 'easy' as const, minutes: 40 },
+            { isRest: false, workoutType: 'long' as const, minutes: 120 },
+            { isRest: true, workoutType: 'rest' as const },
+          ];
+
+          return weekDays.map((label, index) => {
+            const date = new Date(monday);
+            date.setDate(monday.getDate() + index);
+            const isPast = date < new Date(today.toDateString());
+
+            return {
+              date,
+              weekLabel: label,
+              isCompleted: isPast && !workoutSchedule[index].isRest,
+              isRest: workoutSchedule[index].isRest,
+              workoutType: workoutSchedule[index].workoutType,
+              minutes: workoutSchedule[index].minutes,
+            };
+          });
+        })(),
         notifications: 0,
       };
 
