@@ -18,7 +18,9 @@
       "Bash(powershell -Command \"Start-Sleep -Seconds 3\")",
       "Bash(mv:*)",
       "Bash(git revert:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git rm:*)",
+      "Bash(git mv:*)"
     ]
   }
 }
