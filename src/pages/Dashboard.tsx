@@ -266,7 +266,7 @@ const Dashboard: React.FC = () => {
                         return (
                             <div key={index} className="flex flex-col gap-2 group cursor-pointer">
                                 <div className="text-xs text-primary font-bold text-center uppercase">{day.day}</div>
-                                <div className="w-full bg-primary/10 border border-primary rounded-lg p-2 min-h-[90px] flex flex-col justify-between relative overflow-hidden shadow-sm">
+                                <div className="w-full bg-primary/10 border-2 border-primary rounded-lg p-2 min-h-[90px] flex flex-col justify-between relative overflow-hidden shadow-lg shadow-green-500/20 ring-2 ring-primary/30">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
                                     <span className="text-xs font-bold text-slate-900 dark:text-white pl-2">{day.date}</span>
                                     <div className="flex flex-col gap-1 pl-2">
@@ -356,14 +356,14 @@ const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
                     <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined text-sm text-rose-500">favorite</span>
+                      <span className="material-symbols-outlined filled text-sm text-rose-500">favorite</span>
                       <span className="text-xs font-bold uppercase">HRV</span>
                     </div>
                     <p className="text-xl font-bold text-slate-900 dark:text-white">{todayStats.hrv.value} <span className="text-sm font-normal text-slate-500">ms</span></p>
                   </div>
                   <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
                     <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined text-sm text-indigo-400">dark_mode</span>
+                      <span className="material-symbols-outlined filled text-sm text-indigo-400">dark_mode</span>
                       <span className="text-xs font-bold uppercase">Sleep</span>
                     </div>
                     <p className="text-xl font-bold text-slate-900 dark:text-white">{todayStats.sleep.duration}h {Math.round((todayStats.sleep.duration % 1) * 60)}m</p>

@@ -63,13 +63,20 @@ const AppRoutes = () => (
       }
     />
     <Route
+      path="/dashboard"
+      element={
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      }
+    />
+    <Route
       element={
         <ProtectedRoute>
           <AppLayout />
         </ProtectedRoute>
       }
     >
-      <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/today" element={<Today />} />
       <Route path="/calendar" element={<Calendar />} />
     </Route>

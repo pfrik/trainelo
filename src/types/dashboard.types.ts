@@ -51,7 +51,7 @@ export interface WorkoutPlan {
   type: 'aerobic' | 'threshold' | 'intervals' | 'recovery' | 'long run';
   totalDuration: number; // in minutes
   segments: WorkoutSegment[];
-  targetMiles?: number;
+  targetKilometers?: number;
   description?: string;
   recommendedPerceivedEffort?: number; // 1-10
 }
