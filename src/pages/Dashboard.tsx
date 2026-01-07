@@ -16,7 +16,7 @@ const NavItem = ({ icon, text, active = false }: NavItemProps) => (
         : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface"
     }`}
   >
-    <span className={`material-symbols-outlined ${!active && "group-hover:text-primary transition-colors"}`}>
+    <span className={`material-symbols-outlined ${!active && "group-hover:text-primary transition-colors"}`} style={{ fontVariationSettings: '"FILL" 1' }}>
       {icon}
     </span>
     <span className="font-medium">{text}</span>
@@ -145,7 +145,7 @@ export default function Dashboard() {
 
         <div className="p-6 border-t border-slate-200 dark:border-slate-800">
           <a className="flex items-center space-x-3 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors" href="#">
-            <span className="material-symbols-outlined">settings</span>
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>settings</span>
             <span className="font-medium">Settings</span>
           </a>
         </div>
@@ -178,7 +178,7 @@ export default function Dashboard() {
                 </span>
               </div>
               <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface rounded-full transition-colors relative">
-                <span className="material-symbols-outlined">notifications</span>
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>notifications</span>
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-light-base dark:border-dark-base"></span>
               </button>
               <button className="px-4 py-2 bg-slate-200 dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-300 dark:hover:bg-dark-surface-lighter transition-colors border border-transparent dark:border-slate-700">
@@ -212,7 +212,7 @@ export default function Dashboard() {
                           : ''
                       }`}
                     >
-                      <span className={`material-symbols-outlined text-${item.color}-400 mb-1 group-hover:scale-110 transition-transform text-2xl`}>{item.icon}</span>
+                      <span className={`material-symbols-outlined text-${item.color}-400 mb-1 group-hover:scale-110 transition-transform text-2xl`} style={{ fontVariationSettings: '"FILL" 1' }}>{item.icon}</span>
                       <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">{item.label}</span>
                     </button>
                   ))}
@@ -240,11 +240,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex flex-wrap items-center gap-6 mb-8 text-slate-300">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-xl font-bold">timer</span>
+                      <span className="material-symbols-outlined text-primary text-xl font-bold" style={{ fontVariationSettings: '"FILL" 1' }}>timer</span>
                       <span className="text-lg font-medium text-white">45 mins</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-xl font-bold">monitor_heart</span>
+                      <span className="material-symbols-outlined text-primary text-xl font-bold" style={{ fontVariationSettings: '"FILL" 1' }}>monitor_heart</span>
                       <span className="text-lg font-medium text-white">Zone 4 (160-170bpm)</span>
                     </div>
                   </div>
@@ -256,11 +256,11 @@ export default function Dashboard() {
                   <div className="w-full border-t border-white/10 my-4"></div>
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 mt-auto">
                     <button className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-primary hover:bg-primary-hover text-slate-900 px-8 py-3.5 rounded-lg font-bold transition-all shadow-lg shadow-green-500/20 whitespace-nowrap text-base">
-                      <span className="material-symbols-outlined filled">play_arrow</span>
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>play_arrow</span>
                       <span>Start Workout</span>
                     </button>
                     <button className="group flex items-center space-x-2 px-4 py-2 rounded-lg bg-transparent border border-white/20 hover:border-white/40 transition-all text-slate-300 hover:text-white">
-                      <span className="material-symbols-outlined text-lg">schedule</span>
+                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>schedule</span>
                       <span className="text-sm font-medium">Short on time?</span>
                     </button>
                   </div>
@@ -317,7 +317,7 @@ export default function Dashboard() {
                           </div>
                           {day.status === 'completed' && (
                             <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="material-symbols-outlined text-green-500 text-[16px]">check_circle</span>
+                              <span className="material-symbols-outlined text-green-500 text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
                             </div>
                           )}
                         </div>
@@ -368,14 +368,14 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
                     <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined text-sm text-rose-500">favorite</span>
+                      <span className="material-symbols-outlined text-sm text-rose-500" style={{ fontVariationSettings: '"FILL" 1' }}>favorite</span>
                       <span className="text-xs font-bold uppercase">HRV</span>
                     </div>
                     <p className="text-xl font-bold text-slate-900 dark:text-white">{data.todayStats.hrv.value} <span className="text-sm font-normal text-slate-500">ms</span></p>
                   </div>
                   <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
                     <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined text-sm text-indigo-400">dark_mode</span>
+                      <span className="material-symbols-outlined text-sm text-indigo-400" style={{ fontVariationSettings: '"FILL" 1' }}>dark_mode</span>
                       <span className="text-xs font-bold uppercase">Sleep</span>
                     </div>
                     <p className="text-xl font-bold text-slate-900 dark:text-white">
@@ -403,7 +403,7 @@ export default function Dashboard() {
                           <p className="text-xs text-slate-500 dark:text-slate-400">{action.detail}</p>
                         </div>
                       </div>
-                      <span className="material-symbols-outlined text-slate-400 dark:text-slate-600">{action.icon}</span>
+                      <span className="material-symbols-outlined text-slate-400 dark:text-slate-600" style={{ fontVariationSettings: '"FILL" 1' }}>{action.icon}</span>
                     </div>
                   ))}
                 </div>
