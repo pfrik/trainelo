@@ -22,6 +22,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "#16a34a",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -38,6 +39,7 @@ export default {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
+          blue: "#60a5fa",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -57,6 +59,13 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // New dark theme colors from Stitch design
+        "dark-base": "#020617",
+        "dark-surface": "#1e293b",
+        "dark-surface-lighter": "#334155",
+        "light-base": "#f8fafc",
+        "light-surface": "#ffffff",
+        "light-surface-darker": "#f1f5f9",
       },
       borderRadius: {
         lg: "var(--radius)",
