@@ -48,7 +48,7 @@ export function useDashboardData() {
         aiRecommendation: {
           originalPlan: {
             id: 'original-1',
-            name: '8 mi Tempo Run',
+            name: '13 km Tempo Run',
             type: 'threshold',
             totalDuration: 80,
             segments: [
@@ -81,7 +81,7 @@ export function useDashboardData() {
           },
           recommendedPlan: {
             id: 'recommended-1',
-            name: '5 mi Easy Recovery',
+            name: '8 km Easy Recovery',
             type: 'recovery',
             totalDuration: 50,
             segments: [
