@@ -31,12 +31,6 @@ interface WeekDay {
   status: 'completed' | 'today' | 'rest' | 'upcoming';
 }
 
-interface MoodOption {
-  icon: string;
-  label: string;
-  color: string;
-}
-
 export default function Dashboard() {
   const { data, loading } = useDashboardData();
   const [mood, setMood] = useState<string | null>(null);
@@ -85,14 +79,6 @@ export default function Dashboard() {
   };
 
   const weekSchedule = getWeekSchedule();
-
-  const moodOptions: MoodOption[] = [
-    { icon: 'battery_alert', label: 'Drained', color: 'red' },
-    { icon: 'sentiment_dissatisfied', label: 'Tired', color: 'orange' },
-    { icon: 'sentiment_neutral', label: 'Okay', color: 'yellow' },
-    { icon: 'sentiment_satisfied', label: 'Good', color: 'emerald' },
-    { icon: 'sentiment_very_satisfied', label: 'Great', color: 'green' },
-  ];
 
   if (loading || !data) {
     return (
@@ -202,20 +188,52 @@ export default function Dashboard() {
               </div>
               <div className="w-full xl:w-auto">
                 <div className="grid grid-cols-5 gap-2 sm:gap-3">
-                  {moodOptions.map((item) => (
-                    <button
-                      key={item.label}
-                      onClick={() => setMood(item.label)}
-                      className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
-                        mood === item.label
-                          ? `border-${item.color}-500 bg-${item.color}-500/20`
-                          : ''
-                      }`}
-                    >
-                      <span className={`material-symbols-outlined text-${item.color}-400 mb-1 group-hover:scale-110 transition-transform text-2xl`} style={{ fontVariationSettings: '"FILL" 1' }}>{item.icon}</span>
-                      <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">{item.label}</span>
-                    </button>
-                  ))}
+                  {/* Explicit buttons to avoid Tailwind purging dynamic classes */}
+                  <button
+                    onClick={() => setMood('Drained')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
+                      mood === 'Drained' ? 'border-red-500 bg-red-500/20' : ''
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-red-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>battery_alert</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Drained</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('Tired')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
+                      mood === 'Tired' ? 'border-orange-500 bg-orange-500/20' : ''
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-orange-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_dissatisfied</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Tired</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('Okay')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
+                      mood === 'Okay' ? 'border-yellow-500 bg-yellow-500/20' : ''
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-yellow-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_neutral</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Okay</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('Good')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
+                      mood === 'Good' ? 'border-emerald-500 bg-emerald-500/20' : ''
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-emerald-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_satisfied</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Good</span>
+                  </button>
+                  <button
+                    onClick={() => setMood('Great')}
+                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
+                      mood === 'Great' ? 'border-green-500 bg-green-500/20' : ''
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-green-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_very_satisfied</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Great</span>
+                  </button>
                 </div>
               </div>
             </div>
