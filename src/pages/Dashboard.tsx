@@ -241,11 +241,11 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap items-center gap-6 mb-8 text-slate-300">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-xl font-bold">timer</span>
+                      <span className="material-symbols-outlined text-primary text-xl font-bold" style={{ fontVariationSettings: '"FILL" 1' }}>timer</span>
                       <span className="text-lg font-medium text-white">{recommendedWorkout.totalDuration} mins</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-xl font-bold">monitor_heart</span>
+                      <span className="material-symbols-outlined text-primary text-xl font-bold" style={{ fontVariationSettings: '"FILL" 1' }}>monitor_heart</span>
                       <span className="text-lg font-medium text-white">
                         {recommendedWorkout.segments.find(s => s.type === 'main')?.sets?.[0]?.intensity || 'Zone 2'}
                       </span>
@@ -259,7 +259,7 @@ const Dashboard: React.FC = () => {
                   <div className="w-full border-t border-white/10 my-4"></div>
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 mt-auto">
                     <button className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-primary hover:bg-primary-hover text-slate-900 px-8 py-3.5 rounded-lg font-bold transition-all shadow-lg shadow-green-500/20 whitespace-nowrap text-base">
-                      <span className="material-symbols-outlined filled">play_arrow</span>
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>play_arrow</span>
                       <span>Start Workout</span>
                     </button>
                     <button className="group flex items-center space-x-2 px-4 py-2 rounded-lg bg-transparent border border-white/20 hover:border-white/40 transition-all text-slate-300 hover:text-white">
@@ -320,7 +320,7 @@ const Dashboard: React.FC = () => {
                                 </div>
                                 {day.status === 'completed' && (
                                     <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span className="material-symbols-outlined text-green-500 text-[16px]">check_circle</span>
+                                        <span className="material-symbols-outlined text-green-500 text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
                                     </div>
                                 )}
                             </div>
@@ -375,14 +375,14 @@ const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
                     <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined filled text-sm text-rose-500">favorite</span>
+                      <span className="material-symbols-outlined text-sm text-rose-500" style={{ fontVariationSettings: '"FILL" 1' }}>favorite</span>
                       <span className="text-xs font-bold uppercase">HRV</span>
                     </div>
                     <p className="text-xl font-bold text-slate-900 dark:text-white">{todayStats.hrv.value} <span className="text-sm font-normal text-slate-500">ms</span></p>
                   </div>
                   <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
                     <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined filled text-sm text-indigo-400">dark_mode</span>
+                      <span className="material-symbols-outlined text-sm text-indigo-400" style={{ fontVariationSettings: '"FILL" 1' }}>dark_mode</span>
                       <span className="text-xs font-bold uppercase">Sleep</span>
                     </div>
                     <p className="text-xl font-bold text-slate-900 dark:text-white">{todayStats.sleep.duration}h {Math.round((todayStats.sleep.duration % 1) * 60)}m</p>
