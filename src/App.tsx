@@ -8,7 +8,9 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Calendar from "./pages/Calendar";
 import Auth from "./pages/Auth";
+import Today from "./pages/Today";
 import Dashboard from "./pages/Dashboard";
+import DashboardV2 from "./pages/DashboardV2";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
@@ -75,8 +77,17 @@ const AppRoutes = () => (
         </ProtectedRoute>
       }
     >
+      <Route path="/today" element={<Today />} />
       <Route path="/calendar" element={<Calendar />} />
     </Route>
+    <Route
+      path="/dashboard-v2"
+      element={
+        <ProtectedRoute>
+          <DashboardV2 />
+        </ProtectedRoute>
+      }
+    />
     <Route path="*" element={<Navigate to="/dashboard" replace />} />
   </Routes>
 );
