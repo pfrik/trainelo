@@ -19,11 +19,13 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        // Primary color from Stitch design
         primary: {
-          DEFAULT: "hsl(var(--primary))",
+          DEFAULT: "#22c55e", // Vibrant Green
           foreground: "hsl(var(--primary-foreground))",
-          hover: "#16a34a",
+          hover: "#16a34a", // Darker Green
         },
+        "primary-hover": "#16a34a", // Alternative primary hover name
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
@@ -41,6 +43,7 @@ export default {
           foreground: "hsl(var(--accent-foreground))",
           blue: "#60a5fa",
         },
+        "accent-blue": "#60a5fa", // Alternative accent blue name
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
@@ -59,13 +62,17 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        // New dark theme colors from Stitch design
-        "dark-base": "#020617",
-        "dark-surface": "#1e293b",
-        "dark-surface-lighter": "#334155",
+        // Dark theme colors from Stitch design
+        "dark-base": "#020617", // Almost Black / Slate 950
+        "dark-surface": "#1e293b", // Slate 800
+        "dark-surface-lighter": "#334155", // Slate 700
         "light-base": "#f8fafc",
         "light-surface": "#ffffff",
         "light-surface-darker": "#f1f5f9",
+      },
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+        display: ['Inter', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",

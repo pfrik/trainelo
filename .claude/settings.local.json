@@ -12,7 +12,10 @@
       "Bash(tasklist:*)",
       "Bash(findstr:*)",
       "Bash(start http://localhost:8082)",
-      "Bash(powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait\\(''^{PRTSC}''\\); Start-Sleep -Seconds 1; $image = [System.Windows.Forms.Clipboard]::GetImage\\(\\); if \\($image\\) { $path = ''dashboard-screenshot.png''; $image.Save\\($path, [System.Drawing.Imaging.ImageFormat]::Png\\); Write-Host \"\"Screenshot saved to $path\"\" } else { Write-Host ''No image in clipboard'' }\")"
+      "Bash(powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait\\(''^{PRTSC}''\\); Start-Sleep -Seconds 1; $image = [System.Windows.Forms.Clipboard]::GetImage\\(\\); if \\($image\\) { $path = ''dashboard-screenshot.png''; $image.Save\\($path, [System.Drawing.Imaging.ImageFormat]::Png\\); Write-Host \"\"Screenshot saved to $path\"\" } else { Write-Host ''No image in clipboard'' }\")",
+      "Bash(start http://localhost:8082/dashboard-v2)",
+      "Bash(timeout /t 3)",
+      "Bash(powershell -Command \"Start-Sleep -Seconds 3\")"
     ]
   }
 }
