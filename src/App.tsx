@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Today from "./pages/Today";
 import Dashboard from "./pages/Dashboard";
 import DashboardV2 from "./pages/DashboardV2";
+import DashboardStitch from "./pages/DashboardStitch";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,14 @@ const AppRoutes = () => (
       element={
         <ProtectedRoute>
           <DashboardV2 />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/stitch"
+      element={
+        <ProtectedRoute>
+          <DashboardStitch />
         </ProtectedRoute>
       }
     />
