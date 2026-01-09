@@ -11,6 +11,9 @@ export {
   type EvidenceSummary,
   type RecommendationCandidate,
   type TodayRecommendationResponse,
+  type ChoiceAction,
+  type ChoiceRequest,
+  type ChoiceResponse,
 } from "./recommendation";
 
 // Schemas
@@ -22,4 +25,7 @@ export {
   EvidenceSummarySchema,
   RecommendationCandidateSchema,
   TodayRecommendationResponseSchema,
+  ChoiceActionSchema,
+  ChoiceRequestSchema,
+  ChoiceResponseSchema,
 } from "./schemas";

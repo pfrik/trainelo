@@ -70,3 +70,21 @@ export const TodayRecommendationResponseSchema = z.object({
   llm_used: z.boolean(),
   generated_at: z.string().datetime(),
 });
+
+/** Choice action enum schema */
+export const ChoiceActionSchema = z.enum(["accept", "reject"]);
+
+/** Choice request schema */
+export const ChoiceRequestSchema = z.object({
+  recommendation_id: z.string().min(1),
+  chosen_candidate_id: CandidateIdSchema,
+  action: ChoiceActionSchema,
+  note: z.string().optional(),
+});
+
+/** Choice response schema */
+export const ChoiceResponseSchema = z.object({
+  schema_version: SchemaVersionSchema,
+  recorded: z.boolean(),
+  recorded_at: z.string().datetime(),
+});

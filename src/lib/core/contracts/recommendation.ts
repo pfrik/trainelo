@@ -85,3 +85,28 @@ export interface TodayRecommendationResponse {
   /** Processing timestamp (ISO 8601) */
   generated_at: string;
 }
+
+/** Action taken on a recommendation */
+export type ChoiceAction = "accept" | "reject";
+
+/** Request payload for choice endpoint */
+export interface ChoiceRequest {
+  /** Recommendation ID (for audit trail) */
+  recommendation_id: string;
+  /** Chosen candidate ID */
+  chosen_candidate_id: CandidateId;
+  /** Action taken */
+  action: ChoiceAction;
+  /** Optional user note */
+  note?: string;
+}
+
+/** Response from choice endpoint */
+export interface ChoiceResponse {
+  /** Schema version for client compatibility */
+  schema_version: SchemaVersion;
+  /** Whether the choice was recorded */
+  recorded: boolean;
+  /** Timestamp of the choice (ISO 8601) */
+  recorded_at: string;
+}
