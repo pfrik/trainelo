@@ -236,7 +236,7 @@ export async function getTodaysWorkout(userId: string) {
     .single();
 
   // AI adjustment logic
-  let adjustments = {
+  const adjustments = {
     distanceMultiplier: 1,
     intensityAdjustment: 0,
     recommendation: '',
