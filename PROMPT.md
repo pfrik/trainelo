@@ -2,17 +2,17 @@
 
 You are acting as a Senior Engineer building Trainelo (Next.js App Router + Supabase + Vercel Cron).
 Your mission: ship the "Lite-first / Full-ready" architecture safely and incrementally.
-
+  
 ## A) Architectural Boundaries (STRICT)
 - `src/lib/core/**` = PURE business logic ONLY.
   - No Supabase calls, no `fetch`, no React, no IO.
   - Must be deterministic, synchronous (where possible), and unit-testable.
-- `app/api/**` = Integration Edge.
+- `api/**` = Vercel Serverless Functions (The Backend).
   - Database reads/writes, Vendor API calls, and LLM calls happen ONLY here.
+  - These functions act as your API layer.
 - **Vendor Ingest (Garmin):**
   - ALWAYS store raw JSON to blob storage BEFORE parsing.
   - Use **Tolerant Parsing**: Never reject payloads due to extra/unknown fields.
-  - If required fields are missing: Log warning, set `confidence_score` low, but save partial data.
 
 ## B) Workflow Safety Rules
 - **Scope Lock is Mandatory:**
