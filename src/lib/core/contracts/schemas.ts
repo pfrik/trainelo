@@ -4,7 +4,12 @@
  */
 
 import { z } from "zod";
-import { SchemaVersion } from "./recommendation.js";
+import {
+  SchemaVersion,
+  type TodayRecommendationResponse,
+  type ChoiceRequest,
+  type ChoiceResponse,
+} from "./recommendation.js";
 
 /** Schema version literal */
 export const SchemaVersionSchema = z.literal(SchemaVersion);
@@ -70,7 +75,7 @@ export const TodayRecommendationResponseSchema = z.object({
   evidence: EvidenceSummarySchema,
   llm_used: z.boolean(),
   generated_at: z.string().datetime(),
-});
+}) as z.ZodType<TodayRecommendationResponse>;
 
 /** Choice action enum schema */
 export const ChoiceActionSchema = z.enum(["accept", "reject"]);
@@ -81,11 +86,11 @@ export const ChoiceRequestSchema = z.object({
   chosen_candidate_id: CandidateIdSchema,
   action: ChoiceActionSchema,
   note: z.string().optional(),
-});
+}) as z.ZodType<ChoiceRequest>;
 
 /** Choice response schema */
 export const ChoiceResponseSchema = z.object({
   schema_version: SchemaVersionSchema,
   recorded: z.boolean(),
   recorded_at: z.string().datetime(),
-});
+}) as z.ZodType<ChoiceResponse>;
