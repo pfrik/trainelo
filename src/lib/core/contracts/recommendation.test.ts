@@ -8,6 +8,7 @@ import type { TodayRecommendationResponse } from "./recommendation";
 describe("TodayRecommendationResponseSchema", () => {
   const validResponse: TodayRecommendationResponse = {
     schema_version: "v1",
+    recommendation_id: "user-123:2025-01-15",
     date: "2025-01-15",
     user_id: "user-123",
     candidates: [

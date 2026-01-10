@@ -14,7 +14,7 @@ export {
   type ChoiceAction,
   type ChoiceRequest,
   type ChoiceResponse,
-} from "./recommendation";
+} from "./recommendation.js";
 
 // Schemas
 export {
@@ -28,4 +28,4 @@ export {
   ChoiceActionSchema,
   ChoiceRequestSchema,
   ChoiceResponseSchema,
-} from "./schemas";
+} from "./schemas.js";

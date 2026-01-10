@@ -8,7 +8,7 @@ import {
   type TodayRecommendationResponse,
   type RecommendationCandidate,
   type EvidenceSummary,
-} from "../contracts";
+} from "../contracts/index.js";
 
 /** Input for building a deterministic today response */
 export interface TodayResponseInput {
@@ -86,6 +86,7 @@ export function buildDeterministicTodayResponse(
 ): TodayRecommendationResponse {
   return {
     schema_version: SchemaVersion,
+    recommendation_id: `${input.user_id}:${input.date}`,
     date: input.date,
     user_id: input.user_id,
     candidates: buildDeterministicCandidates(),

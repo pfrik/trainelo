@@ -5,7 +5,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { buildDeterministicTodayResponse } from "../../src/lib/core/recommendation";
+import { buildDeterministicTodayResponse } from "../../src/lib/core/recommendation/todayResponseBuilder.js";
 
 export default function handler(req: VercelRequest, res: VercelResponse): void {
   // Only allow POST

@@ -6,8 +6,8 @@
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { ChoiceRequestSchema } from "../../src/lib/core/contracts";
-import { buildChoiceResponse } from "../../src/lib/core/recommendation";
+import { ChoiceRequestSchema } from "../../src/lib/core/contracts/index.js";
+import { buildChoiceResponse } from "../../src/lib/core/recommendation/choiceResponseBuilder.js";
 
 export default function handler(req: VercelRequest, res: VercelResponse): void {
   // Only allow POST
@@ -16,12 +16,28 @@ export default function handler(req: VercelRequest, res: VercelResponse): void {
     return;
   }
 
+  // Parse body robustly: wrap in try-catch as Vercel throws on invalid JSON access
+  let body: unknown;
+  try {
+    const rawBody = req.body;
+    if (typeof rawBody === "string") {
+      body = JSON.parse(rawBody);
+    } else {
+      body = rawBody;
+    }
+  } catch {
+    console.log("[choice] JSON parse error");
+    res.status(400).json({ error: "INVALID_REQUEST", details: { formErrors: ["Invalid JSON"], fieldErrors: {} } });
+    return;
+  }
+
   // Validate request body
-  const parseResult = ChoiceRequestSchema.safeParse(req.body);
+  const parseResult = ChoiceRequestSchema.safeParse(body);
   if (!parseResult.success) {
+    console.log("[choice] Validation failed:", parseResult.error.flatten());
     res.status(400).json({
-      error: "Invalid request body",
-      details: parseResult.error.issues,
+      error: "INVALID_REQUEST",
+      details: parseResult.error.flatten(),
     });
     return;
   }

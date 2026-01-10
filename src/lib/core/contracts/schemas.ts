@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { SchemaVersion } from "./recommendation";
+import { SchemaVersion } from "./recommendation.js";
 
 /** Schema version literal */
 export const SchemaVersionSchema = z.literal(SchemaVersion);
@@ -63,6 +63,7 @@ export const RecommendationCandidateSchema = z.object({
 /** Full response schema */
 export const TodayRecommendationResponseSchema = z.object({
   schema_version: SchemaVersionSchema,
+  recommendation_id: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   user_id: z.string().min(1),
   candidates: z.array(RecommendationCandidateSchema).min(1),

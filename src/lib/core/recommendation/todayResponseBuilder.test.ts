@@ -90,6 +90,7 @@ describe("buildDeterministicTodayResponse", () => {
     const response = buildDeterministicTodayResponse(input);
 
     expect(response.schema_version).toBe("v1");
+    expect(response.recommendation_id).toBe("user-123:2025-01-15");
     expect(response.user_id).toBe("user-123");
     expect(response.date).toBe("2025-01-15");
     expect(response.generated_at).toBe("2025-01-15T08:00:00.000Z");
@@ -126,6 +127,7 @@ describe("buildDeterministicTodayResponse", () => {
     };
     const response = buildDeterministicTodayResponse(customInput);
 
+    expect(response.recommendation_id).toBe("custom-user:2025-06-20");
     expect(response.user_id).toBe("custom-user");
     expect(response.date).toBe("2025-06-20");
     expect(response.generated_at).toBe("2025-06-20T12:30:00.000Z");

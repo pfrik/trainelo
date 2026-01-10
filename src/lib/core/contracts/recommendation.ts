@@ -72,6 +72,8 @@ export interface RecommendationCandidate {
 export interface TodayRecommendationResponse {
   /** Schema version for client compatibility */
   schema_version: SchemaVersion;
+  /** Unique recommendation ID for choice tracking (format: userId:date) */
+  recommendation_id: string;
   /** ISO date string (YYYY-MM-DD) */
   date: string;
   /** User ID */

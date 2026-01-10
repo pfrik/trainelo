@@ -3,7 +3,7 @@
  * No IO, no Supabase, deterministic, unit-testable.
  */
 
-import { SchemaVersion, type ChoiceResponse } from "../contracts";
+import { SchemaVersion, type ChoiceResponse } from "../contracts/index.js";
 
 /** Input for building a choice response */
 export interface ChoiceResponseInput {
