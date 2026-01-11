@@ -21,7 +21,17 @@
       "Bash(git stash:*)",
       "Bash(git rm:*)",
       "Bash(git mv:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx vercel dev:*)",
+      "Bash(timeout /t 8 /nobreak)",
+      "Bash(Remove-Item -Recurse -Force node_modules.vite -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Vite cache cleared\")",
+      "Bash(ls:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vercel link:*)",
+      "Bash(taskkill:*)"
     ]
   }
 }

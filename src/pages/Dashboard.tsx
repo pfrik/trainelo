@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
+import type { CautionLevel, ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
 
 interface NavItemProps {
   icon: string;
@@ -31,9 +33,101 @@ interface WeekDay {
   status: 'completed' | 'today' | 'rest' | 'upcoming';
 }
 
+/** Get caution level color classes */
+function getCautionStyles(level: CautionLevel): { bg: string; text: string; border: string } {
+  switch (level) {
+    case "high":
+      return { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30" };
+    case "moderate":
+      return { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/30" };
+    case "low":
+      return { bg: "bg-yellow-500/10", text: "text-yellow-400", border: "border-yellow-500/30" };
+    default:
+      return { bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30" };
+  }
+}
+
+/** Format reason code for display */
+function formatReasonCode(code: ReasonCode): string {
+  return code.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/** Evidence panel component */
+function EvidencePanel({ evidence, expanded, onToggle }: {
+  evidence: EvidenceSummary;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const hasData = evidence.fatigue_score !== null ||
+    evidence.fitness_score !== null ||
+    evidence.hrv_trend !== null ||
+    evidence.sleep_quality !== null ||
+    evidence.days_since_rest !== null;
+
+  if (!hasData) return null;
+
+  return (
+    <div className="mt-4">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+      >
+        <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: '"FILL" 1' }}>
+          {expanded ? "expand_less" : "expand_more"}
+        </span>
+        <span>Evidence ({Math.round(evidence.confidence * 100)}% confidence)</span>
+      </button>
+      {expanded && (
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {evidence.fatigue_score !== null && (
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Fatigue</div>
+              <div className="text-lg font-bold text-white">{evidence.fatigue_score}</div>
+            </div>
+          )}
+          {evidence.fitness_score !== null && (
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Fitness</div>
+              <div className="text-lg font-bold text-white">{evidence.fitness_score}</div>
+            </div>
+          )}
+          {evidence.hrv_trend !== null && (
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">HRV Trend</div>
+              <div className="text-lg font-bold text-white capitalize">{evidence.hrv_trend}</div>
+            </div>
+          )}
+          {evidence.sleep_quality !== null && (
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Sleep Quality</div>
+              <div className="text-lg font-bold text-white">{evidence.sleep_quality}</div>
+            </div>
+          )}
+          {evidence.days_since_rest !== null && (
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Days Since Rest</div>
+              <div className="text-lg font-bold text-white">{evidence.days_since_rest}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data, loading } = useDashboardData();
+  const {
+    data: recommendation,
+    loading: recLoading,
+    error: recError,
+    refetch: recRefetch,
+    submitChoice,
+    submitting,
+  } = useTodayRecommendation();
   const [mood, setMood] = useState<string | null>(null);
+  const [evidenceExpanded, setEvidenceExpanded] = useState(false);
+  const [acceptedCandidate, setAcceptedCandidate] = useState<string | null>(null);
 
   // Generate dynamic week schedule based on current date
   const getWeekSchedule = (): WeekDay[] => {
@@ -246,42 +340,130 @@ export default function Dashboard() {
 
               {/* Hero Card: Today's Focus */}
               <div className="bg-slate-900 dark:bg-dark-surface rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700/50 group relative">
-                <div className="relative z-10 p-8 flex flex-col justify-between h-full min-h-[380px]">
+                <div className="relative z-10 p-8">
                   <div className="flex items-center gap-3 mb-6">
                     <span className="bg-primary text-slate-900 text-xs font-black px-3 py-1.5 rounded uppercase tracking-wide">Today's Focus</span>
-                    <span className="bg-slate-700/50 backdrop-blur-md text-slate-200 text-xs font-bold px-3 py-1.5 rounded border border-slate-600/50 uppercase tracking-wide">High Intensity</span>
+                    {recommendation?.llm_used && (
+                      <span className="bg-blue-500/20 text-blue-300 text-xs font-bold px-2 py-1 rounded border border-blue-500/30 uppercase tracking-wide">AI Enhanced</span>
+                    )}
                   </div>
-                  <div className="mb-4">
-                    <h2 className="text-4xl md:text-5xl font-black text-white leading-tight tracking-tight">
-                      Tempo Run: Build Speed
-                    </h2>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-6 mb-8 text-slate-300">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-xl font-bold" style={{ fontVariationSettings: '"FILL" 1' }}>timer</span>
-                      <span className="text-lg font-medium text-white">45 mins</span>
+
+                  {/* Loading State */}
+                  {recLoading && (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
+                      <p className="text-slate-400">Loading recommendations...</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-xl font-bold" style={{ fontVariationSettings: '"FILL" 1' }}>monitor_heart</span>
-                      <span className="text-lg font-medium text-white">Zone 4 (160-170bpm)</span>
+                  )}
+
+                  {/* Error State */}
+                  {recError && !recLoading && (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <span className="material-symbols-outlined text-red-400 text-4xl mb-4" style={{ fontVariationSettings: '"FILL" 1' }}>error</span>
+                      <p className="text-slate-300 mb-4">Failed to load recommendations</p>
+                      <p className="text-sm text-slate-500 mb-4">{recError}</p>
+                      <button
+                        onClick={() => recRefetch()}
+                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                      >
+                        Try Again
+                      </button>
                     </div>
-                  </div>
-                  <div className="max-w-2xl mb-8">
-                    <p className="text-slate-300 text-base leading-relaxed">
-                      Your readiness score is <strong className="text-white">85/100</strong>. You are primed for high intensity. Focus on maintaining cadence during the intervals.
-                    </p>
-                  </div>
-                  <div className="w-full border-t border-white/10 my-4"></div>
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 mt-auto">
-                    <button className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-primary hover:bg-primary-hover text-slate-900 px-8 py-3.5 rounded-lg font-bold transition-all shadow-lg shadow-green-500/20 whitespace-nowrap text-base">
-                      <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>play_arrow</span>
-                      <span>Start Workout</span>
-                    </button>
-                    <button className="group flex items-center space-x-2 px-4 py-2 rounded-lg bg-transparent border border-white/20 hover:border-white/40 transition-all text-slate-300 hover:text-white">
-                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>schedule</span>
-                      <span className="text-sm font-medium">Short on time?</span>
-                    </button>
-                  </div>
+                  )}
+
+                  {/* Empty State */}
+                  {!recLoading && !recError && (!recommendation || recommendation.candidates.length === 0) && (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <span className="material-symbols-outlined text-slate-500 text-4xl mb-4" style={{ fontVariationSettings: '"FILL" 1' }}>calendar_today</span>
+                      <p className="text-slate-300">No recommendations available for today</p>
+                    </div>
+                  )}
+
+                  {/* Candidates */}
+                  {!recLoading && !recError && recommendation && recommendation.candidates.length > 0 && (
+                    <div className="space-y-4">
+                      {recommendation.candidates.map((candidate, index) => {
+                        const isFirst = index === 0;
+                        const isAccepted = acceptedCandidate === candidate.candidate_id;
+                        const cautionStyles = getCautionStyles(candidate.caution_level);
+
+                        return (
+                          <div
+                            key={candidate.candidate_id}
+                            className={`rounded-xl p-5 transition-all ${
+                              isFirst
+                                ? "bg-gradient-to-r from-slate-800 to-slate-800/50 border border-primary/30"
+                                : "bg-slate-800/50 border border-slate-700/50"
+                            } ${isAccepted ? "ring-2 ring-primary" : ""}`}
+                          >
+                            <div className="flex items-start justify-between gap-4 mb-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {isFirst && (
+                                    <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded uppercase">Recommended</span>
+                                  )}
+                                  {candidate.caution_level !== "none" && (
+                                    <span className={`${cautionStyles.bg} ${cautionStyles.text} ${cautionStyles.border} border text-xs font-bold px-2 py-0.5 rounded uppercase`}>
+                                      {candidate.caution_level} caution
+                                    </span>
+                                  )}
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">{candidate.label}</h3>
+                                <p className="text-slate-300 text-sm leading-relaxed">{candidate.rationale}</p>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  const success = await submitChoice(candidate.candidate_id, "accept");
+                                  if (success) {
+                                    setAcceptedCandidate(candidate.candidate_id);
+                                  }
+                                }}
+                                disabled={submitting || isAccepted}
+                                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-all ${
+                                  isAccepted
+                                    ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                                    : isFirst
+                                    ? "bg-primary hover:bg-primary-hover text-slate-900"
+                                    : "bg-slate-700 hover:bg-slate-600 text-white"
+                                } ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
+                              >
+                                {isAccepted ? (
+                                  <>
+                                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check</span>
+                                    <span>Accepted</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+                                    <span>Accept</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Reason Codes */}
+                            <div className="flex flex-wrap gap-1.5 mt-3">
+                              {candidate.reason_codes.map((code) => (
+                                <span
+                                  key={code}
+                                  className="bg-slate-700/50 text-slate-400 text-xs px-2 py-0.5 rounded"
+                                >
+                                  {formatReasonCode(code)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Evidence Panel */}
+                      <EvidencePanel
+                        evidence={recommendation.evidence}
+                        expanded={evidenceExpanded}
+                        onToggle={() => setEvidenceExpanded(!evidenceExpanded)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
