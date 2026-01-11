@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 .vercel
 .env*.local
+
+# Supabase local dev files
+supabase/.branches
+supabase/.temp

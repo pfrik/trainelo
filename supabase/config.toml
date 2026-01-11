@@ -1,1 +1,21 @@
 project_id = "erscfewtmdosbefycztq"
+
+[api]
+port = 55321
+
+[studio]
+port = 55322
+
+[db]
+port = 55432
+
+[db.pooler]
+port = 55433
+
+[auth]
+site_url = "http://localhost:3000"
+
+[inbucket]
+port = 55324
+smtp_port = 55325
+pop3_port = 55326
