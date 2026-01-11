@@ -31,13 +31,13 @@ export const API_ROUTES: ApiRoute[] = [
   {
     method: "post",
     path: "/api/recommendation/today",
-    handler: "../../api/recommendation/today.js",
+    handler: "../api/recommendation/today.js",
     description: "Get today's workout recommendation candidates",
   },
   {
     method: "post",
     path: "/api/recommendation/choice",
-    handler: "../../api/recommendation/choice.js",
+    handler: "../api/recommendation/choice.js",
     description: "Submit user's chosen workout option",
   },
 
