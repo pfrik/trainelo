@@ -30,24 +30,35 @@ def _get_hrv_status(status_value: Any) -> Optional[str]:
     - 3: Balanced
     - 4: Good
 
-    Returns canonical string status.
+    Canonical allowed values: 'low', 'normal', 'elevated', 'unknown'
     """
     if status_value is None:
         return None
 
-    status_map = {
+    # Map Garmin numeric status to canonical values
+    numeric_status_map = {
         0: "unknown",
-        1: "poor",
-        2: "low",
-        3: "balanced",
-        4: "good",
+        1: "low",       # Garmin "poor" -> "low"
+        2: "low",       # Garmin "low" -> "low"
+        3: "normal",    # Garmin "balanced" -> "normal"
+        4: "elevated",  # Garmin "good" -> "elevated"
+    }
+
+    # Map Garmin string status to canonical values
+    string_status_map = {
+        "unknown": "unknown",
+        "poor": "low",
+        "low": "low",
+        "balanced": "normal",
+        "good": "elevated",
     }
 
     if isinstance(status_value, int):
-        return status_map.get(status_value, "unknown")
+        return numeric_status_map.get(status_value, "unknown")
 
     if isinstance(status_value, str):
-        return status_value.lower()
+        normalized = status_value.lower()
+        return string_status_map.get(normalized, "unknown")
 
     return "unknown"
 

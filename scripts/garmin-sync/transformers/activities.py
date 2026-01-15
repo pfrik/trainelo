@@ -8,6 +8,16 @@ from typing import Any, Optional
 from config import SOURCE, SCHEMA_VERSION
 
 
+def _to_int(value: Any) -> Optional[int]:
+    """Convert a value to int, handling floats and None."""
+    if value is None:
+        return None
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return None
+
+
 # Mapping of Garmin activity types to canonical types
 ACTIVITY_TYPE_MAP = {
     "running": "run",
@@ -96,12 +106,31 @@ def transform_activity(
     if not activity_id:
         raise ValueError("Activity missing activityId")
 
-    activity_type, activity_subtype = _get_activity_type(garmin_data)
-
-    # Parse timestamps
+    # Parse timestamps - try multiple possible field names
+    # Garmin API returns different fields for list vs detail endpoints
     start_time = _parse_timestamp(
-        garmin_data.get("startTimeGMT") or garmin_data.get("startTimeLocal")
+        garmin_data.get("startTimeGMT")
+        or garmin_data.get("startTimeLocal")
+        or garmin_data.get("beginTimestamp")
+        or garmin_data.get("startTimestamp")
+        or garmin_data.get("startTimeInSeconds")  # Some APIs return epoch seconds
     )
+
+    # Also check nested summaryDTO for timestamps
+    if not start_time:
+        summary = garmin_data.get("summaryDTO", {})
+        start_time = _parse_timestamp(
+            summary.get("startTimeGMT")
+            or summary.get("startTimeLocal")
+            or summary.get("beginTimestamp")
+        )
+
+    if not start_time:
+        # Debug: print available keys to help diagnose
+        keys = list(garmin_data.keys())
+        raise ValueError(f"Activity {activity_id} missing start time. Available keys: {keys[:15]}...")
+
+    activity_type, activity_subtype = _get_activity_type(garmin_data)
 
     # Calculate end time from start + duration
     duration_seconds = garmin_data.get("duration")
@@ -125,33 +154,21 @@ def transform_activity(
         "title": garmin_data.get("activityName"),
         "started_at": start_time,
         "ended_at": end_time,
-        "duration_seconds": int(duration_seconds) if duration_seconds else None,
-        "distance_meters": garmin_data.get("distance"),
-        "calories": int(garmin_data.get("calories", 0)) if garmin_data.get("calories") else None,
-        "avg_heart_rate": (
-            int(summary.get("averageHR") or garmin_data.get("averageHR", 0))
-            if (summary.get("averageHR") or garmin_data.get("averageHR"))
-            else None
-        ),
-        "max_heart_rate": (
-            int(summary.get("maxHR") or garmin_data.get("maxHR", 0))
-            if (summary.get("maxHR") or garmin_data.get("maxHR"))
-            else None
-        ),
-        "min_heart_rate": (
-            int(summary.get("minHR", 0))
-            if summary.get("minHR")
-            else None
-        ),
-        "avg_cadence": summary.get("averageRunCadence") or summary.get("averageBikeCadence"),
-        "max_cadence": summary.get("maxRunCadence") or summary.get("maxBikeCadence"),
-        "avg_power_watts": summary.get("avgPower"),
-        "max_power_watts": summary.get("maxPower"),
-        "normalized_power_watts": summary.get("normPower"),
-        "training_stress_score": summary.get("trainingStressScore"),
-        "intensity_factor": summary.get("intensityFactor"),
-        "elevation_gain_meters": garmin_data.get("elevationGain"),
-        "elevation_loss_meters": garmin_data.get("elevationLoss"),
+        "duration_seconds": _to_int(duration_seconds),
+        "distance_meters": _to_int(garmin_data.get("distance")),
+        "calories": _to_int(garmin_data.get("calories")),
+        "avg_heart_rate": _to_int(summary.get("averageHR") or garmin_data.get("averageHR")),
+        "max_heart_rate": _to_int(summary.get("maxHR") or garmin_data.get("maxHR")),
+        "min_heart_rate": _to_int(summary.get("minHR")),
+        "avg_cadence": _to_int(summary.get("averageRunCadence") or summary.get("averageBikeCadence")),
+        "max_cadence": _to_int(summary.get("maxRunCadence") or summary.get("maxBikeCadence")),
+        "avg_power_watts": _to_int(summary.get("avgPower")),
+        "max_power_watts": _to_int(summary.get("maxPower")),
+        "normalized_power_watts": _to_int(summary.get("normPower")),
+        "training_stress_score": _to_int(summary.get("trainingStressScore")),
+        "intensity_factor": summary.get("intensityFactor"),  # This is a decimal, not int
+        "elevation_gain_meters": _to_int(garmin_data.get("elevationGain")),
+        "elevation_loss_meters": _to_int(garmin_data.get("elevationLoss")),
         "raw_data": garmin_data,
     }
 

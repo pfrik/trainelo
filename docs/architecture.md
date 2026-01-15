@@ -23,7 +23,7 @@ This doc is the high-level pipeline + invariants. For detailed reference see:
 ┌───────────────────────────────────────────────────────────────────────────────┐
 │                          SIMPLE INGESTION (V1 LITE)                           │
 │ poll/webhook • idempotency/dedupe • backfill-lite                             │
-│ dump raw payloads → cold blob storage (no indexing)                           │
+│ dump raw payloads → cold blob storage (no indexing)                            │
 └───────────────────────────────────────────┬───────────────────────────────────┘
                                             │
                                             ▼
@@ -49,8 +49,8 @@ This doc is the high-level pipeline + invariants. For detailed reference see:
                                             ▼
 ┌───────────────────────────────────────────────────────────────────────────────┐
 │              DISSOCIATION / ANOMALY DETECTOR (SAFETY SIGNALS)                 │
-│ confidence-gated • multi-signal • persistence                                 │
-│ outputs: caution_level + reason_codes + restrictions                          │
+│ confidence-gated • multi-signal • persistence                                  │
+│ outputs: caution_level + reason_codes + restrictions                           │
 └───────────────────────────────────────────┬───────────────────────────────────┘
                                             │
                                             ▼
@@ -78,7 +78,7 @@ This doc is the high-level pipeline + invariants. For detailed reference see:
 ┌───────────────────────────────────────────────────────────────────────────────┐
 │                                OUTPUTS + UI                                   │
 │ render deterministic workout templates • explanation + reason codes + evidence │
-│ calibration notifications include undo/lock                                   │
+│ calibration notifications include undo/lock                                    │
 └───────────────────────────────────────────┬───────────────────────────────────┘
                                             │
                                             ▼
@@ -93,15 +93,19 @@ This doc is the high-level pipeline + invariants. For detailed reference see:
 │ confidence-based silent updates + audit trail (calibration_events)            │
 │ undo + lock + cooldown • optional tests only in Accuracy/Race Prep mode       │
 └───────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 (Optional later “Full” infra)
+
 - queues/DLQ, replay/backfills, multi-source conflict resolution, deeper observability
 
+Implementation notes (current repo)
 
-## Invariants (must always be true)
-- Raw vendor payloads are stored before parsing (cold storage).
-- Core logic is deterministic and pure (`src/lib/core/**`).
-- Integrations/IO live outside core.
-- Recommendation always returns deterministic candidates + evidence.
-- UI renders templates from `template_ref` (never LLM-authored workouts).
+- Frontend is a Vite React SPA (React Router).
+
+- Backend integration edge is Vercel serverless functions under `api/**`.
+
+- Windows local dev: run `npm run dev:full` (Vite on :8080 + local Express wrapper for `/api/**` on :3001). Avoid `vercel dev` due to MIME type issues with Vite modules.
+
+- Raw vendor payloads should be written to Supabase Storage (e.g. bucket `raw-payloads`) before parsing (tolerant parsing).

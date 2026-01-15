@@ -31,7 +31,32 @@
       "Bash(npx kill-port:*)",
       "Bash(npm install:*)",
       "Bash(npx vercel link:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(npx supabase db reset)",
+      "Bash(npx supabase start)",
+      "Bash(npx supabase:*)",
+      "Bash(netstat:*)",
+      "Bash(netsh interface ipv4 show excludedportrange:*)",
+      "Bash(net stop winnat)",
+      "Bash(net start winnat)",
+      "Bash(ren \"supabase\\\\migrations\\\\20260111_001_create_canonical_tables.sql\" \"20260111010000_create_canonical_tables.sql\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(.venvScriptspython.exe -c \"import supabase_client; import blob_storage; print\\(''Imports OK''\\)\")",
+      "Bash(python:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:developers.openai.com)",
+      "Bash(claude mcp list:*)",
+      "Bash(claude mcp --help:*)",
+      "Bash(claude mcp add --help:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp get:*)",
+      "mcp__codex__codex",
+      "Bash(venvScriptspython sync.py --days 1)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(PGPASSWORD=postgres psql:*)"
     ]
   }
 }

@@ -1,16 +1,22 @@
 """
 Blob storage client for raw payload storage.
 Stores raw JSON payloads to Supabase Storage before transformation.
+Uses httpx for Storage API calls instead of the Supabase Python client.
 """
 
 import hashlib
 import json
 from datetime import date
-from typing import Any
+from typing import Any, Optional, Tuple
 
-from supabase import create_client, Client
+import httpx
 
-from config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SOURCE
+from config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SOURCE, SKIP_BLOB_STORAGE
+
+
+class BlobStorageUnavailable(Exception):
+    """Raised when blob storage is unavailable (503) or skipped."""
+    pass
 
 
 class BlobStorage:
@@ -19,7 +25,19 @@ class BlobStorage:
     BUCKET_NAME = "raw-payloads"
 
     def __init__(self):
-        self.client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        self.storage_url = f"{SUPABASE_URL}/storage/v1"
+        self.headers = {
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        }
+        self.client = httpx.Client(headers=self.headers, timeout=30.0)
+        self._skip_storage = SKIP_BLOB_STORAGE
+        self._storage_unavailable = False  # Set to True on 503 errors
+
+    @property
+    def is_available(self) -> bool:
+        """Check if blob storage is available and enabled."""
+        return not self._skip_storage and not self._storage_unavailable
 
     def _compute_hash(self, data: dict[str, Any]) -> str:
         """
@@ -69,7 +87,7 @@ class BlobStorage:
         target_date: date,
         external_id: str,
         data: dict[str, Any],
-    ) -> str:
+    ) -> Tuple[Optional[str], bool]:
         """
         Store raw JSON payload to blob storage.
 
@@ -81,21 +99,41 @@ class BlobStorage:
             data: Raw data to store
 
         Returns:
-            Storage key path
+            Tuple of (storage key path or None, success boolean)
+            Returns (key, True) on success
+            Returns (key, False) if storage was skipped or unavailable
         """
         key = self._generate_key(user_id, data_type, target_date, external_id, data)
+
+        # Skip storage if configured or previously detected as unavailable
+        if self._skip_storage:
+            return (key, False)
+
+        if self._storage_unavailable:
+            return (key, False)
 
         # Convert to JSON bytes
         json_bytes = json.dumps(data, indent=2, default=str).encode("utf-8")
 
         # Upload to storage (upsert mode)
-        self.client.storage.from_(self.BUCKET_NAME).upload(
-            path=key,
-            file=json_bytes,
-            file_options={"content-type": "application/json", "upsert": "true"},
-        )
+        url = f"{self.storage_url}/object/{self.BUCKET_NAME}/{key}"
+        headers = {
+            **self.headers,
+            "Content-Type": "application/json",
+            "x-upsert": "true",
+        }
 
-        return key
+        try:
+            response = self.client.post(url, content=json_bytes, headers=headers)
+            response.raise_for_status()
+            return (key, True)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 503:
+                # Storage service unavailable - mark as unavailable and continue
+                self._storage_unavailable = True
+                return (key, False)
+            # Re-raise other HTTP errors
+            raise
 
     def get_raw_payload(self, key: str) -> dict[str, Any]:
         """
@@ -107,8 +145,10 @@ class BlobStorage:
         Returns:
             Parsed JSON data
         """
-        response = self.client.storage.from_(self.BUCKET_NAME).download(key)
-        return json.loads(response)
+        url = f"{self.storage_url}/object/{self.BUCKET_NAME}/{key}"
+        response = self.client.get(url)
+        response.raise_for_status()
+        return response.json()
 
     def check_payload_exists(
         self,
@@ -134,8 +174,9 @@ class BlobStorage:
         key = self._generate_key(user_id, data_type, target_date, external_id, data)
 
         try:
-            # Try to get file info
-            self.client.storage.from_(self.BUCKET_NAME).download(key)
-            return True
+            # Try to get file info using HEAD request
+            url = f"{self.storage_url}/object/{self.BUCKET_NAME}/{key}"
+            response = self.client.head(url)
+            return response.status_code == 200
         except Exception:
             return False

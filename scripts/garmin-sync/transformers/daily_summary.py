@@ -2,9 +2,19 @@
 Transform Garmin daily summary to canonical daily metrics schema.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from config import SOURCE, SCHEMA_VERSION
+
+
+def _to_int(value: Any) -> Optional[int]:
+    """Convert a value to int, handling floats and None."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def transform_daily_summary(
@@ -28,6 +38,15 @@ def transform_daily_summary(
     # Generate source_ref from date (Garmin doesn't have a unique ID for daily summaries)
     source_ref = f"daily_{date_str}"
 
+    # Calculate active minutes from moderate + vigorous
+    moderate = garmin_data.get("moderateIntensityMinutes") or 0
+    vigorous = garmin_data.get("vigorousIntensityMinutes") or 0
+    active_minutes = _to_int(moderate + vigorous) if (moderate or vigorous) else None
+
+    # Calculate sedentary minutes from seconds
+    sedentary_seconds = garmin_data.get("sedentarySeconds")
+    sedentary_minutes = _to_int(sedentary_seconds // 60) if sedentary_seconds else None
+
     return {
         "user_id": user_id,
         "source": SOURCE,
@@ -35,29 +54,26 @@ def transform_daily_summary(
         "schema_version": SCHEMA_VERSION,
         "date": date_str,
         # Activity metrics
-        "steps": garmin_data.get("totalSteps"),
-        "floors_climbed": garmin_data.get("floorsAscended"),
-        "active_minutes": (
-            (garmin_data.get("moderateIntensityMinutes") or 0) +
-            (garmin_data.get("vigorousIntensityMinutes") or 0)
-        ) or None,
-        "sedentary_minutes": garmin_data.get("sedentarySeconds", 0) // 60 if garmin_data.get("sedentarySeconds") else None,
+        "steps": _to_int(garmin_data.get("totalSteps")),
+        "floors_climbed": _to_int(garmin_data.get("floorsAscended")),
+        "active_minutes": active_minutes,
+        "sedentary_minutes": sedentary_minutes,
         # Calories
-        "total_calories": garmin_data.get("totalKilocalories"),
-        "active_calories": garmin_data.get("activeKilocalories"),
+        "total_calories": _to_int(garmin_data.get("totalKilocalories")),
+        "active_calories": _to_int(garmin_data.get("activeKilocalories")),
         # Heart rate
-        "resting_heart_rate": garmin_data.get("restingHeartRate"),
-        "max_heart_rate_observed": garmin_data.get("maxHeartRate"),
+        "resting_heart_rate": _to_int(garmin_data.get("restingHeartRate")),
+        "max_heart_rate_observed": _to_int(garmin_data.get("maxHeartRate")),
         # Stress
-        "stress_avg": garmin_data.get("averageStressLevel"),
-        "stress_max": garmin_data.get("maxStressLevel"),
+        "stress_avg": _to_int(garmin_data.get("averageStressLevel")),
+        "stress_max": _to_int(garmin_data.get("maxStressLevel")),
         # Body battery
-        "body_battery_high": garmin_data.get("bodyBatteryHighestValue"),
-        "body_battery_low": garmin_data.get("bodyBatteryLowestValue"),
+        "body_battery_high": _to_int(garmin_data.get("bodyBatteryHighestValue")),
+        "body_battery_low": _to_int(garmin_data.get("bodyBatteryLowestValue")),
         # Respiration
-        "respiration_rate": garmin_data.get("averageSpo2Value"),  # Note: this might be SpO2, not respiration
+        "respiration_rate": _to_int(garmin_data.get("averageSpo2Value")),  # Note: this might be SpO2, not respiration
         # Blood oxygen
-        "blood_oxygen_avg": garmin_data.get("averageSpo2Value"),
+        "blood_oxygen_avg": _to_int(garmin_data.get("averageSpo2Value")),
         # Store raw data for debugging and future field extraction
         "raw_data": garmin_data,
     }

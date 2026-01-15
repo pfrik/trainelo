@@ -12,10 +12,16 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 import time
 from datetime import date, datetime, timedelta
 from typing import Any
+
+# Fix Windows console encoding for Unicode
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from config import (
     validate_config,
@@ -23,6 +29,7 @@ from config import (
     DEFAULT_LOOKBACK_DAYS,
     FULL_SYNC_LOOKBACK_DAYS,
     DATA_TYPES,
+    SKIP_BLOB_STORAGE,
 )
 from garmin_client import GarminClient
 from supabase_client import SupabaseClient
@@ -48,6 +55,7 @@ class GarminSync:
         self.supabase = SupabaseClient() if not dry_run else None
         self.blob_storage = BlobStorage() if not dry_run else None
         self.user_id = TRAINELO_USER_ID
+        self._blob_storage_warned = False  # Track if we've warned about skipped storage
 
     def _get_last_sync_date(self, data_type: str) -> date:
         """Get the last sync date for a data type."""
@@ -66,18 +74,30 @@ class GarminSync:
 
     def _store_raw_payload(
         self, data_type: str, target_date: date, external_id: str, data: dict
-    ) -> str:
-        """Store raw payload to blob storage."""
-        if self.dry_run or not self.blob_storage:
-            return f"(dry-run) raw/garmin/{self.user_id}/{target_date}/{data_type}_{external_id}.json"
+    ) -> tuple[str, bool]:
+        """
+        Store raw payload to blob storage.
 
-        return self.blob_storage.store_raw_payload(
+        Returns:
+            Tuple of (key, stored) where stored is False if storage was skipped/unavailable
+        """
+        if self.dry_run or not self.blob_storage:
+            return (f"(dry-run) raw/garmin/{self.user_id}/{target_date}/{data_type}_{external_id}.json", False)
+
+        key, stored = self.blob_storage.store_raw_payload(
             user_id=self.user_id,
             data_type=data_type,
             target_date=target_date,
             external_id=external_id,
             data=data,
         )
+
+        # Warn once when storage is skipped
+        if not stored and not self._blob_storage_warned:
+            self._blob_storage_warned = True
+            print("   ⚠️  Blob storage unavailable or skipped - raw payloads will not be stored")
+
+        return (key, stored)
 
     def _update_sync_state(
         self,
@@ -98,7 +118,7 @@ class GarminSync:
             user_id=self.user_id,
             data_type=data_type,
             last_sync_date=last_sync_date.isoformat(),
-            sync_status="failed" if error else "success",
+            sync_status="failed" if error else "completed",
             records_fetched=records_fetched,
             records_created=records_created,
             records_updated=records_updated,
@@ -123,11 +143,12 @@ class GarminSync:
                 activity_id = activity.get("activityId")
                 activity_date = date.fromisoformat(get_activity_date(activity))
 
-                # Store raw payload
-                blob_key = self._store_raw_payload(
+                # Store raw payload (may be skipped if storage unavailable)
+                blob_key, stored = self._store_raw_payload(
                     "activities", activity_date, str(activity_id), activity
                 )
-                print(f"   📦 Stored: {blob_key}")
+                if stored:
+                    print(f"   📦 Stored: {blob_key}")
 
                 # Transform to canonical format
                 try:
@@ -190,12 +211,13 @@ class GarminSync:
                     stats["skipped"] += 1
                     continue
 
-                # Store raw payload
-                blob_key = self._store_raw_payload(
+                # Store raw payload (may be skipped if storage unavailable)
+                blob_key, stored = self._store_raw_payload(
                     "daily_summary", date.fromisoformat(summary_date),
                     f"daily_{summary_date}", summary
                 )
-                print(f"   📦 Stored: {blob_key}")
+                if stored:
+                    print(f"   📦 Stored: {blob_key}")
 
                 # Transform to canonical format
                 try:
@@ -250,11 +272,12 @@ class GarminSync:
                     stats["skipped"] += 1
                     continue
 
-                # Store raw payload
-                blob_key = self._store_raw_payload(
+                # Store raw payload (may be skipped if storage unavailable)
+                blob_key, stored = self._store_raw_payload(
                     "sleep", date.fromisoformat(sleep_date), sleep_id, sleep
                 )
-                print(f"   📦 Stored: {blob_key}")
+                if stored:
+                    print(f"   📦 Stored: {blob_key}")
 
                 # Transform to canonical format
                 try:
@@ -311,11 +334,12 @@ class GarminSync:
                     stats["skipped"] += 1
                     continue
 
-                # Store raw payload
-                blob_key = self._store_raw_payload(
+                # Store raw payload (may be skipped if storage unavailable)
+                blob_key, stored = self._store_raw_payload(
                     "hrv", date.fromisoformat(hrv_date), hrv_id, hrv
                 )
-                print(f"   📦 Stored: {blob_key}")
+                if stored:
+                    print(f"   📦 Stored: {blob_key}")
 
                 # Transform to canonical format
                 try:
@@ -386,6 +410,9 @@ class GarminSync:
 
         if self.dry_run:
             print("🧪 DRY RUN MODE - No data will be written")
+
+        if SKIP_BLOB_STORAGE:
+            print("⚠️  SKIP_BLOB_STORAGE=true - Raw payloads will not be stored")
 
         # Authenticate with Garmin
         print("\n🔐 Authenticating with Garmin Connect...")

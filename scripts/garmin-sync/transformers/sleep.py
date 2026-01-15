@@ -8,6 +8,16 @@ from typing import Any, Optional
 from config import SOURCE, SCHEMA_VERSION
 
 
+def _to_int(value: Any) -> Optional[int]:
+    """Convert a value to int, handling floats and None."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def _parse_timestamp_ms(ts: Any) -> Optional[str]:
     """Parse Garmin timestamp (milliseconds) to ISO format UTC."""
     if not ts:
@@ -87,21 +97,21 @@ def transform_sleep(
         "date": calendar_date,
         "sleep_start": sleep_start,
         "sleep_end": sleep_end,
-        "duration_seconds": duration_seconds,
-        "deep_seconds": deep_seconds if deep_seconds else None,
-        "light_seconds": light_seconds if light_seconds else None,
-        "rem_seconds": rem_seconds if rem_seconds else None,
-        "awake_seconds": awake_seconds if awake_seconds else None,
-        "awakenings": awakenings,
-        "sleep_score": sleep_score,
+        # Note: duration_seconds is a generated column, don't include it
+        "deep_seconds": _to_int(deep_seconds) if deep_seconds else None,
+        "light_seconds": _to_int(light_seconds) if light_seconds else None,
+        "rem_seconds": _to_int(rem_seconds) if rem_seconds else None,
+        "awake_seconds": _to_int(awake_seconds) if awake_seconds else None,
+        "awakenings": _to_int(awakenings),
+        "sleep_score": _to_int(sleep_score),
         "efficiency_percent": None,  # Garmin doesn't directly provide this
         "latency_seconds": None,  # Time to fall asleep - not directly available
-        "avg_heart_rate": int(avg_hr) if avg_hr else None,
-        "min_heart_rate": int(min_hr) if min_hr else None,
-        "avg_hrv_ms": avg_hrv,
-        "avg_respiration_rate": avg_respiration,
-        "avg_blood_oxygen": avg_spo2,
-        "avg_stress": avg_stress,
+        "avg_heart_rate": _to_int(avg_hr),
+        "min_heart_rate": _to_int(min_hr),
+        "avg_hrv_ms": _to_int(avg_hrv),
+        "avg_respiration_rate": _to_int(avg_respiration),
+        "avg_blood_oxygen": _to_int(avg_spo2),
+        "avg_stress": _to_int(avg_stress),
         "raw_data": garmin_data,
     }
 

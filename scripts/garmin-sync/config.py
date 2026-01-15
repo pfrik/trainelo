@@ -20,6 +20,10 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 # User configuration
 TRAINELO_USER_ID = os.getenv("TRAINELO_USER_ID")
 
+# Blob storage configuration
+# Set to "true" to skip blob storage (useful for local dev without storage service)
+SKIP_BLOB_STORAGE = os.getenv("SKIP_BLOB_STORAGE", "").lower() == "true"
+
 # Sync configuration
 DEFAULT_LOOKBACK_DAYS = 7  # Days to look back for incremental sync
 FULL_SYNC_LOOKBACK_DAYS = 365  # Days to look back for full sync

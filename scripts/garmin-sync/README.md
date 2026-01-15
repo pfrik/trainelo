@@ -54,6 +54,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Your Trainelo user ID (UUID from auth.users)
 TRAINELO_USER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+# Optional: Skip blob storage (for local dev without storage service)
+# SKIP_BLOB_STORAGE=true
 ```
 
 **Important:**
@@ -235,6 +238,16 @@ The hash ensures that identical payloads result in the same filename (idempotent
 - Verify you're using the Service Role Key (not anon key)
 - Check that migrations have been applied to create the tables
 - Ensure RLS policies allow service role access
+
+### Storage service unavailable (503)
+If running local Supabase without the storage service (e.g., due to Windows port conflicts):
+
+1. Set `SKIP_BLOB_STORAGE=true` in your `.env` file to explicitly skip blob storage
+2. Alternatively, the sync will auto-detect 503 errors and continue without storing raw payloads
+3. Data will still sync to the canonical database tables
+4. A warning will be logged: "Blob storage unavailable or skipped"
+
+This is useful for local development where only the database tables are needed.
 
 ## Development
 
