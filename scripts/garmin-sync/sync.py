@@ -287,6 +287,11 @@ class GarminSync:
                     stats["skipped"] += 1
                     continue
 
+                # Skip records with missing required fields
+                if canonical is None:
+                    stats["skipped"] += 1
+                    continue
+
                 if self.dry_run:
                     duration_hrs = (canonical.get("duration_seconds") or 0) / 3600
                     print(f"   🛏️  Would upsert sleep: {sleep_date} ({duration_hrs:.1f}h)")

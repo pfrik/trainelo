@@ -31,7 +31,7 @@ def _parse_timestamp_ms(ts: Any) -> Optional[str]:
 
 def transform_sleep(
     garmin_data: dict[str, Any], user_id: str
-) -> dict[str, Any]:
+) -> Optional[dict[str, Any]]:
     """
     Transform Garmin sleep data to canonical sleep session format.
 
@@ -40,7 +40,7 @@ def transform_sleep(
         user_id: Trainelo user ID
 
     Returns:
-        Canonical sleep session record
+        Canonical sleep session record, or None if required fields are missing
     """
     # Get the daily sleep DTO which contains the main sleep metrics
     daily_sleep = garmin_data.get("dailySleepDTO", {})
@@ -60,6 +60,11 @@ def transform_sleep(
     # Parse sleep start and end times
     sleep_start = _parse_timestamp_ms(daily_sleep.get("sleepStartTimestampGMT"))
     sleep_end = _parse_timestamp_ms(daily_sleep.get("sleepEndTimestampGMT"))
+
+    # Skip records missing required sleep_start field
+    if not sleep_start:
+        print(f"   ⚠️  Skipping sleep record {calendar_date}: missing sleep_start timestamp")
+        return None
 
     # Extract sleep stage durations (in seconds)
     sleep_levels = daily_sleep.get("sleepLevels", {}) or {}
