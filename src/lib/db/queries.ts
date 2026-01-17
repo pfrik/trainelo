@@ -72,6 +72,50 @@ export interface UserDataSummary {
 
 let serviceRoleClient: SupabaseClient | null = null;
 
+function stripSurroundingQuotes(value: string): string {
+  if (value.length < 2) {
+    return value;
+  }
+
+  const first = value[0];
+  const last = value[value.length - 1];
+
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return value.slice(1, -1);
+  }
+
+  return value;
+}
+
+function sanitizeEnvValue(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const withoutControl = value.replace(/[\u0000-\u001F\u007F]/g, "");
+  const trimmed = withoutControl.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const unquoted = stripSurroundingQuotes(trimmed).trim();
+  return unquoted.length > 0 ? unquoted : null;
+}
+
+function getValidatedSupabaseUrl(): string {
+  const cleaned = sanitizeEnvValue(process.env.SUPABASE_URL);
+  if (!cleaned) {
+    throw new Error("Missing/invalid SUPABASE_URL");
+  }
+
+  try {
+    const parsed = new URL(cleaned);
+    return parsed.toString();
+  } catch {
+    throw new Error("Missing/invalid SUPABASE_URL");
+  }
+}
+
 /**
  * Get or create a Supabase client with service role privileges.
  */
@@ -80,21 +124,36 @@ function getServiceRoleClient(): SupabaseClient {
     return serviceRoleClient;
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = getValidatedSupabaseUrl();
+  const serviceRoleKey = sanitizeEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const anonKey =
+    sanitizeEnvValue(process.env.SUPABASE_ANON_KEY) ||
+    sanitizeEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+    sanitizeEnvValue(process.env.VITE_SUPABASE_ANON_KEY);
+  const hasService = !!serviceRoleKey;
+  const hasAnon = !!anonKey;
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error(
-      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables."
-    );
+  console.log(`[db] Using supabaseUrl: ${JSON.stringify(supabaseUrl)}`);
+  console.log("[db] Key present:", { hasService, hasAnon });
+
+  if (!serviceRoleKey) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  serviceRoleClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  try {
+    serviceRoleClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  } catch (err) {
+    console.warn("[db] Supabase client init failed.", {
+      supabaseUrl: JSON.stringify(supabaseUrl),
+      message: (err as { message?: string } | null | undefined)?.message,
+    });
+    throw err;
+  }
 
   return serviceRoleClient;
 }
