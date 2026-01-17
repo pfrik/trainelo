@@ -5,6 +5,7 @@ import {
   type TodayRecommendationResponse,
   type ChoiceRequest,
 } from "@/lib/core/contracts";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface UseTodayRecommendationResult {
   data: TodayRecommendationResponse | null;
@@ -23,15 +24,24 @@ export function useTodayRecommendation(): UseTodayRecommendationResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { session } = useAuth();
 
   const fetchRecommendation = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch("/api/recommendation/today", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({}),
       });
 
@@ -55,7 +65,7 @@ export function useTodayRecommendation(): UseTodayRecommendationResult {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session?.access_token]);
 
   const submitChoice = useCallback(
     async (
@@ -80,9 +90,17 @@ export function useTodayRecommendation(): UseTodayRecommendationResult {
       setSubmitting(true);
 
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        if (session?.access_token) {
+          headers.Authorization = `Bearer ${session.access_token}`;
+        }
+
         const response = await fetch("/api/recommendation/choice", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify(payload),
         });
 
