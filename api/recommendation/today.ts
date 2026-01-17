@@ -27,41 +27,91 @@ import {
 // In production, this should come from auth token
 const TEST_USER_ID = process.env.TRAINELO_USER_ID;
 let authClient: SupabaseClient | null = null;
+let authClientConfig: { supabaseUrl: string; supabaseKey: string } | null = null;
 
-function getAuthClient(): SupabaseClient | null {
-  if (authClient) {
-    return authClient;
-  }
-
-  const supabaseUrl =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey =
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY;
-  const supabaseKey = serviceRoleKey || anonKey;
-
-  if (!supabaseUrl || !supabaseKey) {
-    const hasSupabaseUrl = Boolean(supabaseUrl);
-    const hasServiceRoleKey = Boolean(serviceRoleKey);
-    const hasAnonKey = Boolean(anonKey);
-    console.warn("Supabase auth env missing.", {
-      hasSupabaseUrl,
-      hasServiceRoleKey,
-      hasAnonKey,
-    });
+function cleanEnvValue(v: string | undefined | null): string | null {
+  if (v === undefined || v === null) {
     return null;
   }
 
-  authClient = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  const withoutControls = v.replace(/[\u0000-\u001F\u007F]/g, "");
+  let cleaned = withoutControls.trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+
+  return cleaned || null;
+}
+
+function tryParseUrl(u: string): string | null {
+  try {
+    return new URL(u).toString();
+  } catch {
+    return null;
+  }
+}
+
+function inferSupabaseBaseUrlFromJwt(token: string): string | null {
+  const parts = token.split(".");
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const payloadSegment = parts[1];
+    const normalized = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
+    const padLength = (4 - (normalized.length % 4)) % 4;
+    const padded = normalized + "=".repeat(padLength);
+    const payloadJson = Buffer.from(padded, "base64").toString("utf8");
+    const payload = JSON.parse(payloadJson) as { iss?: unknown };
+    const issuer = typeof payload?.iss === "string" ? payload.iss : null;
+    if (!issuer) {
+      return null;
+    }
+    if (issuer.endsWith("/auth/v1")) {
+      return issuer.slice(0, -"/auth/v1".length);
+    }
+    return new URL(issuer).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getAuthClient(
+  supabaseUrl: string,
+  supabaseKey: string
+): SupabaseClient | null {
+  if (
+    authClient &&
+    authClientConfig?.supabaseUrl === supabaseUrl &&
+    authClientConfig?.supabaseKey === supabaseKey
+  ) {
+    return authClient;
+  }
+
+  try {
+    authClient = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+    authClientConfig = { supabaseUrl, supabaseKey };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : undefined;
+    console.warn("[auth] Supabase client init failed.", {
+      supabaseUrl: JSON.stringify(supabaseUrl),
+      message: errorMessage,
+    });
+    return null;
+  }
 
   return authClient;
 }
@@ -79,14 +129,67 @@ async function resolveUserIdFromAuthHeader(
     return null;
   }
 
-  const client = getAuthClient();
+  const inferredBaseUrl = inferSupabaseBaseUrlFromJwt(token);
+  const inferredParsedUrl = inferredBaseUrl ? tryParseUrl(inferredBaseUrl) : null;
+  let supabaseUrl: string | null = inferredParsedUrl;
+
+  if (!supabaseUrl) {
+    const supabaseUrlCandidates = [
+      cleanEnvValue(process.env.SUPABASE_URL),
+      cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      cleanEnvValue(process.env.VITE_SUPABASE_URL),
+    ];
+
+    for (const candidate of supabaseUrlCandidates) {
+      if (!candidate) {
+        continue;
+      }
+      const parsed = tryParseUrl(candidate);
+      if (parsed) {
+        supabaseUrl = parsed;
+        break;
+      }
+    }
+  }
+
+  if (!supabaseUrl) {
+    console.warn("[auth] No valid supabaseUrl candidate.", {
+      envHasSupabaseUrl: !!process.env.SUPABASE_URL,
+      inferredFromJwt: !!inferredBaseUrl,
+    });
+    return null;
+  }
+
+  const serviceRoleKey = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const anonKey =
+    cleanEnvValue(process.env.SUPABASE_ANON_KEY) ||
+    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+    cleanEnvValue(process.env.VITE_SUPABASE_ANON_KEY);
+  const hasAnonKey = !!anonKey;
+  const hasServiceRoleKey = !!serviceRoleKey;
+  const supabaseKey = anonKey || serviceRoleKey;
+
+  if (!supabaseKey) {
+    console.warn("[auth] Missing supabase key for token verification.", {
+      hasServiceRoleKey,
+      hasAnonKey,
+    });
+    return null;
+  }
+
+  const client = getAuthClient(supabaseUrl, supabaseKey);
   if (!client) {
     return null;
   }
 
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) {
-    console.warn("Auth token verification failed.", error?.message);
+    console.warn("[auth] Auth token verification failed.", {
+      url: supabaseUrl,
+      hasAnonKey,
+      hasServiceRoleKey,
+      message: error?.message,
+    });
     return null;
   }
 
