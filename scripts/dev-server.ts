@@ -6,9 +6,17 @@
  * 
  * Usage: npm run dev:api
  */
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { API_ROUTES, validateRoutes } from "./dev/apiRoutes.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "..");
+dotenv.config({ path: path.join(repoRoot, ".env") });
+console.log("[api] Env check:", { hasSupabaseUrl: !!process.env.SUPABASE_URL, hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY, hasAnonKey: !!process.env.SUPABASE_ANON_KEY });
 
 const app = express();
 app.use(cors());
