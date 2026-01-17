@@ -28,3 +28,20 @@ dist-ssr
 # Supabase local dev files
 supabase/.branches
 supabase/.temp
+
+# Environment variables (secrets)
+.env
+.env.*
+!.env.example
+
+# Script env files
+scripts/**/.env
+scripts/**/.env.*
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Supabase Studio snippets
+supabase/snippets/
+
