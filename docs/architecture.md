@@ -109,3 +109,56 @@ Implementation notes (current repo)
 - Windows local dev: run `npm run dev:full` (Vite on :8080 + local Express wrapper for `/api/**` on :3001). Avoid `vercel dev` due to MIME type issues with Vite modules.
 
 - Raw vendor payloads should be written to Supabase Storage (e.g. bucket `raw-payloads`) before parsing (tolerant parsing).
+
+- **Database FK convention**: All user-owned tables use `user_id UUID REFERENCES auth.users(id)` directly. Do not reference `public.profiles(id)` for user ownership—this ensures consistent RLS policies (`auth.uid() = user_id`) and simpler query patterns. The `profiles` table exists for extended user metadata but is not used as a FK target for data ownership.
+
+## Cron Jobs
+
+### Daily Recommendations (`/api/cron/daily-recommendations`)
+
+Runs daily at 05:00 UTC via Vercel Cron. Computes and upserts training recommendations for all users with data.
+
+**Authentication:**
+- `Authorization: Bearer <CRON_SECRET>` header (Vercel Cron standard)
+
+**Query Parameters:**
+- `dryRun=1` - Preview recommendations without writing to database
+- `date=YYYY-MM-DD` - Override target date (defaults to today UTC)
+
+**Response:**
+```json
+{
+  "ok": true,
+  "target_date": "2024-01-15",
+  "users_processed": 10,
+  "upserts_ok": 10,
+  "upserts_failed": 0,
+  "dry_run": false,
+  "duration_ms": 1234
+}
+```
+
+**Required Environment Variables:**
+| Variable | Description |
+|----------|-------------|
+| `SUPABASE_URL` | Supabase project URL (e.g., `https://xxx.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key for server-side DB access (never expose to client) |
+| `CRON_SECRET` | Secret for cron authentication (generate with `openssl rand -hex 32`) |
+
+**Testing (Production):**
+```bash
+# Ping endpoint - verify functions are routed correctly (should return JSON, not HTML)
+curl.exe -i https://trainelo.vercel.app/api/ping
+
+# Cron endpoint with auth (dry run)
+curl.exe -i -H "Authorization: Bearer $CRON_SECRET" "https://trainelo.vercel.app/api/cron/daily-recommendations?dryRun=1"
+```
+
+**Testing (Local):**
+```bash
+# Local ping
+curl -i http://localhost:3001/api/ping
+
+# Local dry run (no DB writes)
+curl -i -H "Authorization: Bearer $CRON_SECRET" "http://localhost:3001/api/cron/daily-recommendations?dryRun=1"
+```
