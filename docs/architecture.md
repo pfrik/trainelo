@@ -162,3 +162,32 @@ curl -i http://localhost:3001/api/ping
 # Local dry run (no DB writes)
 curl -i -H "Authorization: Bearer $CRON_SECRET" "http://localhost:3001/api/cron/daily-recommendations?dryRun=1"
 ```
+
+## How to verify
+
+After deploying, run these checks to confirm API functions are working:
+
+```bash
+# 1. Health check — must return Content-Type: application/json (not text/html)
+curl -sS -D - -o /dev/null https://trainelo.vercel.app/api/ping
+#    Expected: HTTP/2 200, content-type: application/json, cache-control: no-store
+#    Failure:  content-type: text/html means the SPA fallback is still intercepting /api routes
+
+# 2. Full ping response body
+curl -sS https://trainelo.vercel.app/api/ping
+#    Expected: {"ok":true,"now":"2026-..."}
+
+# 3. Cron endpoint (requires CRON_SECRET)
+curl -sS -D - -o /dev/null \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  "https://trainelo.vercel.app/api/cron/daily-recommendations?dryRun=1"
+#    Expected: HTTP/2 200, content-type: application/json
+
+# 4. Cron without auth — should 401
+curl -sS -w "\n%{http_code}\n" https://trainelo.vercel.app/api/cron/daily-recommendations
+#    Expected: 401
+
+# 5. SPA routes still work — non-/api paths return the SPA HTML
+curl -sS -D - -o /dev/null https://trainelo.vercel.app/dashboard
+#    Expected: HTTP/2 200, content-type: text/html
+```

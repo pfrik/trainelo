@@ -42,6 +42,16 @@ scripts/**/.env.*
 __pycache__/
 *.pyc
 
+# Garmin OAuth tokens
+scripts/garmin-sync/.garmin_tokens/
+
 # Supabase Studio snippets
 supabase/snippets/
+
+
+# Windows reserved device file names
+nul
+NUL
+**/nul
+**/NUL
 
