@@ -55,3 +55,16 @@ NUL
 **/nul
 **/NUL
 
+
+# Local Garmin sync env
+scripts/garmin-sync/.env
+
+
+# Python cache
+__pycache__/
+*.pyc
+
+
+# Claude local settings
+.claude/settings.local.json
+
