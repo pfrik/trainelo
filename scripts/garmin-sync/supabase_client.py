@@ -238,6 +238,39 @@ class SupabaseClient:
         result = response.json()
         return result[0] if result else hrv
 
+    def upsert_daily_metrics_mvp(self, data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Upsert a record into the MVP daily_metrics table.
+
+        This table has a UNIQUE(user_id, date) constraint and stores
+        aggregated daily values (hrv_ms, resting_heart_rate, sleep_hours,
+        sleep_quality) that come from different sync data types.
+
+        Only non-None fields in *data* are sent so that concurrent upserts
+        from different sync types don't overwrite each other's columns.
+
+        Args:
+            data: Dict with user_id, date, and whichever metric columns apply.
+
+        Returns:
+            Upserted record
+        """
+        # Strip None values so PostgREST only touches columns we have data for
+        payload = {k: v for k, v in data.items() if v is not None}
+        # user_id and date are always required
+        payload["user_id"] = data["user_id"]
+        payload["date"] = data["date"]
+
+        extra_headers = {
+            "Prefer": "resolution=merge-duplicates,return=representation",
+        }
+        params = {"on_conflict": "user_id,date"}
+        response = self._request(
+            "POST", "daily_metrics", params=params, json=payload, extra_headers=extra_headers
+        )
+        result = response.json()
+        return result[0] if result else payload
+
     def check_record_exists(
         self, table: str, user_id: str, source_ref: str
     ) -> bool:

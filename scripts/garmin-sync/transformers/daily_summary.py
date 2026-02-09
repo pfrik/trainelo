@@ -71,9 +71,9 @@ def transform_daily_summary(
         "body_battery_high": _to_int(garmin_data.get("bodyBatteryHighestValue")),
         "body_battery_low": _to_int(garmin_data.get("bodyBatteryLowestValue")),
         # Respiration
-        "respiration_rate": _to_int(garmin_data.get("averageSpo2Value")),  # Note: this might be SpO2, not respiration
+        "respiration_rate": garmin_data.get("averageRespirationRate"),
         # Blood oxygen
-        "blood_oxygen_avg": _to_int(garmin_data.get("averageSpo2Value")),
+        "blood_oxygen_avg": garmin_data.get("averageSpo2Value"),
         # Store raw data for debugging and future field extraction
         "raw_data": garmin_data,
     }

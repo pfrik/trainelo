@@ -249,6 +249,68 @@ If running local Supabase without the storage service (e.g., due to Windows port
 
 This is useful for local development where only the database tables are needed.
 
+## Verification
+
+After running a 14-day sync:
+
+```bash
+python sync.py --days 14
+```
+
+Use these SQL queries (Supabase SQL Editor or `psql`) to confirm data is populated:
+
+### Sleep sessions: sleep_score and sleep_seconds
+
+```sql
+SELECT date, sleep_score, sleep_seconds,
+       round(sleep_seconds / 3600.0, 1) AS sleep_hours,
+       avg_hrv_ms, avg_heart_rate
+  FROM sleep_sessions
+ WHERE user_id = '<YOUR_USER_ID>'
+   AND date >= current_date - interval '14 days'
+ ORDER BY date DESC;
+```
+
+### Daily metrics (MVP table): hrv_ms and resting_heart_rate
+
+```sql
+SELECT date, hrv_ms, resting_heart_rate, sleep_hours, sleep_quality
+  FROM daily_metrics
+ WHERE user_id = '<YOUR_USER_ID>'
+   AND date >= current_date - interval '14 days'
+ ORDER BY date DESC;
+```
+
+### HRV nights (detailed)
+
+```sql
+SELECT date, hrv_rmssd, weekly_avg, hrv_status
+  FROM hrv_nights
+ WHERE user_id = '<YOUR_USER_ID>'
+   AND date >= current_date - interval '14 days'
+ ORDER BY date DESC;
+```
+
+### Quick NULL check across all tables
+
+```sql
+SELECT 'sleep_sessions' AS tbl,
+       count(*) AS rows,
+       count(sleep_score) AS has_score,
+       count(sleep_seconds) AS has_seconds
+  FROM sleep_sessions
+ WHERE user_id = '<YOUR_USER_ID>'
+   AND date >= current_date - interval '14 days'
+UNION ALL
+SELECT 'daily_metrics',
+       count(*),
+       count(hrv_ms),
+       count(resting_heart_rate)
+  FROM daily_metrics
+ WHERE user_id = '<YOUR_USER_ID>'
+   AND date >= current_date - interval '14 days';
+```
+
 ## Development
 
 ### Project Structure

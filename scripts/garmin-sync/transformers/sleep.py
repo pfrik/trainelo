@@ -29,6 +29,87 @@ def _parse_timestamp_ms(ts: Any) -> Optional[str]:
     return None
 
 
+def _extract_sleep_score(daily_sleep: dict[str, Any]) -> Optional[int]:
+    """
+    Extract sleep score from Garmin payload, trying multiple known key paths.
+
+    Garmin has changed the payload structure across API versions:
+      - sleepScores.overall.value  (newer nested object)
+      - sleepScores.overall        (direct int)
+      - sleepScores.qualityScore
+      - sleepScores.totalScore
+      - overallScore               (top-level in dailySleepDTO)
+    """
+    sleep_scores = daily_sleep.get("sleepScores")
+    if sleep_scores and isinstance(sleep_scores, dict):
+        # Try overall.value (nested object with value key)
+        overall = sleep_scores.get("overall")
+        if isinstance(overall, dict):
+            val = overall.get("value") or overall.get("qualifierKey")
+            if val is not None:
+                return _to_int(val)
+        # Try overall as a direct int/float
+        if isinstance(overall, (int, float)):
+            return _to_int(overall)
+        # Try alternate keys inside sleepScores
+        for key in ("qualityScore", "totalScore", "overallScore"):
+            val = sleep_scores.get(key)
+            if val is not None:
+                return _to_int(val)
+
+    # Top-level fallback keys on dailySleepDTO
+    for key in ("overallScore", "sleepQualityScore", "sleepScore"):
+        val = daily_sleep.get(key)
+        if val is not None:
+            return _to_int(val)
+
+    return None
+
+
+def _compute_sleep_seconds(
+    daily_sleep: dict[str, Any],
+    deep: Optional[int],
+    light: Optional[int],
+    rem: Optional[int],
+    awake: Optional[int],
+    sleep_start_ts: Any,
+    sleep_end_ts: Any,
+) -> Optional[int]:
+    """
+    Compute actual sleep time (excluding awake) with a 3-level fallback:
+      1) sleepTimeSeconds from the payload  (Garmin's own calculation)
+      2) deep + light + rem                 (sum of stages)
+      3) duration from timestamps - awake   (bed time minus awake)
+    """
+    # 1) Direct from payload
+    raw = daily_sleep.get("sleepTimeSeconds")
+    if raw is not None:
+        val = _to_int(raw)
+        if val and val > 0:
+            return val
+
+    # 2) Sum of stages (only if all three are present)
+    if deep is not None and light is not None and rem is not None:
+        total = deep + light + rem
+        if total > 0:
+            return total
+
+    # 3) Duration from timestamps minus awake
+    if sleep_start_ts and sleep_end_ts:
+        try:
+            if isinstance(sleep_start_ts, (int, float)) and isinstance(sleep_end_ts, (int, float)):
+                duration = int((sleep_end_ts - sleep_start_ts) / 1000)
+            else:
+                duration = None
+        except (TypeError, ValueError):
+            duration = None
+
+        if duration and duration > 0:
+            return duration - (awake or 0)
+
+    return None
+
+
 def transform_sleep(
     garmin_data: dict[str, Any], user_id: str
 ) -> Optional[dict[str, Any]]:
@@ -58,27 +139,40 @@ def transform_sleep(
     source_ref = str(sleep_id) if sleep_id else f"sleep_{calendar_date}"
 
     # Parse sleep start and end times
-    sleep_start = _parse_timestamp_ms(daily_sleep.get("sleepStartTimestampGMT"))
-    sleep_end = _parse_timestamp_ms(daily_sleep.get("sleepEndTimestampGMT"))
+    raw_start = daily_sleep.get("sleepStartTimestampGMT")
+    raw_end = daily_sleep.get("sleepEndTimestampGMT")
+    sleep_start = _parse_timestamp_ms(raw_start)
+    sleep_end = _parse_timestamp_ms(raw_end)
 
     # Skip records missing required sleep_start field
     if not sleep_start:
-        print(f"   ⚠️  Skipping sleep record {calendar_date}: missing sleep_start timestamp")
+        print(f"   [DEBUG] Skipping sleep record {calendar_date}: missing sleep_start timestamp")
         return None
 
     # Extract sleep stage durations (in seconds)
     sleep_levels = daily_sleep.get("sleepLevels", {}) or {}
 
-    deep_seconds = sleep_levels.get("deepSleepSeconds", 0) or daily_sleep.get("deepSleepSeconds", 0)
-    light_seconds = sleep_levels.get("lightSleepSeconds", 0) or daily_sleep.get("lightSleepSeconds", 0)
-    rem_seconds = sleep_levels.get("remSleepSeconds", 0) or daily_sleep.get("remSleepSeconds", 0)
-    awake_seconds = sleep_levels.get("awakeSleepSeconds", 0) or daily_sleep.get("awakeSleepSeconds", 0)
+    deep_seconds = _to_int(
+        sleep_levels.get("deepSleepSeconds") or daily_sleep.get("deepSleepSeconds")
+    )
+    light_seconds = _to_int(
+        sleep_levels.get("lightSleepSeconds") or daily_sleep.get("lightSleepSeconds")
+    )
+    rem_seconds = _to_int(
+        sleep_levels.get("remSleepSeconds") or daily_sleep.get("remSleepSeconds")
+    )
+    awake_seconds = _to_int(
+        sleep_levels.get("awakeSleepSeconds") or daily_sleep.get("awakeSleepSeconds")
+    )
 
-    # Total duration
-    duration_seconds = daily_sleep.get("sleepTimeSeconds")
+    # Sleep quality score (robust multi-path extraction)
+    sleep_score = _extract_sleep_score(daily_sleep)
 
-    # Sleep quality metrics
-    sleep_score = daily_sleep.get("sleepScores", {}).get("overall") if daily_sleep.get("sleepScores") else None
+    # Actual sleep seconds (excluding awake time)
+    sleep_seconds = _compute_sleep_seconds(
+        daily_sleep, deep_seconds, light_seconds, rem_seconds, awake_seconds,
+        raw_start, raw_end,
+    )
 
     # Awakening count
     awakenings = daily_sleep.get("awakeCount")
@@ -90,9 +184,26 @@ def transform_sleep(
     avg_spo2 = daily_sleep.get("avgSpo2Value")
     avg_stress = daily_sleep.get("avgSleepStress")
 
-    # HRV during sleep
+    # HRV during sleep — prefer nightly avg over weekly avg
     hrv_summary = garmin_data.get("hrvSummary", {}) or {}
-    avg_hrv = hrv_summary.get("weeklyAvg")
+    avg_hrv = (
+        hrv_summary.get("lastNightAvg")
+        or hrv_summary.get("weeklyAvg")
+    )
+
+    # --- Debug logging for key fields ---
+    if sleep_score is None:
+        print(f"   [DEBUG] sleep {calendar_date}: sleep_score is NULL "
+              f"(sleepScores keys: {list((daily_sleep.get('sleepScores') or {}).keys())})")
+    if sleep_seconds is None:
+        print(f"   [DEBUG] sleep {calendar_date}: sleep_seconds is NULL "
+              f"(sleepTimeSeconds={daily_sleep.get('sleepTimeSeconds')}, "
+              f"deep={deep_seconds}, light={light_seconds}, rem={rem_seconds})")
+    if avg_hrv is None:
+        print(f"   [DEBUG] sleep {calendar_date}: avg_hrv_ms is NULL "
+              f"(hrvSummary keys: {list(hrv_summary.keys())})")
+    if avg_hr is None:
+        print(f"   [DEBUG] sleep {calendar_date}: avg_heart_rate is NULL")
 
     return {
         "user_id": user_id,
@@ -102,20 +213,21 @@ def transform_sleep(
         "date": calendar_date,
         "sleep_start": sleep_start,
         "sleep_end": sleep_end,
-        # Note: duration_seconds is a generated column, don't include it
-        "deep_seconds": _to_int(deep_seconds) if deep_seconds else None,
-        "light_seconds": _to_int(light_seconds) if light_seconds else None,
-        "rem_seconds": _to_int(rem_seconds) if rem_seconds else None,
-        "awake_seconds": _to_int(awake_seconds) if awake_seconds else None,
+        # Note: duration_seconds is a generated column in the DB, don't include it
+        "sleep_seconds": sleep_seconds,
+        "deep_seconds": deep_seconds,
+        "light_seconds": light_seconds,
+        "rem_seconds": rem_seconds,
+        "awake_seconds": awake_seconds,
         "awakenings": _to_int(awakenings),
-        "sleep_score": _to_int(sleep_score),
+        "sleep_score": sleep_score,
         "efficiency_percent": None,  # Garmin doesn't directly provide this
         "latency_seconds": None,  # Time to fall asleep - not directly available
         "avg_heart_rate": _to_int(avg_hr),
         "min_heart_rate": _to_int(min_hr),
-        "avg_hrv_ms": _to_int(avg_hrv),
-        "avg_respiration_rate": _to_int(avg_respiration),
-        "avg_blood_oxygen": _to_int(avg_spo2),
+        "avg_hrv_ms": avg_hrv,  # keep as numeric, not int-truncated
+        "avg_respiration_rate": avg_respiration,
+        "avg_blood_oxygen": avg_spo2,
         "avg_stress": _to_int(avg_stress),
         "raw_data": garmin_data,
     }

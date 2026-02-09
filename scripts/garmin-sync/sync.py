@@ -232,8 +232,16 @@ class GarminSync:
                     stats["created"] += 1
                 else:
                     self.supabase.upsert_daily_metrics(canonical)
+
+                    # Also populate MVP daily_metrics table with resting HR
+                    self.supabase.upsert_daily_metrics_mvp({
+                        "user_id": self.user_id,
+                        "date": summary_date,
+                        "resting_heart_rate": canonical.get("resting_heart_rate"),
+                    })
+
                     stats["created"] += 1
-                    print(f"   ✅ Synced: {summary_date} (steps: {canonical.get('steps')})")
+                    print(f"   ✅ Synced: {summary_date} (steps: {canonical.get('steps')}, rhr: {canonical.get('resting_heart_rate')})")
 
         except Exception as e:
             print(f"   ❌ Error syncing daily summaries: {e}")
@@ -293,14 +301,29 @@ class GarminSync:
                     continue
 
                 if self.dry_run:
-                    duration_hrs = (canonical.get("duration_seconds") or 0) / 3600
-                    print(f"   🛏️  Would upsert sleep: {sleep_date} ({duration_hrs:.1f}h)")
+                    sleep_secs = canonical.get("sleep_seconds") or 0
+                    print(f"   🛏️  Would upsert sleep: {sleep_date} ({sleep_secs/3600:.1f}h)")
                     stats["created"] += 1
                 else:
                     self.supabase.upsert_sleep_session(canonical)
-                    duration_hrs = (canonical.get("duration_seconds") or 0) / 3600
+
+                    # Also populate MVP daily_metrics with sleep hours / quality
+                    sleep_secs = canonical.get("sleep_seconds")
+                    sleep_hrs = round(sleep_secs / 3600, 2) if sleep_secs else None
+                    # Map 0-100 sleep_score to 1-10 quality scale for MVP table
+                    raw_score = canonical.get("sleep_score")
+                    sleep_quality = max(1, min(10, round(raw_score / 10))) if raw_score else None
+                    self.supabase.upsert_daily_metrics_mvp({
+                        "user_id": self.user_id,
+                        "date": sleep_date,
+                        "sleep_hours": sleep_hrs,
+                        "sleep_quality": sleep_quality,
+                    })
+
                     stats["created"] += 1
-                    print(f"   ✅ Synced: {sleep_date} ({duration_hrs:.1f}h, score: {canonical.get('sleep_score')})")
+                    print(f"   ✅ Synced: {sleep_date} ({(sleep_secs or 0)/3600:.1f}h, "
+                          f"score: {canonical.get('sleep_score')}, "
+                          f"hrv: {canonical.get('avg_hrv_ms')}ms)")
 
         except Exception as e:
             print(f"   ❌ Error syncing sleep: {e}")
@@ -359,6 +382,16 @@ class GarminSync:
                     stats["created"] += 1
                 else:
                     self.supabase.upsert_hrv_night(canonical)
+
+                    # Also populate MVP daily_metrics with nightly HRV
+                    # This is the nightly RMSSD value (lastNightAvg from Garmin).
+                    hrv_val = canonical.get("hrv_rmssd")
+                    self.supabase.upsert_daily_metrics_mvp({
+                        "user_id": self.user_id,
+                        "date": hrv_date,
+                        "hrv_ms": int(hrv_val) if hrv_val else None,
+                    })
+
                     stats["created"] += 1
                     print(f"   ✅ Synced: {hrv_date} (rmssd: {canonical.get('hrv_rmssd')}ms, status: {canonical.get('hrv_status')})")
 
