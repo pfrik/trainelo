@@ -475,3 +475,103 @@ export function calculateEvidence(data: UserDataSummary): CalculatedEvidence {
     confidence,
   };
 }
+
+// ============================================================================
+// View Query Types
+// ============================================================================
+
+/** Row shape returned by the daily_user_state view. */
+export interface DailyUserStateRow {
+  user_id: string;
+  date: string;
+  sleep_score: number | null;
+  sleep_seconds: number | null;
+  avg_hrv_ms: number | null;
+  hrv_rmssd: number | null;
+  hrv_baseline: number | null;
+  recovery_score: number | null;
+  acute_load_7d: number;
+  chronic_load_28d: number;
+  days_since_rest: number;
+  last_hard_session_date: string | null;
+  last_garmin_sync_at: string | null;
+}
+
+/** Row shape returned by daily_training_load (per source per day). */
+export interface TrainingLoadRow {
+  date: string;
+  workouts_count: number;
+  total_duration_seconds: number;
+  total_tss: number;
+}
+
+/** Result wrapper for getDailyUserState. */
+export interface DailyUserStateResult {
+  data: DailyUserStateRow | null;
+  error: string | null;
+}
+
+/** Result wrapper for getTrainingLoad7Days. */
+export interface TrainingLoad7DaysResult {
+  data: TrainingLoadRow[];
+  error: string | null;
+}
+
+// ============================================================================
+// View Query Functions
+// ============================================================================
+
+/**
+ * Fetch today's joined signals from the daily_user_state view.
+ * Returns null when no row exists for the given (userId, date).
+ */
+export async function getDailyUserState(
+  userId: string,
+  date: string,
+): Promise<DailyUserStateResult> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("daily_user_state")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("date", date)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching daily_user_state:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as DailyUserStateRow | null, error: null };
+}
+
+/**
+ * Fetch 7-day training load rows from the daily_training_load view.
+ * Returns rows per (source, date); multiple rows per day is expected.
+ */
+export async function getTrainingLoad7Days(
+  userId: string,
+  date: string,
+): Promise<TrainingLoad7DaysResult> {
+  const client = getServiceRoleClient();
+
+  const startDate = new Date(date + "T00:00:00Z");
+  startDate.setUTCDate(startDate.getUTCDate() - 6);
+  const startDateStr = startDate.toISOString().slice(0, 10);
+
+  const { data, error } = await client
+    .from("daily_training_load")
+    .select("date, workouts_count, total_duration_seconds, total_tss")
+    .eq("user_id", userId)
+    .gte("date", startDateStr)
+    .lte("date", date)
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("[db] Error fetching daily_training_load:", error.message);
+    return { data: [], error: error.message };
+  }
+
+  return { data: (data as TrainingLoadRow[]) || [], error: null };
+}

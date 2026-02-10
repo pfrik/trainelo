@@ -1,23 +1,44 @@
 /**
  * POST /api/recommendation/today
  * Vercel Serverless Function: Returns today's recommendation based on real user data.
+ *
+ * Pipeline: fetch DB views → map inputs → computeReadinessAndFatigue → generateDailyRecommendation → respond.
+ * All business heuristics live in the pure core functions; this route is integration only.
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
-  getUserDataSummary,
-  calculateEvidence,
-  type CalculatedEvidence,
-  type UserDataSummary,
+  getDailyUserState,
+  getTrainingLoad7Days,
+  type DailyUserStateRow,
+  type TrainingLoadRow,
+  type DailyUserStateResult,
+  type TrainingLoad7DaysResult,
 } from "../../src/lib/db/queries.js";
+import {
+  computeReadinessAndFatigue,
+  type ReadinessAndFatigueInput,
+  type ReadinessAndFatigueOutput,
+} from "../../src/lib/core/recommendations/computeReadinessAndFatigue.js";
+import {
+  generateDailyRecommendation,
+  type DailyState,
+  type DailyHistory,
+  type DailyConstraints,
+} from "../../src/lib/core/recommendations/generateDailyRecommendation.js";
+import type {
+  SleepSessionInput,
+  HrvNightInput,
+  DailyMetricsInput,
+  TrainingLoadInput,
+} from "../../src/lib/core/recommendations/computeDailyRecommendation.js";
 import {
   SchemaVersion,
   type TodayRecommendationResponse,
-  type RecommendationCandidate,
-  type ReasonCode,
-  type CautionLevel,
+  type EvidenceSummary,
 } from "../../src/lib/core/contracts/recommendation.js";
+import { buildDeterministicTodayResponse } from "../../src/lib/core/recommendation/todayResponseBuilder.js";
 
 // ============================================================================
 // Configuration
@@ -197,347 +218,119 @@ async function resolveUserIdFromAuthHeader(
 }
 
 // ============================================================================
-// Recommendation Logic
+// Input Mapping (DB rows → pure core function inputs)
 // ============================================================================
 
-interface RecommendationContext {
-  evidence: CalculatedEvidence;
-  data: UserDataSummary;
-  date: string;
-}
-
-/**
- * Determine primary recommendation based on evidence.
- */
-function determinePrimaryRecommendation(
-  ctx: RecommendationContext
-): "workout" | "lite" | "rest" {
-  const { evidence } = ctx;
-
-  // High fatigue or poor HRV -> suggest rest
-  if (evidence.fatigue_score !== null && evidence.fatigue_score > 70) {
-    return "rest";
-  }
-
-  if (evidence.hrv_trend === "declining") {
-    return evidence.fatigue_score && evidence.fatigue_score > 50 ? "rest" : "lite";
-  }
-
-  // Poor sleep quality -> suggest lighter workout
-  if (evidence.sleep_quality !== null && evidence.sleep_quality < 50) {
-    return "lite";
-  }
-
-  // Many consecutive workout days -> suggest rest
-  if (evidence.days_since_rest !== null && evidence.days_since_rest >= 5) {
-    return "rest";
-  }
-
-  if (evidence.days_since_rest !== null && evidence.days_since_rest >= 3) {
-    return "lite";
-  }
-
-  // Default: proceed with scheduled workout
-  return "workout";
-}
-
-/**
- * Build dynamic rationale based on evidence.
- */
-function buildRationale(
-  candidateType: string,
-  evidence: CalculatedEvidence
-): string {
-  const parts: string[] = [];
-
-  switch (candidateType) {
-    case "scheduled":
-      if (evidence.hrv_trend === "rising") {
-        parts.push("Your HRV is trending up, indicating good recovery.");
-      }
-      if (evidence.sleep_quality !== null && evidence.sleep_quality >= 70) {
-        parts.push(`Sleep quality was good (${evidence.sleep_quality}%).`);
-      }
-      if (evidence.fatigue_score !== null && evidence.fatigue_score < 40) {
-        parts.push("Fatigue levels are low.");
-      }
-      if (parts.length === 0) {
-        parts.push("Proceed with your scheduled workout.");
-      }
-      break;
-
-    case "lite_alternative":
-      if (evidence.hrv_trend === "declining") {
-        parts.push("Your HRV has been declining recently.");
-      }
-      if (evidence.sleep_quality !== null && evidence.sleep_quality < 60) {
-        parts.push(`Sleep quality was suboptimal (${evidence.sleep_quality}%).`);
-      }
-      if (evidence.fatigue_score !== null && evidence.fatigue_score > 50) {
-        parts.push("Moderate fatigue detected.");
-      }
-      if (parts.length === 0) {
-        parts.push("Consider a lighter session to maintain consistency.");
-      }
-      break;
-
-    case "rest_day":
-      if (evidence.fatigue_score !== null && evidence.fatigue_score > 65) {
-        parts.push(`High fatigue detected (${evidence.fatigue_score}/100).`);
-      }
-      if (evidence.days_since_rest !== null && evidence.days_since_rest >= 4) {
-        parts.push(`You've trained ${evidence.days_since_rest} days in a row.`);
-      }
-      if (evidence.hrv_trend === "declining") {
-        parts.push("Your HRV trend suggests accumulated stress.");
-      }
-      if (parts.length === 0) {
-        parts.push("A rest day will support recovery and adaptation.");
-      }
-      break;
-
-    case "skip":
-      parts.push("Skip today if life gets in the way.");
-      break;
-  }
-
-  return parts.join(" ");
-}
-
-/**
- * Determine reason codes based on evidence.
- */
-function determineReasonCodes(
-  candidateType: string,
-  evidence: CalculatedEvidence,
-  isColdStart: boolean
-): ReasonCode[] {
-  const codes: ReasonCode[] = [];
-
-  if (isColdStart) {
-    codes.push("COLD_START");
-  }
-
-  if (evidence.confidence < 0.5) {
-    codes.push("INSUFFICIENT_DATA");
-  }
-
-  switch (candidateType) {
-    case "scheduled":
-      codes.push("SCHEDULED_WORKOUT_EXISTS");
-      if (evidence.hrv_trend === "rising" || evidence.hrv_trend === "stable") {
-        codes.push("RECOVERY_OPTIMAL");
-      }
-      break;
-
-    case "lite_alternative":
-      if (evidence.fatigue_score !== null && evidence.fatigue_score > 50) {
-        codes.push("FATIGUE_ELEVATED");
-      }
-      if (evidence.sleep_quality !== null && evidence.sleep_quality < 60) {
-        codes.push("SLEEP_POOR");
-      }
-      if (evidence.hrv_trend === "declining") {
-        codes.push("HRV_DECLINING");
-      }
-      break;
-
-    case "rest_day":
-      codes.push("REST_DAY_DUE");
-      if (evidence.fatigue_score !== null && evidence.fatigue_score > 65) {
-        codes.push("FATIGUE_HIGH");
-      }
-      if (evidence.hrv_trend === "declining") {
-        codes.push("HRV_LOW");
-      }
-      break;
-
-    case "skip":
-      codes.push("USER_PREFERENCE");
-      break;
-  }
-
-  return codes;
-}
-
-/**
- * Determine caution level based on evidence and recommendation type.
- */
-function determineCautionLevel(
-  candidateType: string,
-  evidence: CalculatedEvidence
-): CautionLevel {
-  if (candidateType === "scheduled") {
-    if (evidence.fatigue_score !== null && evidence.fatigue_score > 60) {
-      return "moderate";
-    }
-    if (evidence.hrv_trend === "declining") {
-      return "low";
-    }
-  }
-
-  return "none";
-}
-
-/**
- * Build candidates based on evidence and primary recommendation.
- */
-function buildCandidates(ctx: RecommendationContext): RecommendationCandidate[] {
-  const { evidence, data } = ctx;
-  const primary = determinePrimaryRecommendation(ctx);
-  const isColdStart = evidence.confidence < 0.5;
-
-  // Get last workout type to suggest similar or complementary workout
-  const lastWorkout = data.workouts[0];
-  const suggestedType = lastWorkout?.activity_type === "running" ? "running" : "running";
-
-  const candidates: RecommendationCandidate[] = [];
-
-  // Scheduled workout candidate
-  const scheduledCandidate: RecommendationCandidate = {
-    candidate_id: "scheduled",
-    template_ref: "easy-run-30min",
-    label: "Easy Run (30 min)",
-    rationale: buildRationale("scheduled", evidence),
-    reason_codes: determineReasonCodes("scheduled", evidence, isColdStart),
-    caution_level: determineCautionLevel("scheduled", evidence),
+function mapSleep(
+  row: DailyUserStateRow,
+  date: string,
+): SleepSessionInput | null {
+  if (row.sleep_score == null || row.sleep_seconds == null) return null;
+  return {
+    date,
+    duration_seconds: row.sleep_seconds,
+    sleep_score: row.sleep_score,
+    deep_seconds: 0,
+    rem_seconds: 0,
+    avg_hrv_ms: row.avg_hrv_ms ?? 0,
   };
-
-  // Lite alternative candidate
-  const liteCandidate: RecommendationCandidate = {
-    candidate_id: "lite_alternative",
-    template_ref: "recovery-jog-20min",
-    label: "Recovery Jog (20 min)",
-    rationale: buildRationale("lite_alternative", evidence),
-    reason_codes: determineReasonCodes("lite_alternative", evidence, isColdStart),
-    caution_level: "none",
-  };
-
-  // Rest day candidate
-  const restCandidate: RecommendationCandidate = {
-    candidate_id: "rest_day",
-    template_ref: null,
-    label: "Rest Day",
-    rationale: buildRationale("rest_day", evidence),
-    reason_codes: determineReasonCodes("rest_day", evidence, isColdStart),
-    caution_level: "none",
-  };
-
-  // Skip candidate
-  const skipCandidate: RecommendationCandidate = {
-    candidate_id: "skip",
-    template_ref: null,
-    label: "Skip Today",
-    rationale: buildRationale("skip", evidence),
-    reason_codes: determineReasonCodes("skip", evidence, isColdStart),
-    caution_level: "none",
-  };
-
-  // Order candidates based on primary recommendation
-  switch (primary) {
-    case "workout":
-      candidates.push(scheduledCandidate, liteCandidate, restCandidate, skipCandidate);
-      break;
-    case "lite":
-      candidates.push(liteCandidate, scheduledCandidate, restCandidate, skipCandidate);
-      break;
-    case "rest":
-      candidates.push(restCandidate, liteCandidate, scheduledCandidate, skipCandidate);
-      break;
-  }
-
-  return candidates;
 }
 
-/**
- * Build full recommendation response.
- */
-function buildRecommendationResponse(
+function mapHrv(
+  row: DailyUserStateRow,
+  date: string,
+): HrvNightInput | null {
+  if (row.hrv_rmssd == null || row.hrv_baseline == null) return null;
+  return {
+    date,
+    hrv_rmssd: row.hrv_rmssd,
+    hrv_baseline: row.hrv_baseline,
+    hrv_status: "",
+    weekly_avg: 0,
+  };
+}
+
+function mapMetrics(
+  row: DailyUserStateRow,
+  date: string,
+): DailyMetricsInput | null {
+  if (row.recovery_score == null) return null;
+  return {
+    date,
+    recovery_score: row.recovery_score,
+    body_battery_high: 0,
+    body_battery_low: 0,
+    resting_heart_rate: 0,
+    stress_avg: 0,
+  };
+}
+
+function mapTrainingLoad(rows: TrainingLoadRow[]): TrainingLoadInput[] {
+  return rows.map((r) => ({
+    date: r.date,
+    workouts_count: r.workouts_count,
+    total_duration_seconds: r.total_duration_seconds,
+    total_tss: r.total_tss,
+  }));
+}
+
+// ============================================================================
+// Evidence Mapping
+// ============================================================================
+
+function computeHrvTrend(
+  row: DailyUserStateRow | null,
+): "rising" | "stable" | "declining" | null {
+  if (!row || row.hrv_rmssd == null || row.hrv_baseline == null || row.hrv_baseline <= 0) {
+    return null;
+  }
+  const ratio = row.hrv_rmssd / row.hrv_baseline;
+  if (ratio > 1.10) return "rising";
+  if (ratio < 0.90) return "declining";
+  return "stable";
+}
+
+function computeConfidence(
+  row: DailyUserStateRow | null,
+  loadRows: TrainingLoadRow[],
+): number {
+  let sources = 0;
+  if (row?.sleep_score != null) sources++;
+  if (row?.hrv_rmssd != null) sources++;
+  if (row?.recovery_score != null) sources++;
+  if (loadRows.length > 0) sources++;
+  return Math.min(0.3 + sources * 0.15, 0.9);
+}
+
+function buildEvidence(
+  row: DailyUserStateRow | null,
+  loadRows: TrainingLoadRow[],
+  rfOutput: ReadinessAndFatigueOutput,
+): EvidenceSummary {
+  return {
+    fatigue_score: rfOutput.fatigue_score,
+    fitness_score: row?.recovery_score ?? null,
+    hrv_trend: computeHrvTrend(row),
+    sleep_quality: row?.sleep_score ?? null,
+    days_since_rest: row?.days_since_rest ?? null,
+    confidence: computeConfidence(row, loadRows),
+  };
+}
+
+// ============================================================================
+// Cold-start helper
+// ============================================================================
+
+function coldStart(
   userId: string,
   date: string,
   generatedAt: string,
-  evidence: CalculatedEvidence,
-  data: UserDataSummary
 ): TodayRecommendationResponse {
-  const ctx: RecommendationContext = { evidence, data, date };
-  const candidates = buildCandidates(ctx);
-
-  return {
-    schema_version: SchemaVersion,
-    recommendation_id: `${userId}:${date}`,
-    date,
+  return buildDeterministicTodayResponse({
     user_id: userId,
-    candidates,
-    evidence: {
-      fatigue_score: evidence.fatigue_score,
-      fitness_score: evidence.fitness_score,
-      hrv_trend: evidence.hrv_trend,
-      sleep_quality: evidence.sleep_quality,
-      days_since_rest: evidence.days_since_rest,
-      confidence: evidence.confidence,
-    },
-    llm_used: false,
-    generated_at: generatedAt,
-  };
-}
-
-/**
- * Build cold-start response when no user ID is available.
- */
-function buildColdStartResponse(
-  date: string,
-  generatedAt: string
-): TodayRecommendationResponse {
-  return {
-    schema_version: SchemaVersion,
-    recommendation_id: `anonymous:${date}`,
     date,
-    user_id: "anonymous",
-    candidates: [
-      {
-        candidate_id: "scheduled",
-        template_ref: "easy-run-30min",
-        label: "Easy Run (30 min)",
-        rationale: "Start with a light session to build your baseline.",
-        reason_codes: ["COLD_START", "INSUFFICIENT_DATA"],
-        caution_level: "low",
-      },
-      {
-        candidate_id: "lite_alternative",
-        template_ref: "recovery-jog-20min",
-        label: "Recovery Jog (20 min)",
-        rationale: "A gentle option to ease into training.",
-        reason_codes: ["COLD_START", "INSUFFICIENT_DATA"],
-        caution_level: "none",
-      },
-      {
-        candidate_id: "rest_day",
-        template_ref: null,
-        label: "Rest Day",
-        rationale: "Rest is always a valid choice.",
-        reason_codes: ["COLD_START", "REST_DAY_DUE"],
-        caution_level: "none",
-      },
-      {
-        candidate_id: "skip",
-        template_ref: null,
-        label: "Skip Today",
-        rationale: "Skip if life gets in the way.",
-        reason_codes: ["COLD_START", "USER_PREFERENCE"],
-        caution_level: "none",
-      },
-    ],
-    evidence: {
-      fatigue_score: null,
-      fitness_score: null,
-      hrv_trend: null,
-      sleep_quality: null,
-      days_since_rest: null,
-      confidence: 0.3,
-    },
-    llm_used: false,
     generated_at: generatedAt,
-  };
+  });
 }
 
 // ============================================================================
@@ -565,7 +358,7 @@ export default async function handler(
     userId = await resolveUserIdFromAuthHeader(authHeader);
     if (!userId) {
       console.warn("Invalid or expired auth token.");
-      res.status(200).json(buildColdStartResponse(date, generatedAt));
+      res.status(200).json(coldStart("anonymous", date, generatedAt));
       return;
     }
   } else if (TEST_USER_ID) {
@@ -573,40 +366,92 @@ export default async function handler(
   }
 
   if (!userId) {
-    // No user ID available - return cold-start response
     console.log("No user ID available, returning cold-start response");
-    res.status(200).json(buildColdStartResponse(date, generatedAt));
+    res.status(200).json(coldStart("anonymous", date, generatedAt));
     return;
   }
 
   try {
-    // Fetch user data from database
-    console.log(`Fetching data for user ${userId}...`);
-    const data = await getUserDataSummary(userId);
+    // 1. Fetch from DB views in parallel
+    console.log(`[today] Fetching data for user ${userId}...`);
+    const [stateRes, loadRes] = await Promise.all([
+      getDailyUserState(userId, date),
+      getTrainingLoad7Days(userId, date),
+    ]);
+
+    if (stateRes.error || loadRes.error) {
+      console.warn(
+        `[today] Query error — state: ${stateRes.error ?? "ok"}, load: ${loadRes.error ?? "ok"}`
+      );
+      res.status(200).json(coldStart(userId, date, generatedAt));
+      return;
+    }
+
+    const row = stateRes.data;
+    const loadRows = loadRes.data;
 
     console.log(
-      `Found: ${data.hrv.length} HRV records, ${data.sleep.length} sleep records, ` +
-        `${data.workouts.length} workouts, ${data.dailyMetrics.length} daily metrics`
+      `[today] daily_user_state: ${row ? "found" : "none"}, ` +
+        `training_load rows: ${loadRows.length}`
     );
 
-    // Calculate evidence from data
-    const evidence = calculateEvidence(data);
-    console.log("Calculated evidence:", evidence);
+    // 2. Map DB rows → core input types
+    const sleep = row ? mapSleep(row, date) : null;
+    const hrv = row ? mapHrv(row, date) : null;
+    const metrics = row ? mapMetrics(row, date) : null;
+    const trainingLoad7Days = mapTrainingLoad(loadRows);
 
-    // Build response
-    const response = buildRecommendationResponse(
-      userId,
+    // 3. Compute readiness & fatigue
+    const rfInput: ReadinessAndFatigueInput = {
+      sleep,
+      hrv,
+      metrics,
+      trainingLoad7Days,
+    };
+    const rfOutput = computeReadinessAndFatigue(rfInput);
+
+    console.log(
+      `[today] readiness=${rfOutput.readiness_score}, fatigue=${rfOutput.fatigue_score}, ` +
+        `reasons=[${rfOutput.reason_codes.join(",")}]`
+    );
+
+    // 4. Build inputs for candidate generation
+    const state: DailyState = {
+      readiness_score: rfOutput.readiness_score,
+      fatigue_score: rfOutput.fatigue_score,
+      reason_codes: rfOutput.reason_codes,
+    };
+
+    const history: DailyHistory = {
+      consecutive_training_days: row?.days_since_rest ?? 0,
+    };
+
+    const constraints: DailyConstraints = {
+      has_scheduled_workout: false,
+      scheduled_template_ref: null,
+    };
+
+    // 5. Generate ordered candidates
+    const candidates = generateDailyRecommendation(state, history, constraints);
+
+    // 6. Build evidence summary
+    const evidence = buildEvidence(row, loadRows, rfOutput);
+
+    // 7. Assemble response
+    const response: TodayRecommendationResponse = {
+      schema_version: SchemaVersion,
+      recommendation_id: `${userId}:${date}`,
       date,
-      generatedAt,
+      user_id: userId,
+      candidates,
       evidence,
-      data
-    );
+      llm_used: false,
+      generated_at: generatedAt,
+    };
 
     res.status(200).json(response);
   } catch (error) {
-    console.error("Error building recommendation:", error);
-
-    // Fall back to cold-start response on error
-    res.status(200).json(buildColdStartResponse(date, generatedAt));
+    console.error("[today] Error building recommendation:", error);
+    res.status(200).json(coldStart(userId, date, generatedAt));
   }
 }

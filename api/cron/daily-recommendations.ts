@@ -2,6 +2,8 @@
  * GET /api/cron/daily-recommendations
  *
  * Vercel Cron Job: Computes and upserts daily recommendations for all active users.
+ * Uses the same pure core pipeline as /api/recommendation/today:
+ *   computeReadinessAndFatigue → generateDailyRecommendation
  *
  * Authentication:
  *   - Authorization: Bearer <CRON_SECRET> (Vercel Cron standard)
@@ -25,14 +27,32 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import {
-  computeDailyRecommendation,
-  type ComputeRecommendationInput,
-  type ComputeRecommendationOutput,
-  type SleepSessionInput,
-  type HrvNightInput,
-  type DailyMetricsInput,
-  type TrainingLoadInput,
+  computeReadinessAndFatigue,
+  type ReadinessAndFatigueInput,
+  type ReadinessAndFatigueOutput,
+} from "../../src/lib/core/recommendations/computeReadinessAndFatigue.js";
+import {
+  generateDailyRecommendation,
+  type DailyState,
+  type DailyHistory,
+  type DailyConstraints,
+} from "../../src/lib/core/recommendations/generateDailyRecommendation.js";
+import type {
+  SleepSessionInput,
+  HrvNightInput,
+  DailyMetricsInput,
+  TrainingLoadInput,
 } from "../../src/lib/core/recommendations/computeDailyRecommendation.js";
+import type {
+  CandidateId,
+  RecommendationCandidate,
+} from "../../src/lib/core/contracts/recommendation.js";
+import {
+  getDailyUserState,
+  getTrainingLoad7Days,
+  type DailyUserStateRow,
+  type TrainingLoadRow,
+} from "../../src/lib/db/queries.js";
 
 // ============================================================================
 // Configuration
@@ -89,7 +109,7 @@ function isAuthorized(request: Request): boolean {
 }
 
 // ============================================================================
-// Data Fetching
+// User Discovery
 // ============================================================================
 
 /**
@@ -142,145 +162,140 @@ async function getUserIdsWithData(
   return Array.from(userIds);
 }
 
-/**
- * Fetch sleep data for a user on the target date.
- */
-async function fetchSleepData(
-  client: SupabaseClient,
-  userId: string,
-  date: string
-): Promise<SleepSessionInput | null> {
-  const { data, error } = await client
-    .from("sleep_sessions")
-    .select(
-      "date, duration_seconds, sleep_score, deep_seconds, rem_seconds, avg_hrv_ms"
-    )
-    .eq("user_id", userId)
-    .eq("date", date)
-    .single();
+// ============================================================================
+// Input Mapping (DB rows → pure core function inputs)
+// Same mappers as /api/recommendation/today for alignment.
+// ============================================================================
 
-  if (error || !data) return null;
-  return data as SleepSessionInput;
-}
-
-/**
- * Fetch HRV data for a user on the target date.
- */
-async function fetchHrvData(
-  client: SupabaseClient,
-  userId: string,
-  date: string
-): Promise<HrvNightInput | null> {
-  const { data, error } = await client
-    .from("hrv_nights")
-    .select("date, hrv_rmssd, hrv_baseline, hrv_status, weekly_avg")
-    .eq("user_id", userId)
-    .eq("date", date)
-    .single();
-
-  if (error || !data) return null;
-  return data as HrvNightInput;
-}
-
-/**
- * Fetch daily metrics for a user on the target date.
- */
-async function fetchDailyMetrics(
-  client: SupabaseClient,
-  userId: string,
-  date: string
-): Promise<DailyMetricsInput | null> {
-  const { data, error } = await client
-    .from("canonical_daily_metrics")
-    .select(
-      "date, recovery_score, body_battery_high, body_battery_low, resting_heart_rate, stress_avg"
-    )
-    .eq("user_id", userId)
-    .eq("date", date)
-    .single();
-
-  if (error || !data) return null;
-  return data as DailyMetricsInput;
-}
-
-/**
- * Fetch 7-day training load for a user.
- */
-async function fetchTrainingLoad7Days(
-  client: SupabaseClient,
-  userId: string,
-  targetDate: string
-): Promise<TrainingLoadInput[]> {
-  // Calculate date range: target_date - 6 to target_date
-  const startDate = new Date(targetDate);
-  startDate.setDate(startDate.getDate() - 6);
-  const startDateStr = startDate.toISOString().slice(0, 10);
-
-  const { data, error } = await client
-    .from("daily_training_load")
-    .select("date, workouts_count, total_duration_seconds, total_tss")
-    .eq("user_id", userId)
-    .gte("date", startDateStr)
-    .lte("date", targetDate)
-    .order("date", { ascending: false });
-
-  if (error || !data) return [];
-  return data as TrainingLoadInput[];
-}
-
-/**
- * Fetch all input data for a user.
- */
-async function fetchUserInputData(
-  client: SupabaseClient,
-  userId: string,
-  date: string
-): Promise<ComputeRecommendationInput> {
-  const [sleep, hrv, metrics, trainingLoad7Days] = await Promise.all([
-    fetchSleepData(client, userId, date),
-    fetchHrvData(client, userId, date),
-    fetchDailyMetrics(client, userId, date),
-    fetchTrainingLoad7Days(client, userId, date),
-  ]);
-
+function mapSleep(
+  row: DailyUserStateRow,
+  date: string,
+): SleepSessionInput | null {
+  if (row.sleep_score == null || row.sleep_seconds == null) return null;
   return {
-    userId,
     date,
-    sleep,
-    hrv,
-    metrics,
-    trainingLoad7Days,
+    duration_seconds: row.sleep_seconds,
+    sleep_score: row.sleep_score,
+    deep_seconds: 0,
+    rem_seconds: 0,
+    avg_hrv_ms: row.avg_hrv_ms ?? 0,
   };
+}
+
+function mapHrv(
+  row: DailyUserStateRow,
+  date: string,
+): HrvNightInput | null {
+  if (row.hrv_rmssd == null || row.hrv_baseline == null) return null;
+  return {
+    date,
+    hrv_rmssd: row.hrv_rmssd,
+    hrv_baseline: row.hrv_baseline,
+    hrv_status: "",
+    weekly_avg: 0,
+  };
+}
+
+function mapMetrics(
+  row: DailyUserStateRow,
+  date: string,
+): DailyMetricsInput | null {
+  if (row.recovery_score == null) return null;
+  return {
+    date,
+    recovery_score: row.recovery_score,
+    body_battery_high: 0,
+    body_battery_low: 0,
+    resting_heart_rate: 0,
+    stress_avg: 0,
+  };
+}
+
+function mapTrainingLoad(rows: TrainingLoadRow[]): TrainingLoadInput[] {
+  return rows.map((r) => ({
+    date: r.date,
+    workouts_count: r.workouts_count,
+    total_duration_seconds: r.total_duration_seconds,
+    total_tss: r.total_tss,
+  }));
+}
+
+// ============================================================================
+// Decision Mapping
+// ============================================================================
+
+/**
+ * Map primary candidate_id to the `decision` string stored in daily_recommendations.
+ *
+ * Mapping rationale:
+ *   scheduled        → "train_easy"       Default template is easy-run-30min; no intensity
+ *                                          data available to justify "train_hard".
+ *   lite_alternative → "active_recovery"   Lighter session for moderate fatigue.
+ *   rest_day         → "rest"              Full rest day.
+ *   skip             → "rest"              User-preference skip; closest to rest.
+ */
+function candidateIdToDecision(id: CandidateId): string {
+  switch (id) {
+    case "scheduled":
+      return "train_easy";
+    case "lite_alternative":
+      return "active_recovery";
+    case "rest_day":
+      return "rest";
+    case "skip":
+      return "rest";
+  }
+}
+
+// ============================================================================
+// Confidence
+// ============================================================================
+
+function computeConfidence(
+  row: DailyUserStateRow | null,
+  loadRows: TrainingLoadRow[],
+): number {
+  let sources = 0;
+  if (row?.sleep_score != null) sources++;
+  if (row?.hrv_rmssd != null) sources++;
+  if (row?.recovery_score != null) sources++;
+  if (loadRows.length > 0) sources++;
+  return Math.min(0.3 + sources * 0.15, 0.9);
 }
 
 // ============================================================================
 // Upsert Logic
 // ============================================================================
 
+interface UpsertPayload {
+  decision: string;
+  workout_ref: string | null;
+  confidence: number;
+  rationale: string;
+  evidence: Record<string, unknown>;
+}
+
 interface UpsertResult {
   success: boolean;
   error?: string;
 }
 
-/**
- * Upsert a recommendation into daily_recommendations table.
- */
 async function upsertRecommendation(
   client: SupabaseClient,
   userId: string,
   date: string,
-  output: ComputeRecommendationOutput
+  payload: UpsertPayload,
 ): Promise<UpsertResult> {
   const { error } = await client.from("daily_recommendations").upsert(
     {
       user_id: userId,
       date,
       source: SOURCE,
-      decision: output.decision,
-      workout_ref: output.workout_ref,
-      confidence: output.confidence,
-      rationale: output.rationale,
-      evidence: output.evidence,
+      decision: payload.decision,
+      workout_ref: payload.workout_ref,
+      confidence: payload.confidence,
+      rationale: payload.rationale,
+      evidence: payload.evidence,
       updated_at: new Date().toISOString(),
     },
     {
@@ -298,6 +313,112 @@ async function upsertRecommendation(
 }
 
 // ============================================================================
+// Per-User Pipeline
+// ============================================================================
+
+class QueryError extends Error {
+  constructor(
+    public readonly userId: string,
+    public readonly stateError: string | null,
+    public readonly loadError: string | null,
+  ) {
+    const parts: string[] = [];
+    if (stateError) parts.push(`state=${stateError}`);
+    if (loadError) parts.push(`load=${loadError}`);
+    super(`query_failed: ${parts.join(", ")}`);
+    this.name = "QueryError";
+  }
+}
+
+interface UserOutput {
+  decision: string;
+  workout_ref: string | null;
+  confidence: number;
+  rationale: string;
+  evidence: Record<string, unknown>;
+}
+
+async function computeForUser(
+  userId: string,
+  targetDate: string,
+): Promise<UserOutput> {
+  // 1. Fetch from DB views
+  const [stateRes, loadRes] = await Promise.all([
+    getDailyUserState(userId, targetDate),
+    getTrainingLoad7Days(userId, targetDate),
+  ]);
+
+  // Query errors are fatal for this user — surface as failure, don't silently upsert
+  if (stateRes.error || loadRes.error) {
+    throw new QueryError(userId, stateRes.error, loadRes.error);
+  }
+
+  const row = stateRes.data;
+  const loadRows = loadRes.data;
+
+  // 2. Map DB rows → core inputs
+  const sleep = row ? mapSleep(row, targetDate) : null;
+  const hrv = row ? mapHrv(row, targetDate) : null;
+  const metrics = row ? mapMetrics(row, targetDate) : null;
+  const trainingLoad7Days = mapTrainingLoad(loadRows);
+
+  // 3. Compute readiness & fatigue
+  const rfInput: ReadinessAndFatigueInput = {
+    sleep,
+    hrv,
+    metrics,
+    trainingLoad7Days,
+  };
+  const rfOutput: ReadinessAndFatigueOutput = computeReadinessAndFatigue(rfInput);
+
+  // 4. Build candidate-generation inputs
+  const state: DailyState = {
+    readiness_score: rfOutput.readiness_score,
+    fatigue_score: rfOutput.fatigue_score,
+    reason_codes: rfOutput.reason_codes,
+  };
+
+  const history: DailyHistory = {
+    consecutive_training_days: row?.days_since_rest ?? 0,
+  };
+
+  const constraints: DailyConstraints = {
+    has_scheduled_workout: false,
+    scheduled_template_ref: null,
+  };
+
+  // 5. Generate ordered candidates
+  const candidates: RecommendationCandidate[] =
+    generateDailyRecommendation(state, history, constraints);
+
+  const primary = candidates[0];
+  const confidence = computeConfidence(row, loadRows);
+
+  // 6. Build persisted output
+  return {
+    decision: candidateIdToDecision(primary.candidate_id),
+    workout_ref: primary.template_ref,
+    confidence,
+    rationale: primary.rationale,
+    evidence: {
+      readiness_score: rfOutput.readiness_score,
+      fatigue_score: rfOutput.fatigue_score,
+      reason_codes: rfOutput.reason_codes,
+      primary_candidate_id: primary.candidate_id,
+      confidence,
+      days_since_rest: row?.days_since_rest ?? null,
+      sleep_quality: row?.sleep_score ?? null,
+      candidates: candidates.map((c) => ({
+        candidate_id: c.candidate_id,
+        template_ref: c.template_ref,
+        caution_level: c.caution_level,
+        reason_codes: c.reason_codes,
+      })),
+    },
+  };
+}
+
+// ============================================================================
 // Batch Processing
 // ============================================================================
 
@@ -310,9 +431,6 @@ interface ProcessResult {
   error?: string;
 }
 
-/**
- * Process a batch of users.
- */
 async function processBatch(
   client: SupabaseClient,
   userIds: string[],
@@ -323,11 +441,7 @@ async function processBatch(
 
   for (const userId of userIds) {
     try {
-      // Fetch input data
-      const input = await fetchUserInputData(client, userId, targetDate);
-
-      // Compute recommendation
-      const output = computeDailyRecommendation(input);
+      const output = await computeForUser(userId, targetDate);
 
       // Upsert (unless dry run)
       let upsertOk = true;
@@ -338,7 +452,7 @@ async function processBatch(
           client,
           userId,
           targetDate,
-          output
+          output,
         );
         upsertOk = upsertResult.success;
         error = upsertResult.error;
@@ -358,7 +472,11 @@ async function processBatch(
       );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[cron] Error processing user ${userId}:`, errorMsg);
+      if (err instanceof QueryError) {
+        console.warn(`[cron] ${errorMsg} (user: ${userId})`);
+      } else {
+        console.error(`[cron] Error processing user ${userId}:`, errorMsg);
+      }
       results.push({
         userId,
         decision: "error",
