@@ -314,6 +314,7 @@ function buildEvidence(
     sleep_quality: row?.sleep_score ?? null,
     days_since_rest: row?.days_since_rest ?? null,
     confidence: computeConfidence(row, loadRows),
+    last_garmin_sync_at: row?.last_garmin_sync_at ?? null,
   };
 }
 

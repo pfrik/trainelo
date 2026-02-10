@@ -53,6 +53,7 @@ export const EvidenceSummarySchema = z.object({
   sleep_quality: z.number().min(0).max(100).nullable(),
   days_since_rest: z.number().int().min(0).nullable(),
   confidence: z.number().min(0).max(1),
+  last_garmin_sync_at: z.string().datetime().nullable().optional(),
 });
 
 /** Recommendation candidate schema */

@@ -47,24 +47,51 @@ function getCautionStyles(level: CautionLevel): { bg: string; text: string; bord
   }
 }
 
-/** Format reason code for display */
+/** Human-readable labels for reason codes */
+const REASON_CODE_LABELS: Record<ReasonCode, string> = {
+  SCHEDULED_WORKOUT_EXISTS: "Scheduled",
+  RECOVERY_OPTIMAL: "Recovery optimal",
+  FATIGUE_ELEVATED: "Fatigue elevated",
+  FATIGUE_HIGH: "High fatigue",
+  SLEEP_POOR: "Poor sleep",
+  HRV_LOW: "Low HRV",
+  HRV_DECLINING: "HRV declining",
+  TRAINING_LOAD_HIGH: "High training load",
+  TRAINING_LOAD_LOW: "Low training load",
+  REST_DAY_DUE: "Rest day due",
+  STREAK_RISK: "Training streak",
+  ADAPTATION_PHASE: "Adapting",
+  INSUFFICIENT_DATA: "Limited data",
+  COLD_START: "New user",
+  LLM_UNAVAILABLE: "AI unavailable",
+  USER_PREFERENCE: "Your preference",
+};
+
+/** Format reason code for display using label map */
 function formatReasonCode(code: ReasonCode): string {
-  return code.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+  return REASON_CODE_LABELS[code];
+}
+
+/** Fix common UTF-8 mojibake in rationale text */
+function sanitizeRationale(text: string): string {
+  return text
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013")   // en-dash mojibake → en-dash
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014");   // em-dash mojibake → em-dash
 }
 
 /** Evidence panel component */
-function EvidencePanel({ evidence, expanded, onToggle }: {
+function EvidencePanel({ evidence, generatedAt, lastGarminSync, expanded, onToggle }: {
   evidence: EvidenceSummary;
+  generatedAt: string;
+  lastGarminSync?: string | null;
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const hasData = evidence.fatigue_score !== null ||
-    evidence.fitness_score !== null ||
-    evidence.hrv_trend !== null ||
-    evidence.sleep_quality !== null ||
-    evidence.days_since_rest !== null;
-
-  if (!hasData) return null;
+  const missingIndicators: string[] = [];
+  if (evidence.sleep_quality === null) missingIndicators.push("Sleep");
+  if (evidence.hrv_trend === null) missingIndicators.push("HRV");
+  if (evidence.fitness_score === null) missingIndicators.push("Recovery");
+  if (evidence.days_since_rest === null) missingIndicators.push("Rest history");
 
   return (
     <div className="mt-4">
@@ -78,37 +105,60 @@ function EvidencePanel({ evidence, expanded, onToggle }: {
         <span>Evidence ({Math.round(evidence.confidence * 100)}% confidence)</span>
       </button>
       {expanded && (
-        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {evidence.fatigue_score !== null && (
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Fatigue</div>
-              <div className="text-lg font-bold text-white">{evidence.fatigue_score}</div>
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {evidence.fatigue_score !== null && (
+              <div className="bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Fatigue</div>
+                <div className="text-lg font-bold text-white">{evidence.fatigue_score}</div>
+              </div>
+            )}
+            {evidence.fitness_score !== null && (
+              <div className="bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Fitness</div>
+                <div className="text-lg font-bold text-white">{evidence.fitness_score}</div>
+              </div>
+            )}
+            {evidence.hrv_trend !== null && (
+              <div className="bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">HRV Trend</div>
+                <div className="text-lg font-bold text-white capitalize">{evidence.hrv_trend}</div>
+              </div>
+            )}
+            {evidence.sleep_quality !== null && (
+              <div className="bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Sleep Quality</div>
+                <div className="text-lg font-bold text-white">{evidence.sleep_quality}</div>
+              </div>
+            )}
+            {evidence.days_since_rest !== null && (
+              <div className="bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Days Since Rest</div>
+                <div className="text-lg font-bold text-white">{evidence.days_since_rest}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Missing data indicators */}
+          {missingIndicators.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {missingIndicators.map((label) => (
+                <span key={label} className="bg-slate-700/50 text-slate-500 text-xs px-2 py-0.5 rounded">
+                  {label} missing
+                </span>
+              ))}
             </div>
           )}
-          {evidence.fitness_score !== null && (
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Fitness</div>
-              <div className="text-lg font-bold text-white">{evidence.fitness_score}</div>
-            </div>
-          )}
-          {evidence.hrv_trend !== null && (
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">HRV Trend</div>
-              <div className="text-lg font-bold text-white capitalize">{evidence.hrv_trend}</div>
-            </div>
-          )}
-          {evidence.sleep_quality !== null && (
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Sleep Quality</div>
-              <div className="text-lg font-bold text-white">{evidence.sleep_quality}</div>
-            </div>
-          )}
-          {evidence.days_since_rest !== null && (
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Days Since Rest</div>
-              <div className="text-lg font-bold text-white">{evidence.days_since_rest}</div>
-            </div>
-          )}
+
+          {/* Data freshness */}
+          <div className="text-xs text-slate-500">
+            Last Garmin sync:{" "}
+            {lastGarminSync
+              ? new Date(lastGarminSync).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+              : "unknown"}
+            <span className="mx-1.5">·</span>
+            Updated: {new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </div>
         </div>
       )}
     </div>
@@ -409,7 +459,7 @@ export default function Dashboard() {
                                   )}
                                 </div>
                                 <h3 className="text-xl font-bold text-white mb-2">{candidate.label}</h3>
-                                <p className="text-slate-300 text-sm leading-relaxed">{candidate.rationale}</p>
+                                <p className="text-slate-300 text-sm leading-relaxed">{sanitizeRationale(candidate.rationale)}</p>
                               </div>
                               <button
                                 onClick={async () => {
@@ -441,9 +491,9 @@ export default function Dashboard() {
                               </button>
                             </div>
 
-                            {/* Reason Codes */}
+                            {/* Reason Codes (top 3) */}
                             <div className="flex flex-wrap gap-1.5 mt-3">
-                              {candidate.reason_codes.map((code) => (
+                              {candidate.reason_codes.slice(0, 3).map((code) => (
                                 <span
                                   key={code}
                                   className="bg-slate-700/50 text-slate-400 text-xs px-2 py-0.5 rounded"
@@ -459,6 +509,8 @@ export default function Dashboard() {
                       {/* Evidence Panel */}
                       <EvidencePanel
                         evidence={recommendation.evidence}
+                        generatedAt={recommendation.generated_at}
+                        lastGarminSync={recommendation.evidence.last_garmin_sync_at ?? null}
                         expanded={evidenceExpanded}
                         onToggle={() => setEvidenceExpanded(!evidenceExpanded)}
                       />

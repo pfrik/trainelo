@@ -50,6 +50,8 @@ export interface EvidenceSummary {
   days_since_rest: number | null;
   /** Confidence in the recommendation (0-1) */
   confidence: number;
+  /** Last Garmin sync timestamp (ISO 8601), if available */
+  last_garmin_sync_at?: string | null;
 }
 
 /** A single recommendation candidate */
