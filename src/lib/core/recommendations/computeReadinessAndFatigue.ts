@@ -18,11 +18,21 @@ import type { ReasonCode } from "../contracts";
 // Input / Output types
 // ---------------------------------------------------------------------------
 
+/** Morning check-in subjective signals (all optional/nullable). */
+export interface DailyCheckinInput {
+  mood?: "drained" | "tired" | "okay" | "good" | "great" | null;
+  rpe?: number | null;
+  soreness?: number | null;
+  pain_flag?: boolean | null;
+  illness_flag?: boolean | null;
+}
+
 export interface ReadinessAndFatigueInput {
   sleep: SleepSessionInput | null;
   hrv: HrvNightInput | null;
   metrics: DailyMetricsInput | null;
   trainingLoad7Days: TrainingLoadInput[];
+  dailyCheckin?: DailyCheckinInput | null;
 }
 
 export interface ReadinessAndFatigueOutput {
@@ -52,12 +62,46 @@ const MAX_TSS_REFERENCE = 700;
 const MIN_DATA_SOURCES = 2;
 
 // ---------------------------------------------------------------------------
+// Check-in adjustment constants
+// ---------------------------------------------------------------------------
+
+/** Additive readiness/fatigue deltas per mood value. */
+const MOOD_ADJUSTMENTS: Record<string, { readiness: number; fatigue: number }> = {
+  drained: { readiness: -15, fatigue: 15 },
+  tired:   { readiness: -8,  fatigue: 8 },
+  okay:    { readiness: 0,   fatigue: 0 },
+  good:    { readiness: 5,   fatigue: -5 },
+  great:   { readiness: 5,   fatigue: -5 },
+};
+
+/** RPE at or above this value adds fatigue. */
+const RPE_HIGH_THRESHOLD = 8;
+const RPE_HIGH_FATIGUE_DELTA = 8;
+
+/** Soreness at or above this value adds fatigue. */
+const SORENESS_HIGH_THRESHOLD = 7;
+const SORENESS_HIGH_FATIGUE_DELTA = 8;
+
+/** Pain flag adjustments. */
+const PAIN_READINESS_DELTA = -15;
+const PAIN_FATIGUE_DELTA = 12;
+
+/** Illness flag adjustments. */
+const ILLNESS_READINESS_DELTA = -20;
+const ILLNESS_FATIGUE_DELTA = 15;
+
+// ---------------------------------------------------------------------------
 // Scoring helpers (all pure)
 // ---------------------------------------------------------------------------
 
 /** Clamp value between 0 and 1. */
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
+}
+
+/** Clamp integer to 0..100. */
+function clamp0100(v: number): number {
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 
 /**
@@ -134,7 +178,7 @@ export function computeReadinessAndFatigue(
   // --- Fatigue from 7-day training load ---
   const totalTss = trainingLoad7Days.reduce((sum, l) => sum + l.total_tss, 0);
   const fatigueNorm = clamp01(totalTss / MAX_TSS_REFERENCE);
-  const fatigue_score = Math.round(fatigueNorm * 100);
+  let fatigue_score = Math.round(fatigueNorm * 100);
 
   if (totalTss > ACUTE_TSS_THRESHOLD) {
     reasons.push("TRAINING_LOAD_HIGH");
@@ -150,7 +194,65 @@ export function computeReadinessAndFatigue(
       : 0.5; // neutral when no recovery data
 
   const readinessNorm = clamp01(avgRecovery - fatigueNorm * 0.3);
-  const readiness_score = Math.round(readinessNorm * 100);
+  let readiness_score = Math.round(readinessNorm * 100);
+
+  // --- Daily check-in adjustments ---
+  const checkin = input.dailyCheckin;
+  if (checkin) {
+    let readinessDelta = 0;
+    let fatigueDelta = 0;
+
+    // Mood
+    if (checkin.mood) {
+      const adj = MOOD_ADJUSTMENTS[checkin.mood];
+      if (adj) {
+        readinessDelta += adj.readiness;
+        fatigueDelta += adj.fatigue;
+      }
+      if (checkin.mood === "drained" || checkin.mood === "tired") {
+        if (!reasons.includes("FATIGUE_ELEVATED")) {
+          reasons.push("FATIGUE_ELEVATED");
+        }
+      }
+    }
+
+    // High RPE
+    if (checkin.rpe != null && checkin.rpe >= RPE_HIGH_THRESHOLD) {
+      fatigueDelta += RPE_HIGH_FATIGUE_DELTA;
+      if (!reasons.includes("FATIGUE_ELEVATED")) {
+        reasons.push("FATIGUE_ELEVATED");
+      }
+    }
+
+    // High soreness
+    if (checkin.soreness != null && checkin.soreness >= SORENESS_HIGH_THRESHOLD) {
+      fatigueDelta += SORENESS_HIGH_FATIGUE_DELTA;
+      if (!reasons.includes("FATIGUE_ELEVATED")) {
+        reasons.push("FATIGUE_ELEVATED");
+      }
+    }
+
+    // Pain flag
+    if (checkin.pain_flag) {
+      readinessDelta += PAIN_READINESS_DELTA;
+      fatigueDelta += PAIN_FATIGUE_DELTA;
+      if (!reasons.includes("FATIGUE_HIGH")) {
+        reasons.push("FATIGUE_HIGH");
+      }
+    }
+
+    // Illness flag
+    if (checkin.illness_flag) {
+      readinessDelta += ILLNESS_READINESS_DELTA;
+      fatigueDelta += ILLNESS_FATIGUE_DELTA;
+      if (!reasons.includes("FATIGUE_HIGH")) {
+        reasons.push("FATIGUE_HIGH");
+      }
+    }
+
+    readiness_score = clamp0100(readiness_score + readinessDelta);
+    fatigue_score = clamp0100(fatigue_score + fatigueDelta);
+  }
 
   // --- Guarantee non-empty reason_codes ---
   if (reasons.length === 0) {

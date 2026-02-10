@@ -577,6 +577,49 @@ export async function getTrainingLoad7Days(
 }
 
 // ============================================================================
+// Daily Check-in Read
+// ============================================================================
+
+/** Row shape returned by getDailyCheckin. */
+export interface DailyCheckinRow {
+  mood: string;
+  rpe: number | null;
+  soreness: number | null;
+  pain_flag: boolean;
+  illness_flag: boolean;
+}
+
+/** Result wrapper for getDailyCheckin. */
+export interface DailyCheckinResult {
+  data: DailyCheckinRow | null;
+  error: string | null;
+}
+
+/**
+ * Fetch today's check-in for a user. Returns null if no row exists.
+ */
+export async function getDailyCheckin(
+  userId: string,
+  date: string,
+): Promise<DailyCheckinResult> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("daily_checkins")
+    .select("mood, rpe, soreness, pain_flag, illness_flag")
+    .eq("user_id", userId)
+    .eq("date", date)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching daily_checkin:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as DailyCheckinRow | null, error: null };
+}
+
+// ============================================================================
 // Recommendation Event Insert
 // ============================================================================
 

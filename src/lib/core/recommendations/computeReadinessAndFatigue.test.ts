@@ -3,6 +3,7 @@ import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
   type ReadinessAndFatigueOutput,
+  type DailyCheckinInput,
 } from "./computeReadinessAndFatigue";
 import type { ReasonCode } from "../contracts";
 import type {
@@ -503,6 +504,172 @@ describe("computeReadinessAndFatigue", () => {
         trainingLoad7Days: [],
       });
       expect(result.readiness_score).toBeGreaterThanOrEqual(70);
+    });
+  });
+
+  // ======= Daily check-in adjustments ======================================
+
+  describe("daily check-in adjustments", () => {
+    function withCheckin(checkin: DailyCheckinInput): ReadinessAndFatigueInput {
+      return { ...fullHealthyInput(), dailyCheckin: checkin };
+    }
+
+    const baseline = computeReadinessAndFatigue(fullHealthyInput());
+
+    it("drained mood lowers readiness and increases fatigue", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ mood: "drained" }));
+      expect(result.readiness_score).toBeLessThan(baseline.readiness_score);
+      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score);
+    });
+
+    it("tired mood lowers readiness and increases fatigue", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ mood: "tired" }));
+      expect(result.readiness_score).toBeLessThan(baseline.readiness_score);
+      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score);
+    });
+
+    it("drained mood adds FATIGUE_ELEVATED", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ mood: "drained" }));
+      expect(hasCode(result, "FATIGUE_ELEVATED")).toBe(true);
+    });
+
+    it("tired mood adds FATIGUE_ELEVATED", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ mood: "tired" }));
+      expect(hasCode(result, "FATIGUE_ELEVATED")).toBe(true);
+    });
+
+    it("good mood improves readiness", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ mood: "good" }));
+      expect(result.readiness_score).toBeGreaterThanOrEqual(baseline.readiness_score);
+    });
+
+    it("great mood improves readiness", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ mood: "great" }));
+      expect(result.readiness_score).toBeGreaterThanOrEqual(baseline.readiness_score);
+    });
+
+    it("okay mood does not change scores", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ mood: "okay" }));
+      expect(result.readiness_score).toBe(baseline.readiness_score);
+      expect(result.fatigue_score).toBe(baseline.fatigue_score);
+    });
+
+    it("high RPE (>= 8) increases fatigue and adds FATIGUE_ELEVATED", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ rpe: 9 }));
+      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score);
+      expect(hasCode(result, "FATIGUE_ELEVATED")).toBe(true);
+    });
+
+    it("moderate RPE (< 8) does not change fatigue", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ rpe: 5 }));
+      expect(result.fatigue_score).toBe(baseline.fatigue_score);
+    });
+
+    it("high soreness (>= 7) increases fatigue", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ soreness: 8 }));
+      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score);
+      expect(hasCode(result, "FATIGUE_ELEVATED")).toBe(true);
+    });
+
+    it("moderate soreness (< 7) does not change fatigue", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ soreness: 4 }));
+      expect(result.fatigue_score).toBe(baseline.fatigue_score);
+    });
+
+    it("pain_flag lowers readiness, increases fatigue, adds FATIGUE_HIGH", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ pain_flag: true }));
+      expect(result.readiness_score).toBeLessThan(baseline.readiness_score);
+      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score);
+      expect(hasCode(result, "FATIGUE_HIGH")).toBe(true);
+    });
+
+    it("illness_flag lowers readiness, increases fatigue, adds FATIGUE_HIGH", () => {
+      const result = computeReadinessAndFatigue(withCheckin({ illness_flag: true }));
+      expect(result.readiness_score).toBeLessThan(baseline.readiness_score);
+      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score);
+      expect(hasCode(result, "FATIGUE_HIGH")).toBe(true);
+    });
+
+    it("combined pain + illness produces strong impact", () => {
+      const result = computeReadinessAndFatigue(
+        withCheckin({ pain_flag: true, illness_flag: true }),
+      );
+      expect(result.readiness_score).toBeLessThan(baseline.readiness_score - 20);
+      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score + 20);
+    });
+
+    it("is deterministic with check-in input", () => {
+      const input = withCheckin({ mood: "tired", rpe: 9, soreness: 8 });
+      const a = computeReadinessAndFatigue(input);
+      const b = computeReadinessAndFatigue(input);
+      expect(a).toEqual(b);
+    });
+
+    it("clamps readiness at 0 even with extreme negative adjustments", () => {
+      // Stack all negative factors on already-bad base data
+      const input: ReadinessAndFatigueInput = {
+        sleep: poorSleep,
+        hrv: suppressedHrv,
+        metrics: poorMetrics,
+        trainingLoad7Days: makeLoad(700),
+        dailyCheckin: {
+          mood: "drained",
+          pain_flag: true,
+          illness_flag: true,
+        },
+      };
+      const result = computeReadinessAndFatigue(input);
+      expect(result.readiness_score).toBe(0);
+      expect(result.fatigue_score).toBe(100);
+    });
+
+    it("clamps fatigue at 100 even with extreme positive adjustments", () => {
+      const input: ReadinessAndFatigueInput = {
+        sleep: goodSleep,
+        hrv: goodHrv,
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(700),
+        dailyCheckin: {
+          mood: "drained",
+          rpe: 10,
+          soreness: 10,
+          pain_flag: true,
+          illness_flag: true,
+        },
+      };
+      const result = computeReadinessAndFatigue(input);
+      expect(result.fatigue_score).toBe(100);
+      expect(result.readiness_score).toBeGreaterThanOrEqual(0);
+    });
+
+    it("null/undefined check-in fields are no-ops", () => {
+      const result = computeReadinessAndFatigue(
+        withCheckin({ mood: null, rpe: null, soreness: null, pain_flag: null, illness_flag: null }),
+      );
+      expect(result.readiness_score).toBe(baseline.readiness_score);
+      expect(result.fatigue_score).toBe(baseline.fatigue_score);
+    });
+
+    it("absent dailyCheckin field is a no-op", () => {
+      const result = computeReadinessAndFatigue(fullHealthyInput());
+      expect(result.readiness_score).toBe(baseline.readiness_score);
+      expect(result.fatigue_score).toBe(baseline.fatigue_score);
+    });
+
+    it("does not duplicate FATIGUE_ELEVATED when multiple triggers fire", () => {
+      const result = computeReadinessAndFatigue(
+        withCheckin({ mood: "tired", rpe: 9, soreness: 8 }),
+      );
+      const count = result.reason_codes.filter((c) => c === "FATIGUE_ELEVATED").length;
+      expect(count).toBe(1);
+    });
+
+    it("does not duplicate FATIGUE_HIGH when both pain and illness fire", () => {
+      const result = computeReadinessAndFatigue(
+        withCheckin({ pain_flag: true, illness_flag: true }),
+      );
+      const count = result.reason_codes.filter((c) => c === "FATIGUE_HIGH").length;
+      expect(count).toBe(1);
     });
   });
 });
