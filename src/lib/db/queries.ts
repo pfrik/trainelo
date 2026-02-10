@@ -575,3 +575,67 @@ export async function getTrainingLoad7Days(
 
   return { data: (data as TrainingLoadRow[]) || [], error: null };
 }
+
+// ============================================================================
+// Recommendation Event Insert
+// ============================================================================
+
+export interface InsertRecommendationEventParams {
+  user_id: string;
+  recommendation_id: string;
+  chosen_candidate_id: string;
+  action: string;
+  note: string | null;
+  recorded_at: string;
+}
+
+export interface InsertRecommendationEventResult {
+  success: boolean;
+  error: string | null;
+}
+
+/**
+ * Insert a recommendation choice event into recommendation_events.
+ * Maps the choice request fields to the existing audit table schema.
+ */
+export async function insertRecommendationEvent(
+  params: InsertRecommendationEventParams,
+): Promise<InsertRecommendationEventResult> {
+  const client = getServiceRoleClient();
+
+  const responseType = params.action === "accept" ? "accepted" : "rejected";
+
+  // Server-side date normalization: extract YYYY-MM-DD suffix from
+  // recommendation_id (format "userId:YYYY-MM-DD"). Reject anything that
+  // doesn't match the strict pattern and fall back to recorded_at date.
+  const datePart = params.recommendation_id.split(":").pop() ?? "";
+  const recommendationDate = /^\d{4}-\d{2}-\d{2}$/.test(datePart)
+    ? datePart
+    : params.recorded_at.slice(0, 10);
+
+  const { error } = await client.from("recommendation_events").insert({
+    user_id: params.user_id,
+    source: "trainelo",
+    source_ref: params.recommendation_id,
+    recommendation_type: "daily_workout",
+    recommendation_date: recommendationDate,
+    recommendation_summary: `${params.action}: ${params.chosen_candidate_id}`,
+    recommendation_data: {
+      recommendation_id: params.recommendation_id,
+      chosen_candidate_id: params.chosen_candidate_id,
+      action: params.action,
+      note: params.note,
+    },
+    response_type: responseType,
+    response_at: params.recorded_at,
+    user_choice: { candidate_id: params.chosen_candidate_id },
+    user_feedback: params.note,
+  });
+
+  if (error) {
+    console.error("[db] Error inserting recommendation_event:", error.message);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, error: null };
+}
