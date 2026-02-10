@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
+import { useAuth } from '@/contexts/AuthContext';
 import type { CautionLevel, ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
 
 interface NavItemProps {
@@ -186,9 +187,44 @@ export default function Dashboard() {
     submitChoice,
     submitting,
   } = useTodayRecommendation();
+  const { session } = useAuth();
   const [mood, setMood] = useState<string | null>(null);
+  const [moodSaving, setMoodSaving] = useState(false);
+  const [moodSaved, setMoodSaved] = useState(false);
+  const [moodError, setMoodError] = useState<string | null>(null);
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [acceptedCandidate, setAcceptedCandidate] = useState<string | null>(null);
+
+  const submitMood = useCallback(async (selected: string) => {
+    setMood(selected);
+    setMoodSaving(true);
+    setMoodSaved(false);
+    setMoodError(null);
+
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
+      const response = await fetch("/api/user-flags", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ mood: selected.toLowerCase() }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+
+      setMoodSaved(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Save failed";
+      setMoodError(message);
+    } finally {
+      setMoodSaving(false);
+    }
+  }, [session?.access_token]);
 
   // Generate dynamic week schedule based on current date
   const getWeekSchedule = (): WeekDay[] => {
@@ -345,7 +381,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-5 gap-2 sm:gap-3">
                   {/* Explicit buttons to avoid Tailwind purging dynamic classes */}
                   <button
-                    onClick={() => setMood('Drained')}
+                    onClick={() => submitMood('Drained')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
                       mood === 'Drained' ? 'border-red-500 bg-red-500/20' : ''
                     }`}
@@ -354,7 +390,7 @@ export default function Dashboard() {
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Drained</span>
                   </button>
                   <button
-                    onClick={() => setMood('Tired')}
+                    onClick={() => submitMood('Tired')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
                       mood === 'Tired' ? 'border-orange-500 bg-orange-500/20' : ''
                     }`}
@@ -363,7 +399,7 @@ export default function Dashboard() {
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Tired</span>
                   </button>
                   <button
-                    onClick={() => setMood('Okay')}
+                    onClick={() => submitMood('Okay')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
                       mood === 'Okay' ? 'border-yellow-500 bg-yellow-500/20' : ''
                     }`}
@@ -372,7 +408,7 @@ export default function Dashboard() {
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Okay</span>
                   </button>
                   <button
-                    onClick={() => setMood('Good')}
+                    onClick={() => submitMood('Good')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
                       mood === 'Good' ? 'border-emerald-500 bg-emerald-500/20' : ''
                     }`}
@@ -381,7 +417,7 @@ export default function Dashboard() {
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Good</span>
                   </button>
                   <button
-                    onClick={() => setMood('Great')}
+                    onClick={() => submitMood('Great')}
                     className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
                       mood === 'Great' ? 'border-green-500 bg-green-500/20' : ''
                     }`}
@@ -390,6 +426,14 @@ export default function Dashboard() {
                     <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Great</span>
                   </button>
                 </div>
+                {/* Check-in feedback */}
+                {(moodSaving || moodSaved || moodError) && (
+                  <div className="mt-2 text-xs text-center">
+                    {moodSaving && <span className="text-slate-400">Saving...</span>}
+                    {moodSaved && !moodSaving && <span className="text-green-400">Saved</span>}
+                    {moodError && !moodSaving && <span className="text-red-400">{moodError}</span>}
+                  </div>
+                )}
               </div>
             </div>
           </div>

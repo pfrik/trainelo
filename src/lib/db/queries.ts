@@ -639,3 +639,59 @@ export async function insertRecommendationEvent(
 
   return { success: true, error: null };
 }
+
+// ============================================================================
+// Daily Check-in Upsert
+// ============================================================================
+
+export interface UpsertDailyCheckinParams {
+  user_id: string;
+  date: string;
+  mood: string;
+  rpe?: number | null;
+  soreness?: number | null;
+  pain_flag?: boolean;
+  illness_flag?: boolean;
+  notes?: string | null;
+}
+
+export interface UpsertDailyCheckinResult {
+  success: boolean;
+  error: string | null;
+}
+
+/**
+ * Upsert a daily check-in row. One row per user per date.
+ * Uses ON CONFLICT (user_id, date) to update mood/fields on repeat submissions.
+ */
+export async function upsertDailyCheckin(
+  params: UpsertDailyCheckinParams,
+): Promise<UpsertDailyCheckinResult> {
+  const client = getServiceRoleClient();
+
+  const { error } = await client.from("daily_checkins").upsert(
+    {
+      user_id: params.user_id,
+      date: params.date,
+      mood: params.mood,
+      rpe: params.rpe ?? null,
+      soreness: params.soreness ?? null,
+      pain_flag: params.pain_flag ?? false,
+      illness_flag: params.illness_flag ?? false,
+      notes: params.notes ?? null,
+      source: "app",
+      updated_at: new Date().toISOString(),
+    },
+    {
+      onConflict: "user_id,date",
+      ignoreDuplicates: false,
+    }
+  );
+
+  if (error) {
+    console.error("[db] Error upserting daily_checkin:", error.message);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, error: null };
+}
