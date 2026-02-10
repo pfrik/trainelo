@@ -75,8 +75,21 @@ function formatReasonCode(code: ReasonCode): string {
 /** Fix common UTF-8 mojibake in rationale text */
 function sanitizeRationale(text: string): string {
   return text
-    .replace(/\u00e2\u20ac\u201c/g, "\u2013")   // en-dash mojibake → en-dash
-    .replace(/\u00e2\u20ac\u201d/g, "\u2014");   // em-dash mojibake → em-dash
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013")   // en-dash (U+2013) mojibake → en-dash
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014")    // em-dash (U+2014) mojibake → em-dash
+    .replace(/\u00e2\u20ac\u0093/g, "\u2013")    // en-dash alt mojibake (0x93) → en-dash
+    .replace(/\u00e2\u20ac\u0094/g, "\u2014");   // em-dash alt mojibake (0x94) → em-dash
+}
+
+/** Format an ISO timestamp safely; returns "unknown" on null/undefined/invalid */
+function formatTimestamp(
+  value: string | null | undefined,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  if (!value) return "unknown";
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return "unknown";
+  return new Intl.DateTimeFormat(undefined, options).format(ms);
 }
 
 /** Evidence panel component */
@@ -153,11 +166,9 @@ function EvidencePanel({ evidence, generatedAt, lastGarminSync, expanded, onTogg
           {/* Data freshness */}
           <div className="text-xs text-slate-500">
             Last Garmin sync:{" "}
-            {lastGarminSync
-              ? new Date(lastGarminSync).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-              : "unknown"}
+            {formatTimestamp(lastGarminSync, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
             <span className="mx-1.5">·</span>
-            Updated: {new Date(generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            Updated: {formatTimestamp(generatedAt, { hour: "2-digit", minute: "2-digit" })}
           </div>
         </div>
       )}

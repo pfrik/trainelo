@@ -68,3 +68,4 @@ __pycache__/
 # Claude local settings
 .claude/settings.local.json
 
+UI/
