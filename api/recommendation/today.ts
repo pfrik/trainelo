@@ -11,15 +11,18 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   getDailyUserState,
   getTrainingLoad7Days,
+  getDailyCheckin,
   type DailyUserStateRow,
   type TrainingLoadRow,
   type DailyUserStateResult,
   type TrainingLoad7DaysResult,
+  type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
 import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
   type ReadinessAndFatigueOutput,
+  type DailyCheckinInput,
 } from "../../src/lib/core/recommendations/computeReadinessAndFatigue.js";
 import {
   generateDailyRecommendation,
@@ -274,6 +277,21 @@ function mapTrainingLoad(rows: TrainingLoadRow[]): TrainingLoadInput[] {
   }));
 }
 
+const VALID_MOODS = new Set(["drained", "tired", "okay", "good", "great"]);
+
+function mapCheckin(row: DailyCheckinRow | null): DailyCheckinInput | null {
+  if (!row) return null;
+  return {
+    mood: VALID_MOODS.has(row.mood)
+      ? (row.mood as DailyCheckinInput["mood"])
+      : null,
+    rpe: row.rpe,
+    soreness: row.soreness,
+    pain_flag: row.pain_flag,
+    illness_flag: row.illness_flag,
+  };
+}
+
 // ============================================================================
 // Evidence Mapping
 // ============================================================================
@@ -375,9 +393,10 @@ export default async function handler(
   try {
     // 1. Fetch from DB views in parallel
     console.log(`[today] Fetching data for user ${userId}...`);
-    const [stateRes, loadRes] = await Promise.all([
+    const [stateRes, loadRes, checkinRes] = await Promise.all([
       getDailyUserState(userId, date),
       getTrainingLoad7Days(userId, date),
+      getDailyCheckin(userId, date),
     ]);
 
     if (stateRes.error || loadRes.error) {
@@ -386,6 +405,10 @@ export default async function handler(
       );
       res.status(200).json(coldStart(userId, date, generatedAt));
       return;
+    }
+    // Check-in fetch failure is non-fatal — pipeline continues without it
+    if (checkinRes.error) {
+      console.warn(`[today] Check-in fetch error (non-fatal): ${checkinRes.error}`);
     }
 
     const row = stateRes.data;
@@ -403,11 +426,13 @@ export default async function handler(
     const trainingLoad7Days = mapTrainingLoad(loadRows);
 
     // 3. Compute readiness & fatigue
+    const dailyCheckin = mapCheckin(checkinRes.data);
     const rfInput: ReadinessAndFatigueInput = {
       sleep,
       hrv,
       metrics,
       trainingLoad7Days,
+      dailyCheckin,
     };
     const rfOutput = computeReadinessAndFatigue(rfInput);
 

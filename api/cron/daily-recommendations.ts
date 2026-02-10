@@ -30,6 +30,7 @@ import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
   type ReadinessAndFatigueOutput,
+  type DailyCheckinInput,
 } from "../../src/lib/core/recommendations/computeReadinessAndFatigue.js";
 import {
   generateDailyRecommendation,
@@ -50,8 +51,10 @@ import type {
 import {
   getDailyUserState,
   getTrainingLoad7Days,
+  getDailyCheckin,
   type DailyUserStateRow,
   type TrainingLoadRow,
+  type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
 
 // ============================================================================
@@ -220,6 +223,21 @@ function mapTrainingLoad(rows: TrainingLoadRow[]): TrainingLoadInput[] {
   }));
 }
 
+const VALID_MOODS = new Set(["drained", "tired", "okay", "good", "great"]);
+
+function mapCheckin(row: DailyCheckinRow | null): DailyCheckinInput | null {
+  if (!row) return null;
+  return {
+    mood: VALID_MOODS.has(row.mood)
+      ? (row.mood as DailyCheckinInput["mood"])
+      : null,
+    rpe: row.rpe,
+    soreness: row.soreness,
+    pain_flag: row.pain_flag,
+    illness_flag: row.illness_flag,
+  };
+}
+
 // ============================================================================
 // Decision Mapping
 // ============================================================================
@@ -343,14 +361,19 @@ async function computeForUser(
   targetDate: string,
 ): Promise<UserOutput> {
   // 1. Fetch from DB views
-  const [stateRes, loadRes] = await Promise.all([
+  const [stateRes, loadRes, checkinRes] = await Promise.all([
     getDailyUserState(userId, targetDate),
     getTrainingLoad7Days(userId, targetDate),
+    getDailyCheckin(userId, targetDate),
   ]);
 
   // Query errors are fatal for this user — surface as failure, don't silently upsert
   if (stateRes.error || loadRes.error) {
     throw new QueryError(userId, stateRes.error, loadRes.error);
+  }
+  // Check-in fetch failure is non-fatal
+  if (checkinRes.error) {
+    console.warn(`[cron] Check-in fetch error (non-fatal) for ${userId}: ${checkinRes.error}`);
   }
 
   const row = stateRes.data;
@@ -361,6 +384,7 @@ async function computeForUser(
   const hrv = row ? mapHrv(row, targetDate) : null;
   const metrics = row ? mapMetrics(row, targetDate) : null;
   const trainingLoad7Days = mapTrainingLoad(loadRows);
+  const dailyCheckin = mapCheckin(checkinRes.data);
 
   // 3. Compute readiness & fatigue
   const rfInput: ReadinessAndFatigueInput = {
@@ -368,6 +392,7 @@ async function computeForUser(
     hrv,
     metrics,
     trainingLoad7Days,
+    dailyCheckin,
   };
   const rfOutput: ReadinessAndFatigueOutput = computeReadinessAndFatigue(rfInput);
 

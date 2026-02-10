@@ -41,6 +41,14 @@ export const API_ROUTES: ApiRoute[] = [
     description: "Submit user's chosen workout option",
   },
 
+  // Check-in endpoints
+  {
+    method: "post",
+    path: "/api/user-flags",
+    handler: "../api/user-flags.js",
+    description: "Submit morning check-in data",
+  },
+
   // Add new routes above this line
 ];
 
