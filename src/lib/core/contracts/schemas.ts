@@ -59,6 +59,9 @@ export const EvidenceSummarySchema = z.object({
   checkin_soreness: z.number().int().min(0).max(10).nullable().optional(),
   checkin_pain_flag: z.boolean().nullable().optional(),
   checkin_illness_flag: z.boolean().nullable().optional(),
+  checkin_readiness_delta: z.number().int().nullable().optional(),
+  checkin_fatigue_delta: z.number().int().nullable().optional(),
+  checkin_impact_note: z.string().nullable().optional(),
 });
 
 /** Recommendation candidate schema */

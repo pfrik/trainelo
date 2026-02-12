@@ -180,6 +180,9 @@ function EvidencePanel({ evidence, generatedAt, lastGarminSync, expanded, onTogg
                 </span>
               )}
             </div>
+            {evidence.checkin_impact_note && (
+              <div className="text-xs text-slate-500">{evidence.checkin_impact_note}</div>
+            )}
           ) : (
             <div className="flex flex-wrap gap-1.5">
               <span className="bg-slate-700/50 text-slate-500 text-xs px-2 py-0.5 rounded">

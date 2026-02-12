@@ -62,6 +62,12 @@ export interface EvidenceSummary {
   checkin_pain_flag?: boolean | null;
   /** Morning check-in: illness flag */
   checkin_illness_flag?: boolean | null;
+  /** Check-in impact: readiness delta applied */
+  checkin_readiness_delta?: number | null;
+  /** Check-in impact: fatigue delta applied */
+  checkin_fatigue_delta?: number | null;
+  /** Check-in impact: human-readable summary sentence */
+  checkin_impact_note?: string | null;
 }
 
 /** A single recommendation candidate */
