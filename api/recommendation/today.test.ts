@@ -113,6 +113,13 @@ describe("POST /api/recommendation/today — check-in evidence", () => {
     expect(evidence.checkin_soreness).toBe(6);
     expect(evidence.checkin_pain_flag).toBe(true);
     expect(evidence.checkin_illness_flag).toBe(false);
+
+    // Impact deltas: tired(-8,+8) + rpe>=8(+8 fatigue) + pain(-15,+12)
+    expect(evidence.checkin_readiness_delta).toBe(-23);
+    expect(evidence.checkin_fatigue_delta).toBe(28);
+    expect(evidence.checkin_impact_note).toBe(
+      "Check-in impact: fatigue +28, readiness -23.",
+    );
   });
 
   it("returns null check-in fields when no check-in exists", async () => {
@@ -140,5 +147,10 @@ describe("POST /api/recommendation/today — check-in evidence", () => {
     expect(evidence.checkin_soreness).toBeNull();
     expect(evidence.checkin_pain_flag).toBeNull();
     expect(evidence.checkin_illness_flag).toBeNull();
+
+    // Impact fields should be null when no check-in
+    expect(evidence.checkin_readiness_delta).toBeNull();
+    expect(evidence.checkin_fatigue_delta).toBeNull();
+    expect(evidence.checkin_impact_note).toBeNull();
   });
 });

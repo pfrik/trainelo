@@ -292,6 +292,75 @@ function mapCheckin(row: DailyCheckinRow | null): DailyCheckinInput | null {
 }
 
 // ============================================================================
+// Check-in Impact Computation
+// ============================================================================
+
+/** Same constants as computeReadinessAndFatigue — mirrored here for evidence display. */
+const CHECKIN_MOOD_DELTAS: Record<string, { readiness: number; fatigue: number }> = {
+  drained: { readiness: -15, fatigue: 15 },
+  tired:   { readiness: -8,  fatigue: 8 },
+  okay:    { readiness: 0,   fatigue: 0 },
+  good:    { readiness: 5,   fatigue: -5 },
+  great:   { readiness: 5,   fatigue: -5 },
+};
+
+interface CheckinImpact {
+  readiness_delta: number;
+  fatigue_delta: number;
+  note: string;
+}
+
+function computeCheckinImpact(checkin: DailyCheckinRow): CheckinImpact {
+  let readinessDelta = 0;
+  let fatigueDelta = 0;
+
+  // Mood
+  if (VALID_MOODS.has(checkin.mood)) {
+    const adj = CHECKIN_MOOD_DELTAS[checkin.mood];
+    if (adj) {
+      readinessDelta += adj.readiness;
+      fatigueDelta += adj.fatigue;
+    }
+  }
+
+  // RPE >= 8
+  if (checkin.rpe != null && checkin.rpe >= 8) {
+    fatigueDelta += 8;
+  }
+
+  // Soreness >= 7
+  if (checkin.soreness != null && checkin.soreness >= 7) {
+    fatigueDelta += 8;
+  }
+
+  // Pain flag
+  if (checkin.pain_flag) {
+    readinessDelta += -15;
+    fatigueDelta += 12;
+  }
+
+  // Illness flag
+  if (checkin.illness_flag) {
+    readinessDelta += -20;
+    fatigueDelta += 15;
+  }
+
+  // Build note
+  const parts: string[] = [];
+  if (fatigueDelta !== 0) {
+    parts.push(`fatigue ${fatigueDelta > 0 ? "+" : ""}${fatigueDelta}`);
+  }
+  if (readinessDelta !== 0) {
+    parts.push(`readiness ${readinessDelta > 0 ? "+" : ""}${readinessDelta}`);
+  }
+  const note = parts.length > 0
+    ? `Check-in impact: ${parts.join(", ")}.`
+    : "Check-in impact: none.";
+
+  return { readiness_delta: readinessDelta, fatigue_delta: fatigueDelta, note };
+}
+
+// ============================================================================
 // Evidence Mapping
 // ============================================================================
 
@@ -325,6 +394,8 @@ function buildEvidence(
   rfOutput: ReadinessAndFatigueOutput,
   checkin: DailyCheckinRow | null,
 ): EvidenceSummary {
+  const impact = checkin ? computeCheckinImpact(checkin) : null;
+
   return {
     fatigue_score: rfOutput.fatigue_score,
     fitness_score: row?.recovery_score ?? null,
@@ -338,6 +409,9 @@ function buildEvidence(
     checkin_soreness: checkin?.soreness ?? null,
     checkin_pain_flag: checkin?.pain_flag ?? null,
     checkin_illness_flag: checkin?.illness_flag ?? null,
+    checkin_readiness_delta: impact?.readiness_delta ?? null,
+    checkin_fatigue_delta: impact?.fatigue_delta ?? null,
+    checkin_impact_note: impact?.note ?? null,
   };
 }
 
