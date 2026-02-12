@@ -54,6 +54,11 @@ export const EvidenceSummarySchema = z.object({
   days_since_rest: z.number().int().min(0).nullable(),
   confidence: z.number().min(0).max(1),
   last_garmin_sync_at: z.string().datetime().nullable().optional(),
+  checkin_mood: z.enum(["drained", "tired", "okay", "good", "great"]).nullable().optional(),
+  checkin_rpe: z.number().int().min(1).max(10).nullable().optional(),
+  checkin_soreness: z.number().int().min(0).max(10).nullable().optional(),
+  checkin_pain_flag: z.boolean().nullable().optional(),
+  checkin_illness_flag: z.boolean().nullable().optional(),
 });
 
 /** Recommendation candidate schema */

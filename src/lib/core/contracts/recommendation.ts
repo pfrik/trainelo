@@ -52,6 +52,16 @@ export interface EvidenceSummary {
   confidence: number;
   /** Last Garmin sync timestamp (ISO 8601), if available */
   last_garmin_sync_at?: string | null;
+  /** Morning check-in: mood */
+  checkin_mood?: "drained" | "tired" | "okay" | "good" | "great" | null;
+  /** Morning check-in: rate of perceived exertion (1-10) */
+  checkin_rpe?: number | null;
+  /** Morning check-in: muscle soreness (0-10) */
+  checkin_soreness?: number | null;
+  /** Morning check-in: pain flag */
+  checkin_pain_flag?: boolean | null;
+  /** Morning check-in: illness flag */
+  checkin_illness_flag?: boolean | null;
 }
 
 /** A single recommendation candidate */

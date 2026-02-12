@@ -49,7 +49,6 @@ import { buildDeterministicTodayResponse } from "../../src/lib/core/recommendati
 
 // For development/testing, use TRAINELO_USER_ID env var
 // In production, this should come from auth token
-const TEST_USER_ID = process.env.TRAINELO_USER_ID;
 let authClient: SupabaseClient | null = null;
 let authClientConfig: { supabaseUrl: string; supabaseKey: string } | null = null;
 
@@ -324,6 +323,7 @@ function buildEvidence(
   row: DailyUserStateRow | null,
   loadRows: TrainingLoadRow[],
   rfOutput: ReadinessAndFatigueOutput,
+  checkin: DailyCheckinRow | null,
 ): EvidenceSummary {
   return {
     fatigue_score: rfOutput.fatigue_score,
@@ -333,6 +333,11 @@ function buildEvidence(
     days_since_rest: row?.days_since_rest ?? null,
     confidence: computeConfidence(row, loadRows),
     last_garmin_sync_at: row?.last_garmin_sync_at ?? null,
+    checkin_mood: (checkin?.mood as EvidenceSummary["checkin_mood"]) ?? null,
+    checkin_rpe: checkin?.rpe ?? null,
+    checkin_soreness: checkin?.soreness ?? null,
+    checkin_pain_flag: checkin?.pain_flag ?? null,
+    checkin_illness_flag: checkin?.illness_flag ?? null,
   };
 }
 
@@ -380,8 +385,8 @@ export default async function handler(
       res.status(200).json(coldStart("anonymous", date, generatedAt));
       return;
     }
-  } else if (TEST_USER_ID) {
-    userId = TEST_USER_ID;
+  } else if (cleanEnvValue(process.env.TRAINELO_USER_ID)) {
+    userId = cleanEnvValue(process.env.TRAINELO_USER_ID);
   }
 
   if (!userId) {
@@ -461,7 +466,7 @@ export default async function handler(
     const candidates = generateDailyRecommendation(state, history, constraints);
 
     // 6. Build evidence summary
-    const evidence = buildEvidence(row, loadRows, rfOutput);
+    const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data);
 
     // 7. Assemble response
     const response: TodayRecommendationResponse = {
