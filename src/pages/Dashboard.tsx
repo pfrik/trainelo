@@ -223,7 +223,8 @@ export default function Dashboard() {
     error: recError,
     refetch: recRefetch,
     submitChoice,
-    submitting,
+    submittingCandidateId,
+    choiceError,
   } = useTodayRecommendation();
   const { session } = useAuth();
   const [mood, setMood] = useState<string | null>(null);
@@ -528,6 +529,7 @@ export default function Dashboard() {
                       {recommendation.candidates.map((candidate, index) => {
                         const isFirst = index === 0;
                         const isAccepted = acceptedCandidate === candidate.candidate_id;
+                        const isSubmitting = submittingCandidateId === candidate.candidate_id;
                         const cautionStyles = getCautionStyles(candidate.caution_level);
 
                         return (
@@ -561,19 +563,24 @@ export default function Dashboard() {
                                     setAcceptedCandidate(candidate.candidate_id);
                                   }
                                 }}
-                                disabled={submitting || isAccepted}
+                                disabled={isSubmitting || isAccepted || submittingCandidateId !== null}
                                 className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-all ${
                                   isAccepted
                                     ? "bg-green-500/20 text-green-400 border border-green-500/30"
                                     : isFirst
                                     ? "bg-primary hover:bg-primary-hover text-slate-900"
                                     : "bg-slate-700 hover:bg-slate-600 text-white"
-                                } ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
+                                } ${isSubmitting || submittingCandidateId !== null ? "opacity-50 cursor-not-allowed" : ""}`}
                               >
                                 {isAccepted ? (
                                   <>
                                     <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check</span>
                                     <span>Accepted</span>
+                                  </>
+                                ) : isSubmitting ? (
+                                  <>
+                                    <span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>
+                                    <span>Saving...</span>
                                   </>
                                 ) : (
                                   <>
@@ -598,6 +605,11 @@ export default function Dashboard() {
                           </div>
                         );
                       })}
+
+                      {/* Choice error */}
+                      {choiceError && (
+                        <div className="text-sm text-red-400">{choiceError}</div>
+                      )}
 
                       {/* Evidence Panel */}
                       <EvidencePanel

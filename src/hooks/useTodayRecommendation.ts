@@ -16,14 +16,18 @@ interface UseTodayRecommendationResult {
     candidateId: ChoiceRequest["chosen_candidate_id"],
     action: ChoiceRequest["action"]
   ) => Promise<boolean>;
+  /** The candidate_id currently being submitted, or null if idle. */
+  submittingCandidateId: string | null;
   submitting: boolean;
+  choiceError: string | null;
 }
 
 export function useTodayRecommendation(): UseTodayRecommendationResult {
   const [data, setData] = useState<TodayRecommendationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingCandidateId, setSubmittingCandidateId] = useState<string | null>(null);
+  const [choiceError, setChoiceError] = useState<string | null>(null);
   const { session } = useAuth();
 
   const fetchRecommendation = useCallback(async () => {
@@ -87,7 +91,8 @@ export function useTodayRecommendation(): UseTodayRecommendationResult {
         return false;
       }
 
-      setSubmitting(true);
+      setSubmittingCandidateId(candidateId);
+      setChoiceError(null);
 
       try {
         const headers: Record<string, string> = {
@@ -110,13 +115,15 @@ export function useTodayRecommendation(): UseTodayRecommendationResult {
 
         return true;
       } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to save choice";
+        setChoiceError(message);
         console.error("Failed to submit choice:", err);
         return false;
       } finally {
-        setSubmitting(false);
+        setSubmittingCandidateId(null);
       }
     },
-    [data]
+    [data, session?.access_token]
   );
 
   useEffect(() => {
@@ -129,6 +136,8 @@ export function useTodayRecommendation(): UseTodayRecommendationResult {
     error,
     refetch: fetchRecommendation,
     submitChoice,
-    submitting,
+    submittingCandidateId,
+    submitting: submittingCandidateId !== null,
+    choiceError,
   };
 }
