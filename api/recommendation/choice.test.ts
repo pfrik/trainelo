@@ -102,6 +102,7 @@ describe("POST /api/recommendation/choice", () => {
     process.env.TRAINELO_USER_ID = "test-user-id";
     vi.mocked(insertRecommendationEvent).mockResolvedValueOnce({
       success: false,
+      duplicate: false,
       error: "connection refused",
     });
 
@@ -116,6 +117,7 @@ describe("POST /api/recommendation/choice", () => {
     process.env.TRAINELO_USER_ID = "test-user-id";
     vi.mocked(insertRecommendationEvent).mockResolvedValueOnce({
       success: true,
+      duplicate: false,
       error: null,
     });
 
@@ -138,10 +140,29 @@ describe("POST /api/recommendation/choice", () => {
     expect(params.note).toBeNull();
   });
 
+  it("returns 200 (idempotent) on duplicate submission (23505)", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(insertRecommendationEvent).mockResolvedValueOnce({
+      success: true,
+      duplicate: true,
+      error: null,
+    });
+
+    const req = makeReq({ body: VALID_BODY });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body.schema_version).toBe("v1");
+    expect(res._body.recorded).toBe(true);
+    expect(res._body.recorded_at).toBeDefined();
+  });
+
   it("passes note through when provided", async () => {
     process.env.TRAINELO_USER_ID = "test-user-id";
     vi.mocked(insertRecommendationEvent).mockResolvedValueOnce({
       success: true,
+      duplicate: false,
       error: null,
     });
 

@@ -254,7 +254,7 @@ export default async function handler(
     return;
   }
 
-  console.log("[choice] Recorded:", {
+  console.log(`[choice] ${result.duplicate ? "Duplicate (idempotent)" : "Recorded"}:`, {
     user_id: userId,
     recommendation_id: choiceRequest.recommendation_id,
     candidate: choiceRequest.chosen_candidate_id,

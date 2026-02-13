@@ -634,6 +634,7 @@ export interface InsertRecommendationEventParams {
 
 export interface InsertRecommendationEventResult {
   success: boolean;
+  duplicate: boolean;
   error: string | null;
 }
 
@@ -676,11 +677,16 @@ export async function insertRecommendationEvent(
   });
 
   if (error) {
+    // Postgres unique violation — treat as idempotent success
+    if (error.code === "23505") {
+      console.log("[db] Duplicate recommendation_event (idempotent):", error.message);
+      return { success: true, duplicate: true, error: null };
+    }
     console.error("[db] Error inserting recommendation_event:", error.message);
-    return { success: false, error: error.message };
+    return { success: false, duplicate: false, error: error.message };
   }
 
-  return { success: true, error: null };
+  return { success: true, duplicate: false, error: null };
 }
 
 // ============================================================================
