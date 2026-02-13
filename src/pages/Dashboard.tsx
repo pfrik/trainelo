@@ -155,34 +155,36 @@ function EvidencePanel({ evidence, generatedAt, lastGarminSync, expanded, onTogg
 
           {/* Check-in context */}
           {evidence.checkin_mood != null ? (
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded">
-                Mood: {evidence.checkin_mood}
-              </span>
-              {evidence.checkin_rpe != null && (
+            <>
+              <div className="flex flex-wrap gap-1.5 items-center">
                 <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded">
-                  RPE: {evidence.checkin_rpe}
+                  Mood: {evidence.checkin_mood}
                 </span>
+                {evidence.checkin_rpe != null && (
+                  <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded">
+                    RPE: {evidence.checkin_rpe}
+                  </span>
+                )}
+                {evidence.checkin_soreness != null && (
+                  <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded">
+                    Soreness: {evidence.checkin_soreness}
+                  </span>
+                )}
+                {evidence.checkin_pain_flag && (
+                  <span className="bg-red-500/10 text-red-400 text-xs px-2 py-0.5 rounded border border-red-500/30">
+                    Pain
+                  </span>
+                )}
+                {evidence.checkin_illness_flag && (
+                  <span className="bg-amber-500/10 text-amber-400 text-xs px-2 py-0.5 rounded border border-amber-500/30">
+                    Illness
+                  </span>
+                )}
+              </div>
+              {evidence.checkin_impact_note && (
+                <div className="text-xs text-slate-500">{evidence.checkin_impact_note}</div>
               )}
-              {evidence.checkin_soreness != null && (
-                <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded">
-                  Soreness: {evidence.checkin_soreness}
-                </span>
-              )}
-              {evidence.checkin_pain_flag && (
-                <span className="bg-red-500/10 text-red-400 text-xs px-2 py-0.5 rounded border border-red-500/30">
-                  Pain
-                </span>
-              )}
-              {evidence.checkin_illness_flag && (
-                <span className="bg-amber-500/10 text-amber-400 text-xs px-2 py-0.5 rounded border border-amber-500/30">
-                  Illness
-                </span>
-              )}
-            </div>
-            {evidence.checkin_impact_note && (
-              <div className="text-xs text-slate-500">{evidence.checkin_impact_note}</div>
-            )}
+            </>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               <span className="bg-slate-700/50 text-slate-500 text-xs px-2 py-0.5 rounded">
