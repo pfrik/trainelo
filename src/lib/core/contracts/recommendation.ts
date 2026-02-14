@@ -68,6 +68,26 @@ export interface EvidenceSummary {
   checkin_fatigue_delta?: number | null;
   /** Check-in impact: human-readable summary sentence */
   checkin_impact_note?: string | null;
+  /** Calibrator: traffic-light level */
+  calibration_level?: "red" | "amber" | "green" | "upgrade" | null;
+  /** Calibrator: intensity multiplier applied */
+  calibration_intensity_multiplier?: number | null;
+  /** Calibrator: duration multiplier applied */
+  calibration_duration_multiplier?: number | null;
+  /** Calibrator: deterministic rules that fired */
+  calibration_applied_rules?: string[] | null;
+  /** Calibrator: safety/conflict warnings */
+  calibration_warnings?: string[] | null;
+  /** Calibrator: short user-facing headline */
+  calibration_headline?: string | null;
+  /** Calibrator: explanatory rationale */
+  calibration_rationale?: string | null;
+  /** Calibrator: swap suggestion (e.g. "recovery", "easy", "as_planned") */
+  calibration_swap_to?: string | null;
+  /** Calibrator: safety flags raised */
+  calibration_safety_flags?: string[] | null;
+  /** Calibrator: algorithm version (1 = initial deterministic) */
+  calibration_version?: number | null;
 }
 
 /** A single recommendation candidate */

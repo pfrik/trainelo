@@ -56,6 +56,16 @@ import {
   type TrainingLoadRow,
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
+import {
+  calibrateSession,
+  type CalibratorInput,
+  type CalibrationResult,
+  type CheckinInput as CalibratorCheckinInput,
+  type WearableSignalsInput,
+  type WearableReadiness,
+  type Mood5,
+  type ReasonBucket,
+} from "../../src/lib/core/checkin/calibrator.js";
 
 // ============================================================================
 // Configuration
@@ -239,6 +249,64 @@ function mapCheckin(row: DailyCheckinRow | null): DailyCheckinInput | null {
 }
 
 // ============================================================================
+// Calibrator Input Mapping
+// ============================================================================
+
+const VALID_REASON_BUCKETS = new Set(["sick", "hurt", "fried", "none"]);
+
+function mapCheckinForCalibrator(row: DailyCheckinRow | null): CalibratorCheckinInput | null {
+  if (!row) return null;
+  if (!VALID_MOODS.has(row.mood)) return null;
+  return {
+    mood: row.mood as Mood5,
+    rpe: row.rpe,
+    soreness: row.soreness,
+    pain_flag: row.pain_flag,
+    illness_flag: row.illness_flag,
+    reason_bucket: row.reason_bucket && VALID_REASON_BUCKETS.has(row.reason_bucket)
+      ? (row.reason_bucket as ReasonBucket)
+      : null,
+    pain_severity: row.pain_severity,
+    pain_locations: row.pain_locations,
+    time_constraint_minutes: row.time_constraint_minutes,
+  };
+}
+
+function deriveWearableReadiness(
+  readiness: number,
+  fatigue: number,
+): WearableReadiness {
+  if (fatigue >= 75 || readiness < 40) return "red";
+  if (fatigue >= 50 || readiness < 65) return "yellow";
+  return "green";
+}
+
+function buildWearableSignals(rfOutput: ReadinessAndFatigueOutput): WearableSignalsInput {
+  return {
+    readiness: deriveWearableReadiness(rfOutput.readiness_score, rfOutput.fatigue_score),
+    readiness_score: rfOutput.readiness_score,
+    fatigue_score: rfOutput.fatigue_score,
+  };
+}
+
+function runCalibratorSafe(
+  checkinRow: DailyCheckinRow | null,
+  rfOutput: ReadinessAndFatigueOutput,
+): CalibrationResult | null {
+  try {
+    const calibratorInput: CalibratorInput = {
+      morning_checkin: mapCheckinForCalibrator(checkinRow),
+      wearable_signals: buildWearableSignals(rfOutput),
+      planned_session: { planned_duration_minutes: null, planned_intensity: null },
+    };
+    return calibrateSession(calibratorInput);
+  } catch (err) {
+    console.warn("[cron] Calibrator error (non-fatal):", err);
+    return null;
+  }
+}
+
+// ============================================================================
 // Decision Mapping
 // ============================================================================
 
@@ -419,7 +487,10 @@ async function computeForUser(
   const primary = candidates[0];
   const confidence = computeConfidence(row, loadRows);
 
-  // 6. Build persisted output
+  // 6. Run calibrator (non-fatal on error)
+  const calibration = runCalibratorSafe(checkinRes.data, rfOutput);
+
+  // 7. Build persisted output
   return {
     decision: candidateIdToDecision(primary.candidate_id),
     workout_ref: primary.template_ref,
@@ -439,6 +510,16 @@ async function computeForUser(
         caution_level: c.caution_level,
         reason_codes: c.reason_codes,
       })),
+      calibration_level: calibration?.level ?? null,
+      calibration_intensity_multiplier: calibration?.intensity_multiplier ?? null,
+      calibration_duration_multiplier: calibration?.duration_multiplier ?? null,
+      calibration_applied_rules: calibration?.applied_rules ?? null,
+      calibration_warnings: calibration?.warnings ?? null,
+      calibration_headline: calibration?.headline ?? null,
+      calibration_rationale: calibration?.rationale ?? null,
+      calibration_swap_to: calibration?.swap_to ?? null,
+      calibration_safety_flags: calibration?.warnings ?? null,
+      calibration_version: calibration ? 1 : null,
     },
   };
 }

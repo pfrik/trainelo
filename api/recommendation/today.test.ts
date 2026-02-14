@@ -1,7 +1,8 @@
 /**
  * Tests for POST /api/recommendation/today handler.
  *
- * Focused on evidence check-in field passthrough.
+ * Covers: check-in evidence passthrough, calibration evidence fields,
+ * hard-stop caution elevation, and missing-checkin null safety.
  * Mocks DB queries and Supabase client to isolate handler logic.
  */
 
@@ -72,8 +73,24 @@ const STATE_ROW = {
   last_garmin_sync_at: null,
 };
 
+/** Full v2 check-in row with all fields. */
+function makeCheckinRow(overrides: Record<string, unknown> = {}) {
+  return {
+    mood: "okay",
+    rpe: null,
+    soreness: null,
+    pain_flag: false,
+    illness_flag: false,
+    reason_bucket: null,
+    pain_severity: null,
+    pain_locations: null,
+    time_constraint_minutes: null,
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Tests
+// Tests — check-in evidence passthrough
 // ---------------------------------------------------------------------------
 
 describe("POST /api/recommendation/today — check-in evidence", () => {
@@ -92,13 +109,13 @@ describe("POST /api/recommendation/today — check-in evidence", () => {
       error: null,
     });
     vi.mocked(getDailyCheckin).mockResolvedValueOnce({
-      data: {
+      data: makeCheckinRow({
         mood: "tired",
         rpe: 8,
         soreness: 6,
         pain_flag: true,
         illness_flag: false,
-      },
+      }),
       error: null,
     });
 
@@ -152,5 +169,116 @@ describe("POST /api/recommendation/today — check-in evidence", () => {
     expect(evidence.checkin_readiness_delta).toBeNull();
     expect(evidence.checkin_fatigue_delta).toBeNull();
     expect(evidence.checkin_impact_note).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — calibration evidence integration
+// ---------------------------------------------------------------------------
+
+describe("POST /api/recommendation/today — calibration evidence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.TRAINELO_USER_ID = "test-user";
+  });
+
+  it("populates calibration evidence fields when check-in + wearable data present", async () => {
+    vi.mocked(getDailyUserState).mockResolvedValueOnce({
+      data: STATE_ROW,
+      error: null,
+    });
+    vi.mocked(getTrainingLoad7Days).mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+    vi.mocked(getDailyCheckin).mockResolvedValueOnce({
+      data: makeCheckinRow({ mood: "good" }),
+      error: null,
+    });
+
+    const req = makeReq();
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const evidence = res._body.evidence;
+
+    // Calibration fields should be populated (not null)
+    expect(evidence.calibration_level).toBeDefined();
+    expect(evidence.calibration_level).not.toBeNull();
+    expect(evidence.calibration_intensity_multiplier).toBeTypeOf("number");
+    expect(evidence.calibration_duration_multiplier).toBeTypeOf("number");
+    expect(Array.isArray(evidence.calibration_applied_rules)).toBe(true);
+    expect(Array.isArray(evidence.calibration_warnings)).toBe(true);
+    expect(evidence.calibration_headline).toBeTypeOf("string");
+    expect(evidence.calibration_rationale).toBeTypeOf("string");
+
+    // "good" mood with healthy STATE_ROW => green level, 1.0 multipliers
+    expect(evidence.calibration_level).toBe("green");
+    expect(evidence.calibration_intensity_multiplier).toBe(1.0);
+    expect(evidence.calibration_duration_multiplier).toBe(1.0);
+  });
+
+  it("hard-stop (illness) sets red calibration and elevates top candidate caution", async () => {
+    vi.mocked(getDailyUserState).mockResolvedValueOnce({
+      data: STATE_ROW,
+      error: null,
+    });
+    vi.mocked(getTrainingLoad7Days).mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+    vi.mocked(getDailyCheckin).mockResolvedValueOnce({
+      data: makeCheckinRow({
+        mood: "drained",
+        illness_flag: true,
+        reason_bucket: "sick",
+      }),
+      error: null,
+    });
+
+    const req = makeReq();
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const evidence = res._body.evidence;
+    const topCandidate = res._body.candidates[0];
+
+    // Hard-stop → red calibration
+    expect(evidence.calibration_level).toBe("red");
+    expect(evidence.calibration_intensity_multiplier).toBeLessThanOrEqual(0.70);
+    expect(evidence.calibration_warnings!.length).toBeGreaterThan(0);
+
+    // Top candidate caution should be elevated to high
+    expect(topCandidate.caution_level).toBe("high");
+  });
+
+  it("returns null calibration fields when no check-in exists (deterministic fallback)", async () => {
+    vi.mocked(getDailyUserState).mockResolvedValueOnce({
+      data: STATE_ROW,
+      error: null,
+    });
+    vi.mocked(getTrainingLoad7Days).mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+    vi.mocked(getDailyCheckin).mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    const req = makeReq();
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const evidence = res._body.evidence;
+
+    // No check-in → calibrator still runs with null checkin (wearable-only fallback)
+    // With healthy STATE_ROW the derived wearable is green → level should be green
+    expect(evidence.calibration_level).toBe("green");
+    expect(evidence.calibration_intensity_multiplier).toBe(1.0);
+    expect(evidence.calibration_applied_rules).toContain("NO_CHECKIN");
   });
 });

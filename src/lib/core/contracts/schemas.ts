@@ -62,6 +62,16 @@ export const EvidenceSummarySchema = z.object({
   checkin_readiness_delta: z.number().int().nullable().optional(),
   checkin_fatigue_delta: z.number().int().nullable().optional(),
   checkin_impact_note: z.string().nullable().optional(),
+  calibration_level: z.enum(["red", "amber", "green", "upgrade"]).nullable().optional(),
+  calibration_intensity_multiplier: z.number().min(0).max(2).nullable().optional(),
+  calibration_duration_multiplier: z.number().min(0).max(2).nullable().optional(),
+  calibration_applied_rules: z.array(z.string()).nullable().optional(),
+  calibration_warnings: z.array(z.string()).nullable().optional(),
+  calibration_headline: z.string().nullable().optional(),
+  calibration_rationale: z.string().nullable().optional(),
+  calibration_swap_to: z.string().nullable().optional(),
+  calibration_safety_flags: z.array(z.string()).nullable().optional(),
+  calibration_version: z.number().int().nullable().optional(),
 });
 
 /** Recommendation candidate schema */
