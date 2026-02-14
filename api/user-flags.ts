@@ -16,6 +16,8 @@ import { upsertDailyCheckin } from "../src/lib/db/queries.js";
 
 const MoodSchema = z.enum(["drained", "tired", "okay", "good", "great"]);
 
+const ReasonBucketSchema = z.enum(["sick", "hurt", "fried", "none"]);
+
 const UserFlagsRequestSchema = z.object({
   date: z
     .string()
@@ -27,6 +29,14 @@ const UserFlagsRequestSchema = z.object({
   pain_flag: z.boolean().optional(),
   illness_flag: z.boolean().optional(),
   notes: z.string().max(1000).optional(),
+  // v2 fields
+  reason_bucket: ReasonBucketSchema.optional(),
+  reason_tags: z.array(z.string().max(50)).max(10).optional(),
+  pain_severity: z.number().int().min(0).max(10).optional(),
+  pain_locations: z.array(z.string().max(50)).max(20).optional(),
+  time_constraint_minutes: z.number().int().min(1).optional(),
+  checkin_version: z.number().int().min(1).optional(),
+  payload: z.record(z.unknown()).optional(),
 });
 
 // ============================================================================
@@ -237,6 +247,37 @@ export default async function handler(
 
   const payload = parseResult.data;
 
+  // Business-rule validation (mood-specific required fields)
+  if (payload.mood === "drained" && !payload.reason_bucket) {
+    res.status(400).json({
+      error: "VALIDATION_FAILED",
+      details: "drained mood requires reason_bucket",
+    });
+    return;
+  }
+  if (
+    payload.mood === "drained" &&
+    payload.reason_bucket === "hurt" &&
+    (payload.pain_severity == null || payload.pain_severity < 1)
+  ) {
+    res.status(400).json({
+      error: "VALIDATION_FAILED",
+      details: "hurt reason requires pain_severity >= 1",
+    });
+    return;
+  }
+  if (
+    payload.mood === "drained" &&
+    payload.reason_bucket === "hurt" &&
+    (!payload.pain_locations || payload.pain_locations.length === 0)
+  ) {
+    res.status(400).json({
+      error: "VALIDATION_FAILED",
+      details: "hurt reason requires at least one pain_location",
+    });
+    return;
+  }
+
   // Resolve identity
   const authHeader = req.headers.authorization;
   let userId: string | null = null;
@@ -266,9 +307,23 @@ export default async function handler(
     pain_flag: payload.pain_flag,
     illness_flag: payload.illness_flag,
     notes: payload.notes,
+    reason_bucket: payload.reason_bucket,
+    reason_tags: payload.reason_tags,
+    pain_severity: payload.pain_severity,
+    pain_locations: payload.pain_locations,
+    time_constraint_minutes: payload.time_constraint_minutes,
+    checkin_version: payload.checkin_version ?? 2,
+    payload: payload.payload,
   });
 
   if (!result.success) {
+    // Constraint violations (check, not-null, exclusion) are client errors
+    const constraintCodes = ["23514", "23502", "23503"];
+    if (result.error_code && constraintCodes.includes(result.error_code)) {
+      console.warn("[user-flags] Constraint violation:", result.error);
+      res.status(400).json({ error: "VALIDATION_FAILED" });
+      return;
+    }
     console.error("[user-flags] Persistence failed:", result.error);
     res.status(500).json({ error: "PERSISTENCE_FAILED" });
     return;

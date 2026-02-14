@@ -170,4 +170,213 @@ describe("POST /api/user-flags", () => {
     expect(params.notes).toBe("left knee ache");
     expect(params.date).toBe("2026-02-09");
   });
+
+  // -------------------------------------------------------------------------
+  // v2 field tests
+  // -------------------------------------------------------------------------
+
+  it("passes v2 fields through to upsert", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const body = {
+      mood: "drained",
+      reason_bucket: "hurt",
+      pain_severity: 7,
+      pain_locations: ["knee", "ankle"],
+      pain_flag: true,
+      time_constraint_minutes: 30,
+      reason_tags: ["soreness"],
+      checkin_version: 2,
+      payload: { upgrade_intent: false },
+    };
+    const req = makeReq({ body });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const params = vi.mocked(upsertDailyCheckin).mock.calls[0][0];
+    expect(params.reason_bucket).toBe("hurt");
+    expect(params.pain_severity).toBe(7);
+    expect(params.pain_locations).toEqual(["knee", "ankle"]);
+    expect(params.time_constraint_minutes).toBe(30);
+    expect(params.reason_tags).toEqual(["soreness"]);
+    expect(params.checkin_version).toBe(2);
+    expect(params.payload).toEqual({ upgrade_intent: false });
+  });
+
+  it("returns 400 for invalid reason_bucket value", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    const req = makeReq({ body: { mood: "drained", reason_bucket: "bored" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toBe("INVALID_REQUEST");
+  });
+
+  it("returns 400 for pain_severity out of range", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    const req = makeReq({ body: { mood: "drained", reason_bucket: "hurt", pain_severity: 11 } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toBe("INVALID_REQUEST");
+  });
+
+  it("returns 400 for time_constraint_minutes < 1", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    const req = makeReq({ body: { mood: "okay", time_constraint_minutes: 0 } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toBe("INVALID_REQUEST");
+  });
+
+  it("defaults checkin_version to 2 when not provided", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const req = makeReq({ body: { mood: "good" } });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const params = vi.mocked(upsertDailyCheckin).mock.calls[0][0];
+    expect(params.checkin_version).toBe(2);
+  });
+
+  it("accepts v1-only payload without v2 fields (backward compat)", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const req = makeReq({ body: { mood: "great", rpe: 3 } });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const params = vi.mocked(upsertDailyCheckin).mock.calls[0][0];
+    expect(params.mood).toBe("great");
+    expect(params.rpe).toBe(3);
+    // v2 fields should be undefined (not sent)
+    expect(params.reason_bucket).toBeUndefined();
+    expect(params.pain_severity).toBeUndefined();
+    expect(params.pain_locations).toBeUndefined();
+    expect(params.time_constraint_minutes).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Drained business-rule validation
+  // -------------------------------------------------------------------------
+
+  it("returns 400 VALIDATION_FAILED for drained without reason_bucket", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    const req = makeReq({ body: { mood: "drained" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toBe("VALIDATION_FAILED");
+    expect(upsertDailyCheckin).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 VALIDATION_FAILED for drained hurt without pain_severity", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    const req = makeReq({
+      body: { mood: "drained", reason_bucket: "hurt", pain_locations: ["knee"] },
+    });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toBe("VALIDATION_FAILED");
+    expect(upsertDailyCheckin).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 VALIDATION_FAILED for drained hurt without pain_locations", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    const req = makeReq({
+      body: { mood: "drained", reason_bucket: "hurt", pain_severity: 5 },
+    });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toBe("VALIDATION_FAILED");
+    expect(upsertDailyCheckin).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for valid drained + hurt payload", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const req = makeReq({
+      body: {
+        mood: "drained",
+        reason_bucket: "hurt",
+        pain_severity: 5,
+        pain_locations: ["knee"],
+      },
+    });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+
+  it("returns 200 for valid drained + sick payload (no pain details needed)", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const req = makeReq({ body: { mood: "drained", reason_bucket: "sick" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // DB constraint violation → 400 VALIDATION_FAILED
+  // -------------------------------------------------------------------------
+
+  it("returns 400 VALIDATION_FAILED on DB check constraint violation (23514)", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: false,
+      error: "new row violates check constraint",
+      error_code: "23514",
+    });
+
+    const req = makeReq({ body: { mood: "good" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toBe("VALIDATION_FAILED");
+  });
+
+  it("returns 500 PERSISTENCE_FAILED on non-constraint DB error", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: false,
+      error: "connection refused",
+      error_code: null,
+    });
+
+    const req = makeReq({ body: { mood: "good" } });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(500);
+    expect(res._body.error).toBe("PERSISTENCE_FAILED");
+  });
 });

@@ -707,11 +707,20 @@ export interface UpsertDailyCheckinParams {
   pain_flag?: boolean;
   illness_flag?: boolean;
   notes?: string | null;
+  // v2 fields
+  reason_bucket?: string | null;
+  reason_tags?: string[] | null;
+  pain_severity?: number | null;
+  pain_locations?: string[] | null;
+  time_constraint_minutes?: number | null;
+  checkin_version?: number;
+  payload?: Record<string, unknown> | null;
 }
 
 export interface UpsertDailyCheckinResult {
   success: boolean;
   error: string | null;
+  error_code?: string | null;
 }
 
 /**
@@ -733,6 +742,13 @@ export async function upsertDailyCheckin(
       pain_flag: params.pain_flag ?? false,
       illness_flag: params.illness_flag ?? false,
       notes: params.notes ?? null,
+      reason_bucket: params.reason_bucket ?? null,
+      reason_tags: params.reason_tags ?? [],
+      pain_severity: params.pain_severity ?? null,
+      pain_locations: params.pain_locations ?? [],
+      time_constraint_minutes: params.time_constraint_minutes ?? null,
+      checkin_version: params.checkin_version ?? 1,
+      payload: params.payload ?? {},
       source: "app",
       updated_at: new Date().toISOString(),
     },
@@ -744,7 +760,7 @@ export async function upsertDailyCheckin(
 
   if (error) {
     console.error("[db] Error upserting daily_checkin:", error.message);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, error_code: error.code ?? null };
   }
 
   return { success: true, error: null };
