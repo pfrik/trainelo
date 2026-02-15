@@ -61,30 +61,30 @@ const BUCKET_CARDS: {
     title: "I'm Sick",
     description: "Dealing with an illness or fighting something off.",
     icon: "sick",
-    tags: ["FEVER", "FLU", "STOMACH BUG"],
+    tags: ["Fever", "Flu", "Stomach Bug"],
   },
   {
     value: "hurt",
     title: "I'm Hurt",
     description: "Acute pain or physical limitations affecting movement.",
     icon: "personal_injury",
-    tags: ["ACUTE PAIN", "INJURY", "STRAIN"],
+    tags: ["Acute Pain", "Injury", "Strain"],
   },
   {
     value: "fried",
     title: "Just Fried",
     description: "Systemic fatigue, burnout, or severely compromised recovery.",
-    icon: "electric_bolt",
-    tags: ["BURNOUT", "BAD SLEEP", "LIFE STRESS"],
+    icon: "battery_alert",
+    tags: ["Burnout", "Bad Sleep", "Life Stress"],
   },
 ];
 
 const PAIN_LOCATIONS = [
-  { id: "foot_ankle", label: "Foot/Ankle", icon: "do_not_step" },
-  { id: "knee", label: "Knee", icon: "airline_seat_legroom_normal" },
-  { id: "hip_glute", label: "Hip/Glute", icon: "directions_walk" },
-  { id: "back", label: "Back", icon: "straighten" },
-  { id: "shoulder", label: "Shoulder", icon: "back_hand" },
+  { id: "foot_ankle", label: "Foot/Ankle", icon: "footprint" },
+  { id: "knee", label: "Knee", icon: "accessibility_new" },
+  { id: "hip_glute", label: "Hip/Glute", icon: "airline_seat_legroom_extra" },
+  { id: "back", label: "Back", icon: "health_and_safety" },
+  { id: "shoulder", label: "Shoulder", icon: "style" },
   { id: "other", label: "Other", icon: "add" },
 ];
 
@@ -104,9 +104,11 @@ const FRIED_TAGS = [
 const TIRED_REASON_TAGS = ["sleep", "stress", "soreness", "meh"];
 
 const SORENESS_OPTIONS = [
-  { label: "Mild (1-3)", value: 2 },
-  { label: "Moderate (4-6)", value: 5 },
-  { label: "Severe (7-10)", value: 8 },
+  { label: "No Soreness (1)", value: 1 },
+  { label: "Light Soreness (2-3)", value: 2 },
+  { label: "Moderate Soreness (4-6)", value: 5 },
+  { label: "Heavy Soreness (7-8)", value: 7 },
+  { label: "Extreme Soreness (9-10)", value: 9 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -376,46 +378,70 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   // ---------------------------------------------------------------------------
 
   if (mood === "drained") {
+    // Dynamic header content
+    let headerTitle: string;
+    let headerSubtitle: string;
+    let showRequired = false;
+
+    if (redStep === 1) {
+      headerTitle = "Oh no. What\u2019s going on?";
+      headerSubtitle = "Identify the issue so we can calibrate your load.";
+      showRequired = true;
+    } else if (reasonBucket === "hurt") {
+      headerTitle = "Injury Report";
+      headerSubtitle = "Details help us adjust your training load.";
+    } else if (reasonBucket === "sick") {
+      headerTitle = "Sickness Details";
+      headerSubtitle = "Help us understand what you\u2019re dealing with.";
+    } else {
+      headerTitle = "Burnout Options";
+      headerSubtitle = "Select your recovery path for today.";
+    }
+
     return (
-      <div className="space-y-4">
-        {/* Header bar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-            <span className="text-xs font-bold text-red-400 uppercase tracking-wider">
-              Red Protocol
-            </span>
+      <div>
+        {/* ---- Shared header ---- */}
+        <div className="pb-5 border-b border-slate-700 flex justify-between items-start">
+          <div className="w-full">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">
+                  Red Protocol
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-slate-400 bg-slate-700/30 px-2 py-1 rounded">
+                Step {redStep} of 2
+              </span>
+            </div>
+            <h2 className="text-2xl font-bold text-white tracking-tight">
+              {headerTitle}
+            </h2>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-sm text-slate-400 font-medium">{headerSubtitle}</p>
+              {showRequired && (
+                <span className="text-[10px] uppercase font-bold text-red-400/80 tracking-wide border border-red-500/20 px-1.5 py-0.5 rounded bg-red-500/5">
+                  Required
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500">Step {redStep} of 2</span>
-            <button
-              onClick={handleRedClose}
-              className="text-slate-500 hover:text-slate-300 transition-colors"
-              aria-label="Close red protocol"
-            >
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
-          </div>
+          <button
+            onClick={handleRedClose}
+            className="text-slate-400 hover:text-white transition-colors p-2 rounded-md hover:bg-white/5 -mr-2 ml-4"
+            aria-label="Close red protocol"
+          >
+            <span className="material-symbols-outlined text-2xl">close</span>
+          </button>
         </div>
 
         {/* ---- Step 1: Choose bucket ---- */}
         {redStep === 1 && (
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-white">
-                Oh no. What&apos;s going on?
-              </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm text-slate-400">
-                  Identify the issue so we can calibrate your load.
-                </span>
-                <span className="text-[10px] font-bold text-red-400 border border-red-500/40 px-1.5 py-0.5 rounded uppercase">
-                  Required
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-3" role="radiogroup" aria-label="Issue type">
+          <div className="pt-6 space-y-4">
+            <div className="space-y-4" role="radiogroup" aria-label="Issue type">
               {BUCKET_CARDS.map((card) => {
                 const sel = reasonBucket === card.value;
                 return (
@@ -428,48 +454,55 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
                     role="radio"
                     aria-checked={sel}
                     tabIndex={0}
-                    className={`w-full text-left rounded-xl p-4 border transition-all ${
+                    className={`w-full text-left p-5 rounded-xl border transition-all ${
                       sel
-                        ? "border-red-500/60 bg-red-500/10"
-                        : "border-slate-700 bg-slate-800/50 hover:border-slate-500"
+                        ? "border-green-500 ring-1 ring-green-500 bg-green-500/5"
+                        : "border-slate-700 bg-[#0f1521]/50 hover:bg-[#0f1521]"
                     }`}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-4">
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          sel ? "bg-red-500/20" : "bg-slate-700/50"
+                        className={`p-3 rounded-lg transition-colors ${
+                          sel
+                            ? "bg-green-500/10 text-green-500"
+                            : "bg-slate-700/20 text-slate-400"
                         }`}
                       >
-                        <span
-                          className={`material-symbols-outlined text-lg ${sel ? "text-red-400" : "text-slate-400"}`}
-                          style={{ fontVariationSettings: '"FILL" 1' }}
-                        >
+                        <span className="material-symbols-outlined text-3xl">
                           {card.icon}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-white text-sm">
+                          <h3
+                            className={`text-lg font-bold mb-1 transition-colors ${
+                              sel ? "text-green-500" : "text-white"
+                            }`}
+                          >
                             {card.title}
-                          </span>
+                          </h3>
                           <div
-                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                              sel ? "border-red-400" : "border-slate-600"
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${
+                              sel
+                                ? "border-green-500 bg-green-500"
+                                : "border-slate-700"
                             }`}
                           >
                             {sel && (
-                              <div className="w-2 h-2 rounded-full bg-red-400" />
+                              <span className="material-symbols-outlined text-[14px] text-white font-bold">
+                                check
+                              </span>
                             )}
                           </div>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-sm text-slate-400 mb-3 leading-relaxed">
                           {card.description}
                         </p>
-                        <div className="flex flex-wrap gap-1.5 mt-2">
+                        <div className="flex flex-wrap gap-2">
                           {card.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="text-[10px] font-medium text-slate-500 bg-slate-700/50 px-2 py-0.5 rounded uppercase tracking-wide"
+                              className="px-2 py-1 rounded text-[10px] font-semibold bg-slate-800 border border-slate-700 text-slate-400 uppercase tracking-wider"
                             >
                               {tag}
                             </span>
@@ -494,19 +527,19 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
               </p>
             )}
 
-            <div className="flex items-center justify-between pt-1">
+            <div className="pt-5 border-t border-slate-700 flex justify-between items-center">
               <button
                 onClick={handleSkip}
-                className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+                className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
               >
                 Skip for now
               </button>
               <button
                 onClick={handleRedStep1Next}
-                className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-green-500 hover:bg-green-400 text-slate-900 transition-all flex items-center gap-2"
+                className="px-8 py-3 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-bold shadow-lg shadow-green-500/20 hover:shadow-green-500/30 transition-all flex items-center gap-2 active:scale-[0.98]"
               >
-                Next
-                <span className="material-symbols-outlined text-base">
+                Confirm Calibration
+                <span className="material-symbols-outlined text-lg leading-none font-bold">
                   arrow_forward
                 </span>
               </button>
@@ -541,10 +574,6 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
           <SickForm
             tags={sickTags}
             toggleTag={(tag) => toggleArrayItem(setSickTags, tag)}
-            timeConstraint={timeConstraint}
-            setTimeConstraint={setTimeConstraint}
-            customTime={customTime}
-            setCustomTime={setCustomTime}
             notes={redNotes}
             setNotes={setRedNotes}
             saving={saving}
@@ -556,10 +585,10 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
         )}
         {redStep === 2 && reasonBucket === "fried" && (
           <FriedForm
-            recoveryType={recoveryType}
-            setRecoveryType={setRecoveryType}
             tags={friedTags}
             toggleTag={(tag) => toggleArrayItem(setFriedTags, tag)}
+            recoveryType={recoveryType}
+            setRecoveryType={setRecoveryType}
             notes={redNotes}
             setNotes={setRedNotes}
             saving={saving}
@@ -818,30 +847,25 @@ function HurtForm({
   onSkip: () => void;
 }) {
   return (
-    <div className="space-y-5">
-      <div>
-        <h3 className="text-lg font-bold text-white">Injury Report</h3>
-        <p className="text-sm text-slate-400 mt-0.5">
-          Details help us adjust your training load.
-        </p>
-      </div>
-
+    <div className="pt-6 space-y-8">
       {/* Pain Severity */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-bold text-slate-300 uppercase tracking-wide">
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <label className="block text-sm font-bold text-white uppercase tracking-wide">
             Pain Severity
           </label>
           <span
-            className={`text-lg font-bold ${painSeverity !== null ? "text-green-400" : "text-slate-600"}`}
+            className={`text-2xl font-bold ${painSeverity !== null ? "text-green-500" : "text-slate-600"}`}
           >
             {painSeverity !== null ? painSeverity : "\u2014"}
-            <span className="text-xs text-slate-500 font-normal ml-0.5">
-              /10
-            </span>
+            <span className="text-sm text-slate-400 font-normal ml-1">/10</span>
           </span>
         </div>
-        <div className="flex gap-1.5" role="radiogroup" aria-label="Pain severity from 1 to 10">
+        <div
+          className="flex gap-1.5"
+          role="radiogroup"
+          aria-label="Pain severity from 1 to 10"
+        >
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => {
             const sel = painSeverity === v;
             return (
@@ -853,12 +877,8 @@ function HurtForm({
                 tabIndex={0}
                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all flex-shrink-0 ${
                   sel
-                    ? v <= 3
-                      ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/50"
-                      : v <= 6
-                        ? "bg-orange-500/20 text-orange-300 border border-orange-500/50"
-                        : "bg-red-500/20 text-red-300 border border-red-500/50"
-                    : "bg-slate-800/50 text-slate-500 border border-slate-700 hover:border-slate-500 hover:text-slate-300"
+                    ? "bg-green-500 text-white"
+                    : "bg-[#0f1521]/30 text-slate-500 border border-slate-700 hover:border-slate-500 hover:text-slate-300"
                 }`}
               >
                 {v}
@@ -866,13 +886,13 @@ function HurtForm({
             );
           })}
         </div>
-        <div className="flex justify-between text-[10px] text-slate-500 mt-1 px-1">
+        <div className="flex justify-between text-xs text-slate-400 font-medium px-1">
           <span>Mild</span>
           <span>Moderate</span>
           <span>Severe</span>
         </div>
         {errors.pain_severity && (
-          <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+          <p className="text-xs text-red-400 flex items-center gap-1">
             <span
               className="material-symbols-outlined text-sm"
               style={{ fontVariationSettings: '"FILL" 1' }}
@@ -885,14 +905,14 @@ function HurtForm({
       </div>
 
       {/* Pain Location */}
-      <div>
-        <label className="text-xs font-bold text-slate-300 uppercase tracking-wide">
+      <div className="space-y-4">
+        <label className="block text-sm font-bold text-white uppercase tracking-wide">
           Pain Location{" "}
-          <span className="font-normal text-slate-500 normal-case">
+          <span className="text-slate-400 text-[10px] font-normal normal-case ml-2">
             (Select all that apply)
           </span>
         </label>
-        <div className="grid grid-cols-3 gap-2 mt-2">
+        <div className="grid grid-cols-3 gap-3">
           {PAIN_LOCATIONS.map((loc) => {
             const sel = painLocations.includes(loc.id);
             return (
@@ -902,25 +922,20 @@ function HurtForm({
                 role="checkbox"
                 aria-checked={sel}
                 tabIndex={0}
-                className={`flex flex-col items-center justify-center py-3 px-2 rounded-lg border transition-all ${
+                className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all h-20 ${
                   sel
-                    ? "border-green-500/50 bg-green-500/10 text-white"
-                    : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-500"
+                    ? "bg-green-500/10 border-green-500 text-green-500"
+                    : "border-slate-700 bg-[#0f1521]/30 text-slate-400 hover:bg-[#0f1521] hover:border-slate-400/50"
                 }`}
               >
-                <span
-                  className={`material-symbols-outlined text-xl mb-1 ${sel ? "text-green-400" : "text-slate-500"}`}
-                  style={{ fontVariationSettings: '"FILL" 1' }}
-                >
-                  {loc.icon}
-                </span>
-                <span className="text-xs font-medium">{loc.label}</span>
+                <span className="material-symbols-outlined mb-1">{loc.icon}</span>
+                <span className="text-xs font-semibold">{loc.label}</span>
               </button>
             );
           })}
         </div>
         {errors.pain_locations && (
-          <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+          <p className="text-xs text-red-400 flex items-center gap-1">
             <span
               className="material-symbols-outlined text-sm"
               style={{ fontVariationSettings: '"FILL" 1' }}
@@ -932,26 +947,35 @@ function HurtForm({
         )}
       </div>
 
-      {/* RPE / Soreness + Time Constraint */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
+      {/* RPE/Soreness + Time Constraint */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          <label className="block text-sm font-bold text-white uppercase tracking-wide">
             RPE / Soreness
           </label>
-          <select
-            value={hurtSoreness ?? ""}
-            onChange={(e) =>
-              setHurtSoreness(e.target.value ? parseInt(e.target.value, 10) : null)
-            }
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-slate-500"
-          >
-            <option value="">Select...</option>
-            {SORENESS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={hurtSoreness ?? ""}
+              onChange={(e) =>
+                setHurtSoreness(
+                  e.target.value ? parseInt(e.target.value, 10) : null,
+                )
+              }
+              className="w-full bg-[#0f1521]/30 border border-slate-700 text-white text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block p-3 appearance-none"
+            >
+              <option value="">Select...</option>
+              {SORENESS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+              <span className="material-symbols-outlined text-xl">
+                expand_more
+              </span>
+            </div>
+          </div>
         </div>
         <TimeConstraintSelector
           value={timeConstraint}
@@ -962,17 +986,17 @@ function HurtForm({
       </div>
 
       {/* Notes */}
-      <div>
-        <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
+      <div className="space-y-3">
+        <label className="block text-sm font-bold text-white uppercase tracking-wide">
           Notes
         </label>
         <textarea
-          rows={3}
+          rows={4}
           maxLength={500}
           placeholder="Describe the pain type (sharp, dull, throbbing) or specific movements that trigger it..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none"
+          className="w-full bg-[#0f1521]/30 border border-slate-700 text-white text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block p-3 min-h-[100px] placeholder-slate-500/50 resize-none"
         />
       </div>
 
@@ -994,10 +1018,6 @@ function HurtForm({
 function SickForm({
   tags,
   toggleTag,
-  timeConstraint,
-  setTimeConstraint,
-  customTime,
-  setCustomTime,
   notes,
   setNotes,
   saving,
@@ -1008,10 +1028,6 @@ function SickForm({
 }: {
   tags: string[];
   toggleTag: (tag: string) => void;
-  timeConstraint: number | null;
-  setTimeConstraint: (v: number | null) => void;
-  customTime: string;
-  setCustomTime: (v: string) => void;
   notes: string;
   setNotes: (v: string) => void;
   saving: boolean;
@@ -1021,17 +1037,26 @@ function SickForm({
   onSkip: () => void;
 }) {
   return (
-    <div className="space-y-5">
-      <div>
-        <h3 className="text-lg font-bold text-white">Sickness Details</h3>
-        <p className="text-sm text-slate-400 mt-0.5">
-          Help us understand what you&apos;re dealing with.
-        </p>
+    <div className="pt-6 space-y-6">
+      {/* Info banner (Stitch: immune system recovery) */}
+      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-start gap-4">
+        <div className="bg-red-500/20 p-2 rounded-full text-red-500 shrink-0">
+          <span className="material-symbols-outlined text-xl">sick</span>
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-white uppercase tracking-wide mb-1">
+            Immune System Recovery
+          </h3>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            Based on your reported symptoms, high-intensity training is paused.
+            Focus purely on recovery to prevent prolonged illness.
+          </p>
+        </div>
       </div>
 
       {/* Symptom tags */}
-      <div>
-        <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
+      <div className="space-y-3">
+        <label className="block text-sm font-bold text-white uppercase tracking-wide">
           Symptoms (optional)
         </label>
         <div className="flex flex-wrap gap-2">
@@ -1046,8 +1071,8 @@ function SickForm({
                 tabIndex={0}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   sel
-                    ? "bg-red-500/20 text-red-300 border border-red-500/40"
-                    : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
+                    ? "bg-green-500/10 text-green-400 border border-green-500/40"
+                    : "bg-[#0f1521]/30 text-slate-400 border border-slate-700 hover:text-slate-200 hover:border-slate-500"
                 }`}
               >
                 {t.label}
@@ -1057,27 +1082,18 @@ function SickForm({
         </div>
       </div>
 
-      {/* Time constraint */}
-      <TimeConstraintSelector
-        value={timeConstraint}
-        onChange={setTimeConstraint}
-        customTime={customTime}
-        onCustomChange={setCustomTime}
-        showAsPlanned
-      />
-
       {/* Notes */}
-      <div>
-        <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
+      <div className="space-y-3">
+        <label className="block text-sm font-bold text-white uppercase tracking-wide">
           Notes (optional)
         </label>
         <textarea
-          rows={3}
+          rows={4}
           maxLength={500}
           placeholder="Any additional details about how you're feeling..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none"
+          className="w-full bg-[#0f1521]/30 border border-slate-700 text-white text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block p-3 min-h-[100px] placeholder-slate-500/50 resize-none"
         />
       </div>
 
@@ -1097,10 +1113,10 @@ function SickForm({
 // ---------------------------------------------------------------------------
 
 function FriedForm({
-  recoveryType,
-  setRecoveryType,
   tags,
   toggleTag,
+  recoveryType,
+  setRecoveryType,
   notes,
   setNotes,
   saving,
@@ -1109,10 +1125,10 @@ function FriedForm({
   onSubmit,
   onSkip,
 }: {
-  recoveryType: RecoveryType | null;
-  setRecoveryType: (v: RecoveryType) => void;
   tags: string[];
   toggleTag: (tag: string) => void;
+  recoveryType: RecoveryType | null;
+  setRecoveryType: (v: RecoveryType) => void;
   notes: string;
   setNotes: (v: string) => void;
   saving: boolean;
@@ -1130,7 +1146,7 @@ function FriedForm({
     {
       value: "full_rest",
       label: "Full Rest",
-      icon: "hotel",
+      icon: "bed",
       desc: "Complete cessation of activity. Focus on sleep & hydration.",
     },
     {
@@ -1142,20 +1158,13 @@ function FriedForm({
   ];
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h3 className="text-lg font-bold text-white">Burnout Options</h3>
-        <p className="text-sm text-slate-400 mt-0.5">
-          Select your recovery path for today.
-        </p>
-      </div>
-
+    <div className="pt-6 space-y-8">
       {/* Recovery type */}
-      <div>
-        <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
+      <div className="space-y-4">
+        <label className="block text-sm font-bold text-white uppercase tracking-wide">
           Select Recovery Type
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {RECOVERY_OPTIONS.map((opt) => {
             const sel = recoveryType === opt.value;
             return (
@@ -1165,36 +1174,43 @@ function FriedForm({
                 role="radio"
                 aria-checked={sel}
                 tabIndex={0}
-                className={`flex flex-col items-center text-center p-4 rounded-xl border transition-all ${
+                className={`relative flex flex-col items-center justify-center p-6 rounded-lg border transition-all h-40 ${
                   sel
-                    ? "border-green-500/50 bg-green-500/10"
-                    : "border-slate-700 bg-slate-800/50 hover:border-slate-500"
+                    ? "bg-green-500/10 border-green-500 text-green-500"
+                    : "border-slate-700 bg-[#0f1521]/30 text-slate-400 hover:bg-[#0f1521] hover:border-slate-400/50"
                 }`}
               >
-                <span
-                  className={`material-symbols-outlined text-2xl mb-2 ${sel ? "text-green-400" : "text-slate-500"}`}
-                  style={{ fontVariationSettings: '"FILL" 1' }}
-                >
+                <span className="material-symbols-outlined mb-3 text-4xl">
                   {opt.icon}
                 </span>
                 <span
-                  className={`text-sm font-bold ${sel ? "text-white" : "text-slate-300"}`}
+                  className={`text-base font-bold mb-1 ${sel ? "text-white" : ""}`}
                 >
                   {opt.label}
                 </span>
-                <span className="text-[11px] text-slate-500 mt-1 leading-snug">
+                <span className="text-xs text-center opacity-70 px-2">
                   {opt.desc}
                 </span>
+                {sel && (
+                  <div className="absolute top-3 right-3 text-green-500">
+                    <span className="material-symbols-outlined text-xl">
+                      check_circle
+                    </span>
+                  </div>
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Tags */}
-      <div>
-        <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
-          Contributing Factors (optional)
+      {/* Contributing factors (optional multi-select) */}
+      <div className="space-y-3">
+        <label className="block text-sm font-bold text-white uppercase tracking-wide">
+          Contributing Factors{" "}
+          <span className="text-slate-400 text-[10px] font-normal normal-case ml-2">
+            (optional)
+          </span>
         </label>
         <div className="flex flex-wrap gap-2">
           {FRIED_TAGS.map((t) => {
@@ -1208,8 +1224,8 @@ function FriedForm({
                 tabIndex={0}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   sel
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                    : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
+                    ? "bg-green-500/10 text-green-400 border border-green-500/40"
+                    : "bg-[#0f1521]/30 text-slate-400 border border-slate-700 hover:text-slate-200 hover:border-slate-500"
                 }`}
               >
                 {t.label}
@@ -1220,17 +1236,17 @@ function FriedForm({
       </div>
 
       {/* Notes */}
-      <div>
-        <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
-          Notes (optional)
+      <div className="space-y-3">
+        <label className="block text-sm font-bold text-white uppercase tracking-wide">
+          Notes
         </label>
         <textarea
-          rows={3}
+          rows={4}
           maxLength={500}
           placeholder="Add any details about your fatigue levels, sleep quality, or specific areas of soreness..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none"
+          className="w-full bg-[#0f1521]/30 border border-slate-700 text-white text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block p-3 min-h-[120px] placeholder-slate-500/50 resize-none"
         />
       </div>
 
@@ -1246,7 +1262,7 @@ function FriedForm({
 }
 
 // ---------------------------------------------------------------------------
-// Shared: Time Constraint Selector
+// Shared: Time Constraint Selector (segmented control)
 // ---------------------------------------------------------------------------
 
 function TimeConstraintSelector({
@@ -1254,59 +1270,36 @@ function TimeConstraintSelector({
   onChange,
   customTime,
   onCustomChange,
-  showAsPlanned,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
   customTime: string;
   onCustomChange: (v: string) => void;
-  showAsPlanned?: boolean;
 }) {
   const isCustom = value === -1;
   return (
-    <div>
-      <label className="text-xs font-bold text-slate-300 uppercase tracking-wide block mb-2">
+    <div className="space-y-3">
+      <label className="block text-sm font-bold text-white uppercase tracking-wide">
         Time Constraint
       </label>
-      <div className="flex flex-wrap gap-2">
-        {showAsPlanned && (
+      <div className="flex rounded-lg bg-[#0f1521]/30 p-1 border border-slate-700">
+        {[
+          { label: "30m", val: 30 },
+          { label: "45m", val: 45 },
+          { label: "Custom", val: -1 },
+        ].map((opt) => (
           <button
-            onClick={() => onChange(null)}
-            tabIndex={0}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              value === null
-                ? "bg-green-500/20 text-green-300 border border-green-500/40"
-                : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
+            key={opt.val}
+            onClick={() => onChange(opt.val)}
+            className={`flex-1 text-xs font-bold text-center py-2 rounded-md transition-all ${
+              value === opt.val
+                ? "bg-green-500 text-white"
+                : "text-slate-400"
             }`}
           >
-            As planned
-          </button>
-        )}
-        {[30, 45].map((mins) => (
-          <button
-            key={mins}
-            onClick={() => onChange(mins)}
-            tabIndex={0}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              value === mins
-                ? "bg-green-500/20 text-green-300 border border-green-500/40"
-                : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
-            }`}
-          >
-            {mins}m
+            {opt.label}
           </button>
         ))}
-        <button
-          onClick={() => onChange(-1)}
-          tabIndex={0}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-            isCustom
-              ? "bg-green-500/20 text-green-300 border border-green-500/40"
-              : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
-          }`}
-        >
-          Custom
-        </button>
       </div>
       {isCustom && (
         <input
@@ -1315,7 +1308,7 @@ function TimeConstraintSelector({
           placeholder="Minutes"
           value={customTime}
           onChange={(e) => onCustomChange(e.target.value)}
-          className="mt-2 w-24 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-500"
+          className="w-24 bg-[#0f1521]/30 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500/50 focus:outline-none focus:border-green-500"
         />
       )}
     </div>
@@ -1340,14 +1333,16 @@ function RedFormFooter({
   onSkip?: () => void;
 }) {
   return (
-    <div className="space-y-2 pt-2">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3 pt-5 border-t border-slate-700">
+      <div className="flex justify-between items-center">
         <button
           onClick={onBack}
           disabled={saving}
-          className="text-sm text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+          className="text-sm font-medium text-slate-400 hover:text-white transition-colors flex items-center gap-1 group"
         >
-          <span className="material-symbols-outlined text-base">arrow_back</span>
+          <span className="material-symbols-outlined text-lg group-hover:-translate-x-1 transition-transform">
+            arrow_back
+          </span>
           Back
         </button>
         <div className="flex items-center gap-3">
@@ -1357,15 +1352,17 @@ function RedFormFooter({
           <button
             onClick={onSubmit}
             disabled={saving}
-            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+            className={`px-8 py-3 rounded-lg text-sm font-bold transition-all flex items-center gap-2 active:scale-[0.98] ${
               saving
-                ? "bg-green-500/50 text-slate-900 cursor-not-allowed"
-                : "bg-green-500 hover:bg-green-400 text-slate-900"
+                ? "bg-green-500/50 text-white cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/20 hover:shadow-green-500/30"
             }`}
           >
-            {saving ? "Saving..." : "Confirm Check-in"}
+            {saving ? "Saving..." : "Confirm Calibration"}
             {!saving && (
-              <span className="material-symbols-outlined text-base">check</span>
+              <span className="material-symbols-outlined text-lg leading-none font-bold">
+                check
+              </span>
             )}
           </button>
         </div>
@@ -1375,7 +1372,7 @@ function RedFormFooter({
           <button
             onClick={onSkip}
             disabled={saving}
-            className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
           >
             Skip for now
           </button>
