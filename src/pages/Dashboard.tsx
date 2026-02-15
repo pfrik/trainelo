@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { useAuth } from '@/contexts/AuthContext';
+import { MorningCheckinFlow } from '@/components/checkin/MorningCheckinFlow';
 import type { CautionLevel, ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
 
 interface NavItemProps {
@@ -48,6 +49,20 @@ function getCautionStyles(level: CautionLevel): { bg: string; text: string; bord
   }
 }
 
+/** Calibration level badge styles */
+function getCalibrationStyles(level: string): { bg: string; text: string; border: string } {
+  switch (level) {
+    case "red":
+      return { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30" };
+    case "amber":
+      return { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/30" };
+    case "upgrade":
+      return { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/30" };
+    default:
+      return { bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30" };
+  }
+}
+
 /** Human-readable labels for reason codes */
 const REASON_CODE_LABELS: Record<ReasonCode, string> = {
   SCHEDULED_WORKOUT_EXISTS: "Scheduled",
@@ -76,10 +91,10 @@ function formatReasonCode(code: ReasonCode): string {
 /** Fix common UTF-8 mojibake in rationale text */
 function sanitizeRationale(text: string): string {
   return text
-    .replace(/\u00e2\u20ac\u201c/g, "\u2013")   // en-dash (U+2013) mojibake → en-dash
-    .replace(/\u00e2\u20ac\u201d/g, "\u2014")    // em-dash (U+2014) mojibake → em-dash
-    .replace(/\u00e2\u20ac\u0093/g, "\u2013")    // en-dash alt mojibake (0x93) → en-dash
-    .replace(/\u00e2\u20ac\u0094/g, "\u2014");   // em-dash alt mojibake (0x94) → em-dash
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013")
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014")
+    .replace(/\u00e2\u20ac\u0093/g, "\u2013")
+    .replace(/\u00e2\u20ac\u0094/g, "\u2014");
 }
 
 /** Format an ISO timestamp safely; returns "unknown" on null/undefined/invalid */
@@ -208,9 +223,61 @@ function EvidencePanel({ evidence, generatedAt, lastGarminSync, expanded, onTogg
           <div className="text-xs text-slate-500">
             Last Garmin sync:{" "}
             {formatTimestamp(lastGarminSync, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-            <span className="mx-1.5">·</span>
+            <span className="mx-1.5">&middot;</span>
             Updated: {formatTimestamp(generatedAt, { hour: "2-digit", minute: "2-digit" })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Calibration explainability block */
+function CalibrationBlock({ evidence }: { evidence: EvidenceSummary }) {
+  const level = evidence.calibration_level;
+  if (!level) return null;
+
+  const styles = getCalibrationStyles(level);
+  const warnings = evidence.calibration_warnings ?? [];
+  const rules = (evidence.calibration_applied_rules ?? []).slice(0, 3);
+
+  return (
+    <div className="space-y-2 mt-4">
+      {/* Headline + level badge */}
+      <div className="flex items-start gap-2">
+        <span className={`${styles.bg} ${styles.text} ${styles.border} border text-xs font-bold px-2 py-0.5 rounded uppercase flex-shrink-0`}>
+          {level}
+        </span>
+        {evidence.calibration_headline && (
+          <span className="text-sm text-slate-300">{evidence.calibration_headline}</span>
+        )}
+      </div>
+
+      {/* Rationale */}
+      {evidence.calibration_rationale && (
+        <p className="text-xs text-slate-400 leading-relaxed">{evidence.calibration_rationale}</p>
+      )}
+
+      {/* Warnings */}
+      {warnings.length > 0 && (
+        <div className="space-y-1">
+          {warnings.map((w, i) => (
+            <div key={i} className="flex items-start gap-1.5">
+              <span className="material-symbols-outlined text-amber-400 text-sm flex-shrink-0 mt-0.5" style={{ fontVariationSettings: '"FILL" 1' }}>warning</span>
+              <span className="text-xs text-amber-300">{w}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Applied rules (top 3) */}
+      {rules.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {rules.map((rule) => (
+            <span key={rule} className="bg-slate-700/50 text-slate-500 text-xs px-2 py-0.5 rounded font-mono">
+              {rule}
+            </span>
+          ))}
         </div>
       )}
     </div>
@@ -229,48 +296,34 @@ export default function Dashboard() {
     choiceError,
   } = useTodayRecommendation();
   const { session } = useAuth();
-  const [mood, setMood] = useState<string | null>(null);
-  const [moodSaving, setMoodSaving] = useState(false);
-  const [moodSaved, setMoodSaved] = useState(false);
-  const [moodError, setMoodError] = useState<string | null>(null);
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
-  const [acceptedCandidate, setAcceptedCandidate] = useState<string | null>(null);
+  const [choiceState, setChoiceState] = useState<"idle" | "accepted" | "rejected">("idle");
 
-  const submitMood = useCallback(async (selected: string) => {
-    setMood(selected);
-    setMoodSaving(true);
-    setMoodSaved(false);
-    setMoodError(null);
-
-    try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (session?.access_token) {
-        headers.Authorization = `Bearer ${session.access_token}`;
-      }
-
-      const response = await fetch("/api/user-flags", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ mood: selected.toLowerCase() }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Request failed: ${response.status}`);
-      }
-
-      setMoodSaved(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Save failed";
-      setMoodError(message);
-    } finally {
-      setMoodSaving(false);
+  // Check-in submission handler — posts to /api/user-flags, then refetches recommendation
+  const handleCheckinSubmit = useCallback(async (payload: Record<string, unknown>) => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
     }
-  }, [session?.access_token]);
+
+    const response = await fetch("/api/user-flags", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+
+    // Refetch recommendation so calibrated session updates immediately
+    recRefetch();
+  }, [session?.access_token, recRefetch]);
 
   // Generate dynamic week schedule based on current date
   const getWeekSchedule = (): WeekDay[] => {
     const today = new Date();
-    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const currentDay = today.getDay();
     const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
     const monday = new Date(today);
     monday.setDate(today.getDate() + mondayOffset);
@@ -312,6 +365,20 @@ export default function Dashboard() {
 
   const weekSchedule = getWeekSchedule();
 
+  // Derive top prescribed candidate
+  const topCandidate = recommendation?.candidates?.[0] ?? null;
+  const evidence = recommendation?.evidence ?? null;
+
+  // Derive wearable readiness for check-in component
+  const wearableReadiness = (() => {
+    if (!evidence?.fatigue_score && !evidence?.fitness_score) return null;
+    const fatigue = evidence?.fatigue_score ?? 0;
+    const readiness = evidence?.fitness_score ?? 50;
+    if (fatigue >= 75 || readiness < 40) return "red" as const;
+    if (fatigue >= 50 || readiness < 65) return "yellow" as const;
+    return "green" as const;
+  })();
+
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-dark-base">
@@ -327,6 +394,8 @@ export default function Dashboard() {
     month: 'short',
     day: 'numeric'
   });
+
+  const isSubmitting = submittingCandidateId !== null;
 
   return (
     <div className="dark h-screen flex overflow-hidden bg-light-base dark:bg-dark-base text-slate-800 dark:text-slate-200 font-sans antialiased transition-colors duration-200">
@@ -384,7 +453,7 @@ export default function Dashboard() {
                 <span className="w-1 h-1 rounded-full bg-slate-400"></span>
                 <div className="flex items-center">
                   <span className="material-symbols-outlined text-yellow-500 text-base mr-1">wb_sunny</span>
-                  <span>18°C</span>
+                  <span>18&deg;C</span>
                 </div>
               </div>
             </div>
@@ -408,74 +477,18 @@ export default function Dashboard() {
           {/* Morning Check-in */}
           <div className="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-dark-surface dark:to-dark-surface rounded-2xl p-6 mb-8 relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
             <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center relative z-10 gap-6">
-              <div className="max-w-xl">
-                <div className="flex items-center space-x-3 mb-2">
-                  <span className="bg-green-500/20 text-green-400 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider border border-green-500/20">Required</span>
-                  <h2 className="text-lg font-bold text-white">Morning Check-in</h2>
-                </div>
-                <p className="text-slate-300 text-sm leading-relaxed">
-                  How are you feeling right now? Your input helps calibrate today's recommended intensity and recovery scores.
-                </p>
+            <div className="relative z-10">
+              <div className="flex items-center space-x-3 mb-2">
+                <span className="bg-green-500/20 text-green-400 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider border border-green-500/20">Required</span>
+                <h2 className="text-lg font-bold text-white">Morning Check-in</h2>
               </div>
-              <div className="w-full xl:w-auto">
-                <div className="grid grid-cols-5 gap-2 sm:gap-3">
-                  {/* Explicit buttons to avoid Tailwind purging dynamic classes */}
-                  <button
-                    onClick={() => submitMood('Drained')}
-                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
-                      mood === 'Drained' ? 'border-red-500 bg-red-500/20' : ''
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-red-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>battery_alert</span>
-                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Drained</span>
-                  </button>
-                  <button
-                    onClick={() => submitMood('Tired')}
-                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
-                      mood === 'Tired' ? 'border-orange-500 bg-orange-500/20' : ''
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-orange-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_dissatisfied</span>
-                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Tired</span>
-                  </button>
-                  <button
-                    onClick={() => submitMood('Okay')}
-                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
-                      mood === 'Okay' ? 'border-yellow-500 bg-yellow-500/20' : ''
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-yellow-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_neutral</span>
-                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Okay</span>
-                  </button>
-                  <button
-                    onClick={() => submitMood('Good')}
-                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
-                      mood === 'Good' ? 'border-emerald-500 bg-emerald-500/20' : ''
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-emerald-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_satisfied</span>
-                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Good</span>
-                  </button>
-                  <button
-                    onClick={() => submitMood('Great')}
-                    className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl bg-slate-800/50 hover:bg-opacity-20 border border-slate-700 hover:border-opacity-100 transition-all group active:scale-95 ${
-                      mood === 'Great' ? 'border-green-500 bg-green-500/20' : ''
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-green-400 mb-1 group-hover:scale-110 transition-transform text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>sentiment_very_satisfied</span>
-                    <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white">Great</span>
-                  </button>
-                </div>
-                {/* Check-in feedback */}
-                {(moodSaving || moodSaved || moodError) && (
-                  <div className="mt-2 text-xs text-center">
-                    {moodSaving && <span className="text-slate-400">Saving...</span>}
-                    {moodSaved && !moodSaving && <span className="text-green-400">Saved</span>}
-                    {moodError && !moodSaving && <span className="text-red-400">{moodError}</span>}
-                  </div>
-                )}
-              </div>
+              <p className="text-slate-300 text-sm leading-relaxed mb-4">
+                How are you feeling right now? Your input helps calibrate today's recommended intensity and recovery scores.
+              </p>
+              <MorningCheckinFlow
+                onSubmit={handleCheckinSubmit}
+                wearableReadiness={wearableReadiness}
+              />
             </div>
           </div>
 
@@ -484,7 +497,7 @@ export default function Dashboard() {
             {/* Left Column (8/12) */}
             <div className="col-span-12 lg:col-span-8 space-y-6">
 
-              {/* Hero Card: Today's Focus */}
+              {/* Hero Card: Today's Focus — single prescribed session */}
               <div className="bg-slate-900 dark:bg-dark-surface rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700/50 group relative">
                 <div className="relative z-10 p-8">
                   <div className="flex items-center gap-3 mb-6">
@@ -498,7 +511,7 @@ export default function Dashboard() {
                   {recLoading && (
                     <div className="flex flex-col items-center justify-center py-16">
                       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
-                      <p className="text-slate-400">Loading recommendations...</p>
+                      <p className="text-slate-400">Loading recommendation...</p>
                     </div>
                   )}
 
@@ -506,7 +519,7 @@ export default function Dashboard() {
                   {recError && !recLoading && (
                     <div className="flex flex-col items-center justify-center py-16">
                       <span className="material-symbols-outlined text-red-400 text-4xl mb-4" style={{ fontVariationSettings: '"FILL" 1' }}>error</span>
-                      <p className="text-slate-300 mb-4">Failed to load recommendations</p>
+                      <p className="text-slate-300 mb-4">Failed to load recommendation</p>
                       <p className="text-sm text-slate-500 mb-4">{recError}</p>
                       <button
                         onClick={() => recRefetch()}
@@ -518,95 +531,108 @@ export default function Dashboard() {
                   )}
 
                   {/* Empty State */}
-                  {!recLoading && !recError && (!recommendation || recommendation.candidates.length === 0) && (
+                  {!recLoading && !recError && !topCandidate && (
                     <div className="flex flex-col items-center justify-center py-16">
                       <span className="material-symbols-outlined text-slate-500 text-4xl mb-4" style={{ fontVariationSettings: '"FILL" 1' }}>calendar_today</span>
-                      <p className="text-slate-300">No recommendations available for today</p>
+                      <p className="text-slate-300">No recommendation available for today</p>
                     </div>
                   )}
 
-                  {/* Candidates */}
-                  {!recLoading && !recError && recommendation && recommendation.candidates.length > 0 && (
+                  {/* Single Prescribed Session */}
+                  {!recLoading && !recError && topCandidate && recommendation && (
                     <div className="space-y-4">
-                      {recommendation.candidates.map((candidate, index) => {
-                        const isFirst = index === 0;
-                        const isAccepted = acceptedCandidate === candidate.candidate_id;
-                        const isSubmitting = submittingCandidateId === candidate.candidate_id;
-                        const cautionStyles = getCautionStyles(candidate.caution_level);
+                      <div className={`rounded-xl p-5 bg-gradient-to-r from-slate-800 to-slate-800/50 border border-primary/30 ${choiceState !== "idle" ? "ring-2 ring-primary" : ""}`}>
+                        {/* Labels & caution */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded uppercase">Prescribed</span>
+                          {topCandidate.caution_level !== "none" && (() => {
+                            const cautionStyles = getCautionStyles(topCandidate.caution_level);
+                            return (
+                              <span className={`${cautionStyles.bg} ${cautionStyles.text} ${cautionStyles.border} border text-xs font-bold px-2 py-0.5 rounded uppercase`}>
+                                {topCandidate.caution_level} caution
+                              </span>
+                            );
+                          })()}
+                        </div>
 
-                        return (
-                          <div
-                            key={candidate.candidate_id}
-                            className={`rounded-xl p-5 transition-all ${
-                              isFirst
-                                ? "bg-gradient-to-r from-slate-800 to-slate-800/50 border border-primary/30"
-                                : "bg-slate-800/50 border border-slate-700/50"
-                            } ${isAccepted ? "ring-2 ring-primary" : ""}`}
-                          >
-                            <div className="flex items-start justify-between gap-4 mb-3">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  {isFirst && (
-                                    <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded uppercase">Recommended</span>
-                                  )}
-                                  {candidate.caution_level !== "none" && (
-                                    <span className={`${cautionStyles.bg} ${cautionStyles.text} ${cautionStyles.border} border text-xs font-bold px-2 py-0.5 rounded uppercase`}>
-                                      {candidate.caution_level} caution
-                                    </span>
-                                  )}
-                                </div>
-                                <h3 className="text-xl font-bold text-white mb-2">{candidate.label}</h3>
-                                <p className="text-slate-300 text-sm leading-relaxed">{sanitizeRationale(candidate.rationale)}</p>
-                              </div>
+                        {/* Workout label + rationale */}
+                        <h3 className="text-xl font-bold text-white mb-2">{topCandidate.label}</h3>
+                        <p className="text-slate-300 text-sm leading-relaxed">{sanitizeRationale(topCandidate.rationale)}</p>
+
+                        {/* Reason codes (top 3) */}
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {topCandidate.reason_codes.slice(0, 3).map((code) => (
+                            <span
+                              key={code}
+                              className="bg-slate-700/50 text-slate-400 text-xs px-2 py-0.5 rounded"
+                            >
+                              {formatReasonCode(code)}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Calibration explainability */}
+                        {evidence && <CalibrationBlock evidence={evidence} />}
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 mt-5">
+                          {choiceState === "idle" ? (
+                            <>
+                              {/* Primary: Confirm session */}
                               <button
                                 onClick={async () => {
-                                  const success = await submitChoice(candidate.candidate_id, "accept");
-                                  if (success) {
-                                    setAcceptedCandidate(candidate.candidate_id);
-                                  }
+                                  const success = await submitChoice(topCandidate.candidate_id, "accept");
+                                  if (success) setChoiceState("accepted");
                                 }}
-                                disabled={isSubmitting || isAccepted || submittingCandidateId !== null}
-                                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-all ${
-                                  isAccepted
-                                    ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                                    : isFirst
-                                    ? "bg-primary hover:bg-primary-hover text-slate-900"
-                                    : "bg-slate-700 hover:bg-slate-600 text-white"
-                                } ${isSubmitting || submittingCandidateId !== null ? "opacity-50 cursor-not-allowed" : ""}`}
+                                disabled={isSubmitting}
+                                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold transition-all bg-primary hover:bg-primary-hover text-slate-900 ${
+                                  isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
                               >
-                                {isAccepted ? (
-                                  <>
-                                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check</span>
-                                    <span>Accepted</span>
-                                  </>
-                                ) : isSubmitting ? (
+                                {submittingCandidateId === topCandidate.candidate_id ? (
                                   <>
                                     <span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>
-                                    <span>Saving...</span>
+                                    <span>Confirming...</span>
                                   </>
                                 ) : (
                                   <>
                                     <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
-                                    <span>Accept</span>
+                                    <span>Confirm session</span>
                                   </>
                                 )}
                               </button>
-                            </div>
 
-                            {/* Reason Codes (top 3) */}
-                            <div className="flex flex-wrap gap-1.5 mt-3">
-                              {candidate.reason_codes.slice(0, 3).map((code) => (
-                                <span
-                                  key={code}
-                                  className="bg-slate-700/50 text-slate-400 text-xs px-2 py-0.5 rounded"
-                                >
-                                  {formatReasonCode(code)}
-                                </span>
-                              ))}
+                              {/* Secondary: Can't do this */}
+                              <button
+                                onClick={async () => {
+                                  const success = await submitChoice(topCandidate.candidate_id, "reject");
+                                  if (success) setChoiceState("rejected");
+                                }}
+                                disabled={isSubmitting}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-all bg-slate-700 hover:bg-slate-600 text-slate-300 ${
+                                  isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
+                              >
+                                {submittingCandidateId === topCandidate.candidate_id && choiceState === "idle" ? null : (
+                                  <>
+                                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>close</span>
+                                    <span>Can't do this</span>
+                                  </>
+                                )}
+                              </button>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-lg text-green-400" style={{ fontVariationSettings: '"FILL" 1' }}>
+                                {choiceState === "accepted" ? "check_circle" : "info"}
+                              </span>
+                              <span className={`text-sm font-medium ${choiceState === "accepted" ? "text-green-400" : "text-slate-400"}`}>
+                                {choiceState === "accepted" ? "Session confirmed" : "Noted — take care today"}
+                              </span>
                             </div>
-                          </div>
-                        );
-                      })}
+                          )}
+                        </div>
+                      </div>
 
                       {/* Choice error */}
                       {choiceError && (
