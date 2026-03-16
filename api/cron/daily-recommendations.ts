@@ -254,10 +254,19 @@ function mapCheckin(row: DailyCheckinRow | null): DailyCheckinInput | null {
 // ============================================================================
 
 const VALID_REASON_BUCKETS = new Set(["sick", "hurt", "fried", "none"]);
+const VALID_UPGRADE_TYPES = new Set(["intensity", "volume"]);
 
 function mapCheckinForCalibrator(row: DailyCheckinRow | null): CalibratorCheckinInput | null {
   if (!row) return null;
   if (!VALID_MOODS.has(row.mood)) return null;
+
+  const rawUpgrade = row.payload && typeof row.payload === "object"
+    ? (row.payload as Record<string, unknown>).upgrade_type
+    : null;
+  const upgradeType = typeof rawUpgrade === "string" && VALID_UPGRADE_TYPES.has(rawUpgrade)
+    ? (rawUpgrade as "intensity" | "volume")
+    : null;
+
   return {
     mood: row.mood as Mood5,
     rpe: row.rpe,
@@ -270,6 +279,7 @@ function mapCheckinForCalibrator(row: DailyCheckinRow | null): CalibratorCheckin
     pain_severity: row.pain_severity,
     pain_locations: row.pain_locations,
     time_constraint_minutes: row.time_constraint_minutes,
+    upgrade_type: upgradeType,
   };
 }
 

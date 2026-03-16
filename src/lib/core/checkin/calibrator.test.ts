@@ -316,6 +316,107 @@ describe("calibrateSession — great mood + wearable gating", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Great mood — upgrade_type preference
+// ---------------------------------------------------------------------------
+
+describe("calibrateSession — upgrade_type", () => {
+  it("great + green + intensity => boost intensity only, duration stays 1.0", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "great", upgrade_type: "intensity" }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.level).toBe("upgrade");
+    expect(result.intensity_multiplier).toBe(1.10);
+    expect(result.duration_multiplier).toBe(1.00);
+    expect(result.applied_rules).toContain("UPGRADE_INTENSITY");
+    expect(result.headline).toContain("intensity");
+  });
+
+  it("great + green + volume => boost duration only, intensity stays 1.0", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "great", upgrade_type: "volume" }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.level).toBe("upgrade");
+    expect(result.intensity_multiplier).toBe(1.00);
+    expect(result.duration_multiplier).toBe(1.05);
+    expect(result.applied_rules).toContain("UPGRADE_VOLUME");
+    expect(result.headline).toContain("volume");
+  });
+
+  it("great + green + no upgrade_type => both boosted (backward compat)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "great" }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.level).toBe("upgrade");
+    expect(result.intensity_multiplier).toBe(1.10);
+    expect(result.duration_multiplier).toBe(1.05);
+    expect(result.applied_rules).not.toContain("UPGRADE_INTENSITY");
+    expect(result.applied_rules).not.toContain("UPGRADE_VOLUME");
+  });
+
+  it("great + yellow + intensity => intensity capped at 1.05, duration 1.0", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "great", upgrade_type: "intensity" }),
+        wearable_signals: makeWearable({ readiness: "yellow" }),
+      }),
+    );
+    expect(result.level).toBe("green");
+    expect(result.intensity_multiplier).toBe(1.05);
+    expect(result.duration_multiplier).toBe(1.00);
+    expect(result.applied_rules).toContain("UPGRADE_INTENSITY");
+  });
+
+  it("great + yellow + volume => intensity 1.0, duration capped at 1.05", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "great", upgrade_type: "volume" }),
+        wearable_signals: makeWearable({ readiness: "yellow" }),
+      }),
+    );
+    expect(result.level).toBe("green");
+    expect(result.intensity_multiplier).toBe(1.00);
+    expect(result.duration_multiplier).toBe(1.05);
+    expect(result.applied_rules).toContain("UPGRADE_VOLUME");
+  });
+
+  it("great + red + upgrade_type => blocked, both stay 1.0 with warning", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "great", upgrade_type: "intensity" }),
+        wearable_signals: makeWearable({ readiness: "red" }),
+      }),
+    );
+    expect(result.level).toBe("green");
+    expect(result.intensity_multiplier).toBe(1.00);
+    expect(result.duration_multiplier).toBe(1.00);
+    expect(result.applied_rules).toContain("UPGRADE_BLOCKED_WEARABLE");
+    expect(result.warnings.some((w) => w.includes("blocked"))).toBe(true);
+  });
+
+  it("great + no wearable + upgrade_type => deferred, stays at baseline", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "great", upgrade_type: "volume" }),
+        wearable_signals: null,
+      }),
+    );
+    expect(result.level).toBe("green");
+    expect(result.intensity_multiplier).toBe(1.00);
+    expect(result.duration_multiplier).toBe(1.00);
+    expect(result.applied_rules).toContain("UPGRADE_DEFERRED_NO_WEARABLE");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Time constraint handling
 // ---------------------------------------------------------------------------
 

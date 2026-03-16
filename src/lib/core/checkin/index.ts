@@ -10,6 +10,7 @@ export {
   type ReasonBucket,
   type CalibrationLevel,
   type SwapSuggestion,
+  type UpgradeType,
   type CheckinInput,
   type PlannedSessionInput,
   type WearableSignalsInput,

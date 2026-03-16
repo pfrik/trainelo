@@ -592,6 +592,7 @@ export interface DailyCheckinRow {
   pain_severity: number | null;
   pain_locations: string[] | null;
   time_constraint_minutes: number | null;
+  payload: Record<string, unknown> | null;
 }
 
 /** Result wrapper for getDailyCheckin. */
@@ -611,7 +612,7 @@ export async function getDailyCheckin(
 
   const { data, error } = await client
     .from("daily_checkins")
-    .select("mood, rpe, soreness, pain_flag, illness_flag, reason_bucket, pain_severity, pain_locations, time_constraint_minutes")
+    .select("mood, rpe, soreness, pain_flag, illness_flag, reason_bucket, pain_severity, pain_locations, time_constraint_minutes, payload")
     .eq("user_id", userId)
     .eq("date", date)
     .maybeSingle();

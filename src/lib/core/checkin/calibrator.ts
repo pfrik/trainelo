@@ -26,6 +26,8 @@ export type SwapSuggestion =
   | "as_planned"
   | "harder_variant";
 
+export type UpgradeType = "intensity" | "volume";
+
 /** Morning check-in subjective fields. */
 export interface CheckinInput {
   mood: Mood5;
@@ -41,6 +43,8 @@ export interface CheckinInput {
   motivation?: number | null;
   life_stress?: number | null;
   time_constraint_minutes?: number | null;
+  /** Great mood: user preference for upgrade direction. */
+  upgrade_type?: UpgradeType | null;
 }
 
 /** Minimal planned session shape. */
@@ -329,22 +333,54 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
     applied_rules.push("MOOD_OKAY");
   } else if (mood === "great") {
     // Upgrade path — gated by wearable readiness
+    const upgradeType = morning_checkin?.upgrade_type ?? null;
+
     if (wearableReadiness === "green") {
       level = "upgrade";
-      intensity_multiplier = 1.10;
-      duration_multiplier = 1.05;
       swap_to = "harder_variant";
-      headline = "Green light — push today";
-      rationale = "You feel great and wearable data confirms readiness. A slight progression is safe today.";
-      applied_rules.push("MOOD_GREAT", "WEARABLE_GREEN_UPGRADE");
+
+      if (upgradeType === "intensity") {
+        intensity_multiplier = 1.10;
+        duration_multiplier = 1.00;
+        headline = "Green light — intensity focus";
+        rationale = "You feel great and wearable data confirms readiness. Pushing intensity with standard duration.";
+        applied_rules.push("MOOD_GREAT", "WEARABLE_GREEN_UPGRADE", "UPGRADE_INTENSITY");
+      } else if (upgradeType === "volume") {
+        intensity_multiplier = 1.00;
+        duration_multiplier = 1.05;
+        headline = "Green light — volume focus";
+        rationale = "You feel great and wearable data confirms readiness. Extending duration at standard intensity.";
+        applied_rules.push("MOOD_GREAT", "WEARABLE_GREEN_UPGRADE", "UPGRADE_VOLUME");
+      } else {
+        intensity_multiplier = 1.10;
+        duration_multiplier = 1.05;
+        headline = "Green light — push today";
+        rationale = "You feel great and wearable data confirms readiness. A slight progression is safe today.";
+        applied_rules.push("MOOD_GREAT", "WEARABLE_GREEN_UPGRADE");
+      }
     } else if (wearableReadiness === "yellow") {
       level = "green";
-      intensity_multiplier = 1.05;
-      duration_multiplier = 1.00;
       swap_to = "as_planned";
-      headline = "Good to go — mild caution from wearable";
-      rationale = "You feel great but wearable data shows moderate recovery. Proceed with a small progression cap.";
-      applied_rules.push("MOOD_GREAT", "WEARABLE_YELLOW_CAP");
+
+      if (upgradeType === "intensity") {
+        intensity_multiplier = 1.05;
+        duration_multiplier = 1.00;
+        headline = "Mild caution — intensity capped";
+        rationale = "You feel great but wearable data shows moderate recovery. Intensity bump capped at 5%.";
+        applied_rules.push("MOOD_GREAT", "WEARABLE_YELLOW_CAP", "UPGRADE_INTENSITY");
+      } else if (upgradeType === "volume") {
+        intensity_multiplier = 1.00;
+        duration_multiplier = 1.05;
+        headline = "Mild caution — volume capped";
+        rationale = "You feel great but wearable data shows moderate recovery. Duration extension capped at 5%.";
+        applied_rules.push("MOOD_GREAT", "WEARABLE_YELLOW_CAP", "UPGRADE_VOLUME");
+      } else {
+        intensity_multiplier = 1.05;
+        duration_multiplier = 1.00;
+        headline = "Good to go — mild caution from wearable";
+        rationale = "You feel great but wearable data shows moderate recovery. Proceed with a small progression cap.";
+        applied_rules.push("MOOD_GREAT", "WEARABLE_YELLOW_CAP");
+      }
       warnings.push("Wearable readiness yellow — upgrade capped");
     } else if (wearableReadiness === "red") {
       level = "green";
@@ -354,7 +390,12 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
       headline = "Proceed as planned — wearable caution";
       rationale = "You feel great but wearable data flags low recovery. No upgrade today; proceed at baseline.";
       applied_rules.push("MOOD_GREAT", "WEARABLE_RED_CONSTRAIN");
-      warnings.push("Wearable readiness red — no upgrade despite great mood");
+      if (upgradeType) {
+        applied_rules.push("UPGRADE_BLOCKED_WEARABLE");
+        warnings.push(`Upgrade preference (${upgradeType}) blocked — wearable readiness red`);
+      } else {
+        warnings.push("Wearable readiness red — no upgrade despite great mood");
+      }
     } else {
       // No wearable data
       level = "green";
@@ -364,6 +405,9 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
       headline = "Good to go";
       rationale = "You feel great. Without wearable confirmation, proceed at planned intensity.";
       applied_rules.push("MOOD_GREAT", "NO_WEARABLE_DATA");
+      if (upgradeType) {
+        applied_rules.push("UPGRADE_DEFERRED_NO_WEARABLE");
+      }
     }
   } else if (mood === "good") {
     level = "green";
