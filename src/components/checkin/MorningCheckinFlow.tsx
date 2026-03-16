@@ -168,6 +168,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   const [nonRedTimeConstraint, setNonRedTimeConstraint] = useState("");
   const [niggle, setNiggle] = useState<boolean | null>(null);
   const [niggleLocation, setNiggleLocation] = useState("");
+  const [goodTimeConstraint, setGoodTimeConstraint] = useState<"all_good" | "short" | null>(null);
   const [upgradeIntent, setUpgradeIntent] = useState<boolean | null>(null);
 
   // Optional fields (non-drained)
@@ -206,6 +207,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     setNonRedTimeConstraint("");
     setNiggle(null);
     setNiggleLocation("");
+    setGoodTimeConstraint(null);
     setUpgradeIntent(null);
     setStep("protocol");
   }, []);
@@ -326,8 +328,6 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
 
     const p: CheckinPayload = { mood };
 
-    if (mood === "good" && niggle) p.pain_flag = true;
-
     // Tired/okay: use drag factors as reason_tags and dedicated time constraint
     if (mood === "tired" || mood === "okay") {
       if (dragFactors.length > 0) p.reason_tags = dragFactors;
@@ -335,6 +335,10 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
         p.time_constraint_minutes = tiredTimeConstraint;
       }
       if (tiredNotes.trim()) p.notes = tiredNotes.trim();
+    } else if (mood === "good") {
+      if (niggle) p.pain_flag = true;
+      if (goodTimeConstraint === "short") p.time_constraint_minutes = 30;
+      if (notes.trim()) p.notes = notes.trim();
     } else {
       const tc = parseInt(nonRedTimeConstraint, 10);
       if (tc > 0) p.time_constraint_minutes = tc;
@@ -354,7 +358,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     } finally {
       setSaving(false);
     }
-  }, [mood, niggle, nonRedTimeConstraint, dragFactors, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
+  }, [mood, niggle, goodTimeConstraint, nonRedTimeConstraint, dragFactors, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
 
   // ---------------------------------------------------------------------------
   // Render: Saved
@@ -815,7 +819,199 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Non-drained protocol (good / great)
+  // Render: Good protocol — Green Light
+  // ---------------------------------------------------------------------------
+
+  if (mood === "good") {
+    return (
+      <div>
+        {/* Header */}
+        <div className="pb-5 border-b border-slate-700 flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-bold text-white tracking-tight">
+              Feeling Good
+            </h2>
+            <p className="text-xs text-slate-400 mt-1 font-medium">
+              Green Light Protocol &bull; Logistics Check
+            </p>
+          </div>
+          <button
+            onClick={() => setStep("mood")}
+            className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
+            aria-label="Back to mood selection"
+          >
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+
+        <div className="pt-6 space-y-8">
+          {/* Step 1: Niggles */}
+          <div className="space-y-4">
+            <label className="text-sm font-bold text-white">
+              Step 1: Any niggles or stiffness?
+            </label>
+            <div className="grid grid-cols-2 bg-[#0f1521]/50 p-1 rounded-lg border border-slate-700">
+              <label className="cursor-pointer relative flex-1">
+                <input
+                  type="radio"
+                  name="niggles"
+                  className="peer sr-only"
+                  checked={niggle === false}
+                  onChange={() => setNiggle(false)}
+                />
+                <div className="py-2.5 px-4 rounded-md text-center text-sm font-medium text-slate-400 transition-all peer-checked:bg-green-500 peer-checked:text-white peer-checked:shadow-sm">
+                  Nope
+                </div>
+              </label>
+              <label className="cursor-pointer relative flex-1">
+                <input
+                  type="radio"
+                  name="niggles"
+                  className="peer sr-only"
+                  checked={niggle === true}
+                  onChange={() => setNiggle(true)}
+                />
+                <div className="py-2.5 px-4 rounded-md text-center text-sm font-medium text-slate-400 transition-all peer-checked:bg-slate-600 peer-checked:text-white peer-checked:shadow-sm hover:text-white">
+                  Yes a little
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-slate-700/50" />
+
+          {/* Step 2: Time constraints */}
+          <div className="space-y-4">
+            <label className="text-sm font-bold text-white">
+              Step 2: Time constraints today?
+            </label>
+            <div className="grid grid-cols-1 gap-3">
+              {/* All good */}
+              <label className="cursor-pointer relative group">
+                <input
+                  type="radio"
+                  name="time_constraint_good"
+                  className="peer sr-only"
+                  checked={goodTimeConstraint === "all_good"}
+                  onChange={() => setGoodTimeConstraint("all_good")}
+                />
+                <div className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
+                  goodTimeConstraint === "all_good"
+                    ? "border-green-500 ring-1 ring-green-500 bg-green-500/5"
+                    : "border-slate-700 bg-[#0f1521]/50 hover:bg-[#0f1521]"
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      goodTimeConstraint === "all_good"
+                        ? "bg-green-500/20 text-green-500"
+                        : "bg-slate-600/30 text-slate-400"
+                    }`}>
+                      <span className="material-symbols-outlined text-lg">schedule</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-sm font-bold transition-colors ${
+                        goodTimeConstraint === "all_good" ? "text-green-500" : "text-white"
+                      }`}>
+                        All good
+                      </span>
+                      <span className="text-xs text-slate-400">Standard schedule available</span>
+                    </div>
+                  </div>
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                    goodTimeConstraint === "all_good"
+                      ? "border-green-500 bg-green-500"
+                      : "border-slate-700"
+                  }`}>
+                    {goodTimeConstraint === "all_good" && (
+                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                    )}
+                  </div>
+                </div>
+              </label>
+
+              {/* Short on time */}
+              <label className="cursor-pointer relative group">
+                <input
+                  type="radio"
+                  name="time_constraint_good"
+                  className="peer sr-only"
+                  checked={goodTimeConstraint === "short"}
+                  onChange={() => setGoodTimeConstraint("short")}
+                />
+                <div className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
+                  goodTimeConstraint === "short"
+                    ? "border-orange-500 ring-1 ring-orange-500 bg-orange-500/5"
+                    : "border-slate-700 bg-[#0f1521]/50 hover:bg-[#0f1521]"
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      goodTimeConstraint === "short"
+                        ? "bg-orange-500/20 text-orange-500"
+                        : "bg-slate-600/30 text-slate-400"
+                    }`}>
+                      <span className="material-symbols-outlined text-lg">timer</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-sm font-bold transition-colors ${
+                        goodTimeConstraint === "short" ? "text-orange-500" : "text-white"
+                      }`}>
+                        Short on time
+                      </span>
+                      <span className="text-xs text-slate-400">Need compressed session</span>
+                    </div>
+                  </div>
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                    goodTimeConstraint === "short"
+                      ? "border-orange-500 bg-orange-500"
+                      : "border-slate-700"
+                  }`}>
+                    {goodTimeConstraint === "short" && (
+                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                    )}
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-5 mt-6 border-t border-slate-700 flex justify-between items-center">
+          <button
+            onClick={() => setStep("mood")}
+            className="text-sm text-slate-500 hover:text-white font-medium transition-colors"
+          >
+            Back
+          </button>
+          <div className="flex items-center gap-3">
+            {saveError && (
+              <span className="text-xs text-red-400">{saveError}</span>
+            )}
+            <button
+              onClick={handleNonRedSubmit}
+              disabled={saving}
+              className={`px-6 py-2.5 rounded-lg text-sm font-bold shadow-lg transition-all flex items-center gap-2 active:scale-[0.98] ${
+                saving
+                  ? "bg-green-500/30 text-white/50 cursor-not-allowed shadow-none"
+                  : "bg-green-500 hover:bg-green-600 text-white shadow-green-500/20 hover:shadow-green-500/30"
+              }`}
+            >
+              Update Training
+              {!saving && (
+                <span className="material-symbols-outlined text-lg leading-none font-bold">
+                  arrow_forward
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Great protocol (fallback for non-drained)
   // ---------------------------------------------------------------------------
 
   return (
@@ -838,66 +1034,6 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
       )}
 
       <div className="space-y-3">
-
-        {/* Good */}
-        {mood === "good" && (
-          <div className="space-y-3">
-            <div className="text-xs text-slate-400 uppercase tracking-wide">
-              Any niggle today?
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setNiggle(false)}
-                tabIndex={0}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  niggle === false
-                    ? "bg-green-500/20 text-green-300 border border-green-500/40"
-                    : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                No
-              </button>
-              <button
-                onClick={() => setNiggle(true)}
-                tabIndex={0}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  niggle === true
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                    : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                Yes
-              </button>
-            </div>
-            {niggle && (
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Where? (optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. left knee"
-                  value={niggleLocation}
-                  onChange={(e) => setNiggleLocation(e.target.value)}
-                  className="w-48 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-500"
-                />
-              </div>
-            )}
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">
-                Time constraint (minutes, optional)
-              </label>
-              <input
-                type="number"
-                min={1}
-                placeholder="e.g. 30"
-                value={nonRedTimeConstraint}
-                onChange={(e) => setNonRedTimeConstraint(e.target.value)}
-                className="w-24 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-500"
-              />
-            </div>
-          </div>
-        )}
 
         {/* Great */}
         {mood === "great" && (
