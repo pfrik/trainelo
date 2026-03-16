@@ -7,9 +7,11 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock the DB upsert before importing the handler
+// Mock the DB functions before importing the handler
 vi.mock("../src/lib/db/queries.js", () => ({
   upsertDailyCheckin: vi.fn(),
+  getDailyUserState: vi.fn().mockResolvedValue({ data: null, error: null }),
+  getTrainingLoad7Days: vi.fn().mockResolvedValue({ data: [], error: null }),
 }));
 
 // Mock @supabase/supabase-js to prevent real client creation
@@ -378,5 +380,74 @@ describe("POST /api/user-flags", () => {
     await handler(req, res);
     expect(res._status).toBe(500);
     expect(res._body.error).toBe("PERSISTENCE_FAILED");
+  });
+
+  // -------------------------------------------------------------------------
+  // Calibration in response
+  // -------------------------------------------------------------------------
+
+  it("returns calibration field in success response", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const req = makeReq({ body: { mood: "good" } });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toHaveProperty("calibration");
+    // Calibration runs the pure calibrator even with no wearable data
+    const cal = res._body.calibration;
+    if (cal) {
+      expect(cal).toHaveProperty("level");
+      expect(cal).toHaveProperty("intensity_multiplier");
+      expect(cal).toHaveProperty("duration_multiplier");
+      expect(cal).toHaveProperty("swap_to");
+      expect(cal).toHaveProperty("applied_rules");
+    }
+  });
+
+  it("returns calibration with red level for drained + sick", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const req = makeReq({
+      body: { mood: "drained", reason_bucket: "sick", illness_flag: true },
+    });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+    const cal = res._body.calibration;
+    expect(cal).not.toBeNull();
+    expect(cal.level).toBe("red");
+    expect(cal.swap_to).toBe("rest");
+    expect(cal.applied_rules).toContain("HARD_STOP:ILLNESS_FLAG");
+  });
+
+  it("returns calibration with green level for good mood", async () => {
+    process.env.TRAINELO_USER_ID = "test-user-id";
+    vi.mocked(upsertDailyCheckin).mockResolvedValueOnce({
+      success: true,
+      error: null,
+    });
+
+    const req = makeReq({ body: { mood: "good" } });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const cal = res._body.calibration;
+    expect(cal).not.toBeNull();
+    expect(cal.level).toBe("green");
+    expect(cal.swap_to).toBe("as_planned");
+    expect(cal.applied_rules).toContain("MOOD_GOOD");
   });
 });

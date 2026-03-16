@@ -2,13 +2,42 @@
  * POST /api/user-flags
  * Vercel Serverless Function: Persists morning check-in data.
  *
- * Validates request → resolves user identity → upserts daily_checkins row → responds.
+ * Validates request → resolves user identity → upserts daily_checkins row →
+ * runs calibrator → responds with calibration result.
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { upsertDailyCheckin } from "../src/lib/db/queries.js";
+import {
+  upsertDailyCheckin,
+  getDailyUserState,
+  getTrainingLoad7Days,
+  type DailyUserStateRow,
+  type TrainingLoadRow,
+} from "../src/lib/db/queries.js";
+import {
+  computeReadinessAndFatigue,
+  type ReadinessAndFatigueInput,
+  type ReadinessAndFatigueOutput,
+} from "../src/lib/core/recommendations/computeReadinessAndFatigue.js";
+import type { DailyCheckinInput } from "../src/lib/core/recommendations/computeReadinessAndFatigue.js";
+import {
+  calibrateSession,
+  type CalibratorInput,
+  type CalibrationResult,
+  type CheckinInput as CalibratorCheckinInput,
+  type WearableSignalsInput,
+  type WearableReadiness,
+  type Mood5,
+  type ReasonBucket,
+} from "../src/lib/core/checkin/calibrator.js";
+import type {
+  SleepSessionInput,
+  HrvNightInput,
+  DailyMetricsInput,
+  TrainingLoadInput,
+} from "../src/lib/core/recommendations/computeDailyRecommendation.js";
 
 // ============================================================================
 // Request Schema
@@ -206,6 +235,125 @@ async function resolveUserIdFromAuthHeader(
 }
 
 // ============================================================================
+// Calibration Helpers
+// ============================================================================
+
+const VALID_MOODS = new Set(["drained", "tired", "okay", "good", "great"]);
+const VALID_REASON_BUCKETS = new Set(["sick", "hurt", "fried", "none"]);
+
+function mapSleep(row: DailyUserStateRow, date: string): SleepSessionInput | null {
+  if (row.sleep_score == null || row.sleep_seconds == null) return null;
+  return { date, duration_seconds: row.sleep_seconds, sleep_score: row.sleep_score, deep_seconds: 0, rem_seconds: 0, avg_hrv_ms: row.avg_hrv_ms ?? 0 };
+}
+
+function mapHrv(row: DailyUserStateRow, date: string): HrvNightInput | null {
+  if (row.hrv_rmssd == null || row.hrv_baseline == null) return null;
+  return { date, hrv_rmssd: row.hrv_rmssd, hrv_baseline: row.hrv_baseline, hrv_status: "", weekly_avg: 0 };
+}
+
+function mapMetrics(row: DailyUserStateRow, date: string): DailyMetricsInput | null {
+  if (row.recovery_score == null) return null;
+  return { date, recovery_score: row.recovery_score, body_battery_high: 0, body_battery_low: 0, resting_heart_rate: 0, stress_avg: 0 };
+}
+
+function mapTrainingLoad(rows: TrainingLoadRow[]): TrainingLoadInput[] {
+  return rows.map((r) => ({ date: r.date, workouts_count: r.workouts_count, total_duration_seconds: r.total_duration_seconds, total_tss: r.total_tss }));
+}
+
+function deriveWearableReadiness(readiness: number, fatigue: number): WearableReadiness {
+  if (fatigue >= 75 || readiness < 40) return "red";
+  if (fatigue >= 50 || readiness < 65) return "yellow";
+  return "green";
+}
+
+function buildWearableSignals(rfOutput: ReadinessAndFatigueOutput): WearableSignalsInput {
+  return {
+    readiness: deriveWearableReadiness(rfOutput.readiness_score, rfOutput.fatigue_score),
+    readiness_score: rfOutput.readiness_score,
+    fatigue_score: rfOutput.fatigue_score,
+  };
+}
+
+/**
+ * Run calibrator after a successful check-in persist.
+ * Non-fatal — returns null on any error so persistence is never blocked.
+ */
+async function runPostPersistCalibration(
+  userId: string,
+  date: string,
+  checkinPayload: {
+    mood: string;
+    rpe?: number;
+    soreness?: number;
+    pain_flag?: boolean;
+    illness_flag?: boolean;
+    reason_bucket?: string;
+    pain_severity?: number;
+    pain_locations?: string[];
+    time_constraint_minutes?: number;
+  },
+): Promise<CalibrationResult | null> {
+  try {
+    if (!VALID_MOODS.has(checkinPayload.mood)) return null;
+
+    const checkinInput: CalibratorCheckinInput = {
+      mood: checkinPayload.mood as Mood5,
+      rpe: checkinPayload.rpe ?? null,
+      soreness: checkinPayload.soreness ?? null,
+      pain_flag: checkinPayload.pain_flag ?? null,
+      illness_flag: checkinPayload.illness_flag ?? null,
+      reason_bucket: checkinPayload.reason_bucket && VALID_REASON_BUCKETS.has(checkinPayload.reason_bucket)
+        ? (checkinPayload.reason_bucket as ReasonBucket)
+        : null,
+      pain_severity: checkinPayload.pain_severity ?? null,
+      pain_locations: checkinPayload.pain_locations ?? null,
+      time_constraint_minutes: checkinPayload.time_constraint_minutes ?? null,
+    };
+
+    // Fetch wearable signals from R&F pipeline
+    const [stateRes, loadRes] = await Promise.all([
+      getDailyUserState(userId, date),
+      getTrainingLoad7Days(userId, date),
+    ]);
+
+    let wearableSignals: WearableSignalsInput | null = null;
+
+    if (!stateRes.error && !loadRes.error) {
+      const row = stateRes.data;
+      const loadRows = loadRes.data;
+
+      const sleep = row ? mapSleep(row, date) : null;
+      const hrv = row ? mapHrv(row, date) : null;
+      const metrics = row ? mapMetrics(row, date) : null;
+      const trainingLoad7Days = mapTrainingLoad(loadRows);
+
+      const dailyCheckin: DailyCheckinInput | null = {
+        mood: checkinPayload.mood as DailyCheckinInput["mood"],
+        rpe: checkinPayload.rpe ?? null,
+        soreness: checkinPayload.soreness ?? null,
+        pain_flag: checkinPayload.pain_flag ?? false,
+        illness_flag: checkinPayload.illness_flag ?? false,
+      };
+
+      const rfInput: ReadinessAndFatigueInput = { sleep, hrv, metrics, trainingLoad7Days, dailyCheckin };
+      const rfOutput = computeReadinessAndFatigue(rfInput);
+      wearableSignals = buildWearableSignals(rfOutput);
+    }
+
+    const calibratorInput: CalibratorInput = {
+      morning_checkin: checkinInput,
+      wearable_signals: wearableSignals,
+      planned_session: null,
+    };
+
+    return calibrateSession(calibratorInput);
+  } catch (err) {
+    console.warn("[user-flags] Calibration error (non-fatal):", err);
+    return null;
+  }
+}
+
+// ============================================================================
 // Handler
 // ============================================================================
 
@@ -331,5 +479,25 @@ export default async function handler(
 
   console.log("[user-flags] Recorded:", { user_id: userId, date, mood: payload.mood });
 
-  res.status(200).json({ ok: true, recorded_at, date });
+  // Run calibrator (non-fatal — persistence already succeeded)
+  const calibration = await runPostPersistCalibration(userId, date, {
+    mood: payload.mood,
+    rpe: payload.rpe,
+    soreness: payload.soreness,
+    pain_flag: payload.pain_flag,
+    illness_flag: payload.illness_flag,
+    reason_bucket: payload.reason_bucket,
+    pain_severity: payload.pain_severity,
+    pain_locations: payload.pain_locations,
+    time_constraint_minutes: payload.time_constraint_minutes,
+  });
+
+  if (calibration) {
+    console.log(
+      `[user-flags] Calibration: level=${calibration.level} ` +
+        `intensity=${calibration.intensity_multiplier} duration=${calibration.duration_multiplier}`,
+    );
+  }
+
+  res.status(200).json({ ok: true, recorded_at, date, calibration: calibration ?? null });
 }

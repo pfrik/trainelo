@@ -48,6 +48,12 @@ export const API_ROUTES: ApiRoute[] = [
     handler: "../api/user-flags.js",
     description: "Submit morning check-in data",
   },
+  {
+    method: "post",
+    path: "/api/checkin/calibrate",
+    handler: "../api/checkin/calibrate.js",
+    description: "Run session calibrator from check-in data",
+  },
 
   // Add new routes above this line
 ];
