@@ -170,6 +170,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   const [niggleLocation, setNiggleLocation] = useState("");
   const [goodTimeConstraint, setGoodTimeConstraint] = useState<"all_good" | "short" | null>(null);
   const [upgradeIntent, setUpgradeIntent] = useState<boolean | null>(null);
+  const [upgradeType, setUpgradeType] = useState<"intensity" | "volume" | null>(null);
 
   // Optional fields (non-drained)
   const [rpe, setRpe] = useState("");
@@ -209,6 +210,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     setNiggleLocation("");
     setGoodTimeConstraint(null);
     setUpgradeIntent(null);
+    setUpgradeType(null);
     setStep("protocol");
   }, []);
 
@@ -339,6 +341,11 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
       if (niggle) p.pain_flag = true;
       if (goodTimeConstraint === "short") p.time_constraint_minutes = 30;
       if (notes.trim()) p.notes = notes.trim();
+    } else if (mood === "great") {
+      if (upgradeType) {
+        p.payload = { upgrade_type: upgradeType };
+      }
+      if (notes.trim()) p.notes = notes.trim();
     } else {
       const tc = parseInt(nonRedTimeConstraint, 10);
       if (tc > 0) p.time_constraint_minutes = tc;
@@ -358,7 +365,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     } finally {
       setSaving(false);
     }
-  }, [mood, niggle, goodTimeConstraint, nonRedTimeConstraint, dragFactors, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
+  }, [mood, niggle, goodTimeConstraint, upgradeType, nonRedTimeConstraint, dragFactors, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
 
   // ---------------------------------------------------------------------------
   // Render: Saved
@@ -1011,104 +1018,160 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Great protocol (fallback for non-drained)
+  // Render: Great protocol — Optimization Protocol
   // ---------------------------------------------------------------------------
 
+  const UPGRADE_OPTIONS: {
+    value: "intensity" | "volume";
+    label: string;
+    subtitle: string;
+    detail: string;
+    icon: string;
+  }[] = [
+    {
+      value: "intensity",
+      label: "Increase Intensity",
+      subtitle: "Focus on power & speed",
+      detail: "Shorter duration \u2022 Higher effort",
+      icon: "bolt",
+    },
+    {
+      value: "volume",
+      label: "Increase Volume",
+      subtitle: "Focus on endurance & capacity",
+      detail: "Longer duration \u2022 Sustained effort",
+      icon: "shutter_speed",
+    },
+  ];
+
   return (
-    <div className="space-y-4">
-      {mood && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-slate-500 uppercase tracking-wide">Mood:</span>
-          <span className="text-sm text-white font-medium capitalize">{mood}</span>
-          <button
-            onClick={() => {
-              setStep("mood");
-              setSaved(false);
-              setSaveError(null);
-            }}
-            className="text-xs text-slate-500 hover:text-slate-300 underline"
-          >
-            change
-          </button>
+    <div>
+      {/* Header */}
+      <div className="pb-5 border-b border-slate-700 flex justify-between items-center">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-green-500 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">
+              Step 2 of 2
+            </span>
+          </div>
+          <h2 className="text-lg font-bold text-white tracking-tight">
+            Optimization Protocol
+          </h2>
         </div>
-      )}
+        <button
+          onClick={() => setStep("mood")}
+          className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
+          aria-label="Back to mood selection"
+        >
+          <span className="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
 
-      <div className="space-y-3">
+      <div className="pt-6 space-y-6">
+        {/* Hero */}
+        <div className="text-center space-y-4 py-2">
+          <div className="inline-flex p-4 rounded-full bg-green-500/10 ring-1 ring-green-500/20 shadow-[0_0_20px_-5px_rgba(34,197,94,0.3)] mb-2">
+            <span className="material-symbols-outlined text-4xl text-green-500 font-bold">tune</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white">Peak State Detected</h1>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            Your subjective scores indicate high readiness. Upgrade intensity or volume?
+          </p>
+        </div>
 
-        {/* Great */}
-        {mood === "great" && (
-          <div className="space-y-3">
-            <div className="text-xs text-slate-400 uppercase tracking-wide">
-              Push harder today?
+        {/* Upgrade options */}
+        <div className="grid gap-4">
+          {UPGRADE_OPTIONS.map((opt) => {
+            const sel = upgradeType === opt.value;
+            return (
+              <label key={opt.value} className="relative cursor-pointer group">
+                <input
+                  type="radio"
+                  name="calibration"
+                  className="sr-only"
+                  checked={sel}
+                  onChange={() => setUpgradeType(opt.value)}
+                />
+                <div className={`w-full rounded-xl border p-5 transition-all flex items-start justify-between ${
+                  sel
+                    ? "border-green-500 bg-green-500/10"
+                    : "border-slate-700 bg-slate-600/5 hover:bg-slate-600/10"
+                }`}>
+                  <div className="flex gap-4">
+                    <div className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center border transition-colors ${
+                      sel
+                        ? "bg-green-500/20 border-green-500/50 text-green-500"
+                        : "bg-slate-600 border-slate-700 text-white group-hover:border-green-500/50"
+                    }`}>
+                      <span className="material-symbols-outlined">{opt.icon}</span>
+                    </div>
+                    <div>
+                      <h3 className={`font-bold text-base transition-colors ${
+                        sel ? "text-green-500" : "text-white group-hover:text-green-500"
+                      }`}>
+                        {opt.label}
+                      </h3>
+                      <p className="text-xs text-slate-400 font-medium mt-1">{opt.subtitle}</p>
+                      <p className="text-[11px] text-slate-400 mt-2 opacity-60">{opt.detail}</p>
+                    </div>
+                  </div>
+                  <div className={`h-6 w-6 rounded-full border flex items-center justify-center transition-all shrink-0 ${
+                    sel
+                      ? "bg-green-500 border-green-500"
+                      : "border-slate-700"
+                  }`}>
+                    {sel && (
+                      <span className="material-symbols-outlined text-sm text-black font-bold">check</span>
+                    )}
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+
+        {/* Wearable safety warning */}
+        {wearableReadiness === "red" && (
+          <div className="rounded-lg border border-red-500/20 bg-[#1a1111] p-4 flex gap-3">
+            <span className="material-symbols-outlined text-red-500 shrink-0 mt-0.5">warning</span>
+            <div>
+              <h4 className="text-xs font-bold text-red-500 uppercase tracking-wide mb-1">AI Safety Warning</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Wearable data suggests low recovery despite feeling great. Training will be constrained for safety.
+              </p>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setUpgradeIntent(true)}
-                tabIndex={0}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  upgradeIntent === true
-                    ? "bg-green-500/20 text-green-300 border border-green-500/40"
-                    : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                Yes, upgrade
-              </button>
-              <button
-                onClick={() => setUpgradeIntent(false)}
-                tabIndex={0}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  upgradeIntent === false
-                    ? "bg-slate-600/30 text-slate-300 border border-slate-500/40"
-                    : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                Stick to plan
-              </button>
-            </div>
-            {upgradeIntent && wearableReadiness === "red" && (
-              <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
-                <span
-                  className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0"
-                  style={{ fontVariationSettings: '"FILL" 1' }}
-                >
-                  warning
-                </span>
-                <span className="text-xs text-amber-300 leading-relaxed">
-                  Wearable data shows low recovery. Upgrade intent noted, but
-                  intensity will be capped for safety.
-                </span>
-              </div>
-            )}
           </div>
         )}
+      </div>
 
-        {/* Optional fields */}
-        <OptionalFields
-          rpe={rpe}
-          setRpe={setRpe}
-          soreness={soreness}
-          setSoreness={setSoreness}
-          notes={notes}
-          setNotes={setNotes}
-        />
-
-        {/* Submit */}
-        <div className="flex items-center gap-3 pt-1">
-          <button
-            onClick={handleNonRedSubmit}
-            disabled={saving}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              !saving
-                ? "bg-primary hover:bg-primary-hover text-slate-900"
-                : "bg-slate-700 text-slate-500 cursor-not-allowed"
-            }`}
-          >
-            {saving ? "Saving..." : "Save check-in"}
-          </button>
-          {saveError && (
-            <span className="text-xs text-red-400">{saveError}</span>
+      {/* Footer */}
+      <div className="pt-5 mt-6 border-t border-slate-700 space-y-3">
+        <button
+          onClick={handleNonRedSubmit}
+          disabled={saving}
+          className={`w-full font-bold py-3.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg ${
+            saving
+              ? "bg-green-500/30 text-white/50 cursor-not-allowed shadow-none"
+              : "bg-green-500 hover:bg-green-600 text-black shadow-green-500/20"
+          }`}
+        >
+          {saving ? "Saving..." : "Confirm Training"}
+          {!saving && (
+            <span className="material-symbols-outlined text-lg">arrow_forward</span>
           )}
+        </button>
+        <div className="flex justify-center">
+          <button
+            onClick={handleSkip}
+            disabled={saving}
+            className="text-sm text-slate-400 hover:text-white transition-colors underline decoration-slate-500/30 underline-offset-4"
+          >
+            Skip for now
+          </button>
         </div>
+        {saveError && (
+          <p className="text-xs text-red-400 text-center">{saveError}</p>
+        )}
       </div>
     </div>
   );
