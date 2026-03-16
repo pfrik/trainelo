@@ -103,6 +103,25 @@ const FRIED_TAGS = [
 
 const TIRED_REASON_TAGS = ["sleep", "stress", "soreness", "meh"];
 
+const DRAG_FACTORS: {
+  id: string;
+  label: string;
+  icon: string;
+  fullWidth?: boolean;
+}[] = [
+  { id: "sleep", label: "Sleep", icon: "bedtime" },
+  { id: "perceived_energy", label: "Perceived Energy", icon: "bolt" },
+  { id: "motivation", label: "Motivation", icon: "rocket_launch" },
+  { id: "life_stress", label: "Life Stress", icon: "psychology" },
+  { id: "soreness", label: "Muscle Soreness", icon: "fitness_center", fullWidth: true },
+];
+
+const TIME_OPTIONS: { label: string; value: number | null }[] = [
+  { label: "As Planned", value: null },
+  { label: "30m", value: 30 },
+  { label: "45m", value: 45 },
+];
+
 const SORENESS_OPTIONS = [
   { label: "No Soreness (1)", value: 1 },
   { label: "Light Soreness (2-3)", value: 2 },
@@ -143,6 +162,9 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
 
   // Non-drained protocol fields
   const [reasonTags, setReasonTags] = useState<string[]>([]);
+  const [dragFactors, setDragFactors] = useState<string[]>([]);
+  const [tiredTimeConstraint, setTiredTimeConstraint] = useState<number | null>(null);
+  const [tiredNotes, setTiredNotes] = useState("");
   const [nonRedTimeConstraint, setNonRedTimeConstraint] = useState("");
   const [niggle, setNiggle] = useState<boolean | null>(null);
   const [niggleLocation, setNiggleLocation] = useState("");
@@ -178,6 +200,9 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     setRedErrors({});
     setRedStep(1);
     setReasonTags([]);
+    setDragFactors([]);
+    setTiredTimeConstraint(null);
+    setTiredNotes("");
     setNonRedTimeConstraint("");
     setNiggle(null);
     setNiggleLocation("");
@@ -226,6 +251,12 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   const toggleReasonTag = useCallback((tag: string) => {
     setReasonTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  }, []);
+
+  const toggleDragFactor = useCallback((id: string) => {
+    setDragFactors((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id],
     );
   }, []);
 
@@ -297,18 +328,23 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
 
     if (mood === "good" && niggle) p.pain_flag = true;
 
-    const tc = parseInt(nonRedTimeConstraint, 10);
-    if (tc > 0) p.time_constraint_minutes = tc;
-
-    if ((mood === "tired" || mood === "okay") && reasonTags.length > 0) {
-      p.reason_tags = reasonTags;
+    // Tired/okay: use drag factors as reason_tags and dedicated time constraint
+    if (mood === "tired" || mood === "okay") {
+      if (dragFactors.length > 0) p.reason_tags = dragFactors;
+      if (tiredTimeConstraint && tiredTimeConstraint > 0) {
+        p.time_constraint_minutes = tiredTimeConstraint;
+      }
+      if (tiredNotes.trim()) p.notes = tiredNotes.trim();
+    } else {
+      const tc = parseInt(nonRedTimeConstraint, 10);
+      if (tc > 0) p.time_constraint_minutes = tc;
+      if (notes.trim()) p.notes = notes.trim();
     }
 
     const rpeNum = parseInt(rpe, 10);
     if (rpeNum >= 1 && rpeNum <= 10) p.rpe = rpeNum;
     const soreNum = parseInt(soreness, 10);
     if (soreNum >= 0 && soreNum <= 10) p.soreness = soreNum;
-    if (notes.trim()) p.notes = notes.trim();
 
     try {
       await onSubmit(p);
@@ -318,7 +354,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     } finally {
       setSaving(false);
     }
-  }, [mood, niggle, nonRedTimeConstraint, reasonTags, rpe, soreness, notes, onSubmit]);
+  }, [mood, niggle, nonRedTimeConstraint, dragFactors, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
 
   // ---------------------------------------------------------------------------
   // Render: Saved
@@ -603,7 +639,183 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Non-drained protocol (tired / okay / good / great)
+  // Render: Tired / Okay protocol
+  // ---------------------------------------------------------------------------
+
+  if (mood === "tired" || mood === "okay") {
+    const moodLabel = mood === "tired" ? "Tired" : "Okay";
+
+    return (
+      <div>
+        {/* Header */}
+        <div className="pb-5 border-b border-slate-700 flex justify-between items-start">
+          <div className="w-full">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2 py-0.5 text-xs font-medium text-yellow-500 ring-1 ring-inset ring-yellow-500/20">
+                  Status: {moodLabel}
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-slate-400 bg-slate-700/30 px-2 py-1 rounded">
+                Step 2 of 2
+              </span>
+            </div>
+            <h2 className="text-2xl font-bold text-white tracking-tight">
+              Let&apos;s calibrate
+            </h2>
+            <p className="text-sm text-slate-400 font-medium mt-1">
+              Adjusting session volume based on your feedback.
+            </p>
+          </div>
+          <button
+            onClick={() => setStep("mood")}
+            className="text-slate-400 hover:text-white transition-colors p-2 rounded-md hover:bg-white/5 -mr-2 ml-4"
+            aria-label="Back to mood selection"
+          >
+            <span className="material-symbols-outlined text-2xl">close</span>
+          </button>
+        </div>
+
+        <div className="pt-6 space-y-8">
+          {/* Drag factors — multi-select */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                  What&apos;s dragging you down?
+                </h3>
+                <span className="text-[10px] font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded border border-red-400/20 uppercase tracking-widest">
+                  Required
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded border border-white/5">
+                Multi-select
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {DRAG_FACTORS.map((factor) => {
+                const sel = dragFactors.includes(factor.id);
+                return (
+                  <label
+                    key={factor.id}
+                    className={`cursor-pointer relative group ${factor.fullWidth ? "sm:col-span-2" : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="peer sr-only"
+                      checked={sel}
+                      onChange={() => toggleDragFactor(factor.id)}
+                    />
+                    <div className={`h-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
+                      sel
+                        ? "border-green-500 ring-1 ring-green-500 bg-green-500/10"
+                        : "border-slate-700 bg-[#0f1521]/50 hover:bg-[#0f1521]"
+                    }`}>
+                      <span className={`material-symbols-outlined transition-colors ${
+                        sel ? "text-green-500" : "text-slate-400"
+                      }`}>
+                        {factor.icon}
+                      </span>
+                      <span className={`text-sm font-bold transition-colors ${
+                        sel ? "text-green-500" : "text-white"
+                      }`}>
+                        {factor.label}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
+
+          {/* Time constraint */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+              How much time do you have?
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              {TIME_OPTIONS.map((opt) => {
+                const sel = tiredTimeConstraint === opt.value;
+                return (
+                  <label key={opt.label} className="cursor-pointer relative flex-1">
+                    <input
+                      type="radio"
+                      name="time_check"
+                      className="peer sr-only"
+                      checked={sel}
+                      onChange={() => setTiredTimeConstraint(opt.value)}
+                    />
+                    <div className={`px-4 py-3 text-center rounded-xl border text-sm font-medium transition-all ${
+                      sel
+                        ? "bg-green-500 text-white border-green-500 shadow-[0_0_20px_-5px_rgba(34,197,94,0.3)] font-bold"
+                        : "border-slate-700 bg-[#0f1521] text-slate-400 hover:text-white hover:border-slate-600"
+                    }`}>
+                      {opt.label}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
+
+          {/* Niggles / notes */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+              Any niggles?
+            </h3>
+            <textarea
+              className="w-full bg-[#0f1521]/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500/50 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none transition-all resize-none h-24"
+              placeholder="Add notes for your coach..."
+              maxLength={500}
+              value={tiredNotes}
+              onChange={(e) => setTiredNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-5 mt-6 border-t border-slate-700 flex justify-between items-center">
+          <button
+            onClick={handleSkip}
+            disabled={saving}
+            className="text-sm text-slate-400 hover:text-white font-medium transition-colors underline decoration-slate-500 underline-offset-4 hover:decoration-white"
+          >
+            Skip for now
+          </button>
+          <div className="flex items-center gap-3">
+            {saveError && (
+              <span className="text-xs text-red-400">{saveError}</span>
+            )}
+            <button
+              onClick={handleNonRedSubmit}
+              disabled={saving || dragFactors.length === 0}
+              className={`px-6 py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 active:scale-[0.98] ${
+                saving || dragFactors.length === 0
+                  ? "bg-green-500/30 text-white/50 cursor-not-allowed shadow-none"
+                  : "bg-green-500 hover:bg-green-600 text-white shadow-green-500/20 hover:shadow-green-500/30"
+              }`}
+            >
+              <span>{saving ? "Saving..." : "Update Training"}</span>
+              {!saving && (
+                <span className="material-symbols-outlined text-lg leading-none font-bold">
+                  arrow_forward
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Non-drained protocol (good / great)
   // ---------------------------------------------------------------------------
 
   return (
@@ -626,43 +838,6 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
       )}
 
       <div className="space-y-3">
-        {/* Tired / Okay */}
-        {(mood === "tired" || mood === "okay") && (
-          <div className="space-y-3">
-            <div className="text-xs text-slate-400 uppercase tracking-wide">
-              Any specific reasons? (optional)
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {TIRED_REASON_TAGS.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => toggleReasonTag(tag)}
-                  tabIndex={0}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    reasonTags.includes(tag)
-                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                      : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:text-slate-200"
-                  }`}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">
-                Time constraint (minutes, optional)
-              </label>
-              <input
-                type="number"
-                min={1}
-                placeholder="e.g. 30"
-                value={nonRedTimeConstraint}
-                onChange={(e) => setNonRedTimeConstraint(e.target.value)}
-                className="w-24 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-500"
-              />
-            </div>
-          </div>
-        )}
 
         {/* Good */}
         {mood === "good" && (
