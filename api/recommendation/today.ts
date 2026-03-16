@@ -52,6 +52,7 @@ import {
   type Mood5,
   type ReasonBucket,
 } from "../../src/lib/core/checkin/calibrator.js";
+import { applyCandidateCalibration } from "../../src/lib/core/checkin/applyCandidateCalibration.js";
 
 // ============================================================================
 // Configuration
@@ -629,13 +630,8 @@ export default async function handler(
     // 6. Run calibrator (non-fatal on error)
     const calibration = runCalibrator(checkinRes.data, rfOutput, candidates[0]);
 
-    // 6a. Elevate caution on hard-stop
-    if (calibration?.level === "red" && candidates[0].caution_level !== "high") {
-      candidates[0] = {
-        ...candidates[0],
-        caution_level: calibration.warnings.length > 0 ? "high" : "moderate",
-      };
-    }
+    // 6a. Apply calibration: re-order candidates, adjust caution, update rationale
+    const calibratedCandidates = applyCandidateCalibration(candidates, calibration);
 
     // 7. Build evidence summary
     const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration);
@@ -646,7 +642,7 @@ export default async function handler(
       recommendation_id: `${userId}:${date}`,
       date,
       user_id: userId,
-      candidates,
+      candidates: calibratedCandidates,
       evidence,
       llm_used: false,
       generated_at: generatedAt,

@@ -1,7 +1,7 @@
 # Morning Check-in v2 — Single Source of Truth
 
-> Status: **Phase 2 complete** (schema + calibrator core + API wiring).
-> Phase 3: Dashboard UI flow.
+> Status: **Phase 4 complete** (schema + calibrator core + API wiring + pipeline integration).
+> Phase 3: Dashboard UI flow (remaining).
 
 ---
 
@@ -181,4 +181,4 @@ All types are re-exported from `src/lib/core/checkin/index.ts`.
 | 1 | Schema migration + calibrator module + tests | Done |
 | 2 | API wiring (`/api/checkin/calibrate`) + updated `/api/user-flags` | Done |
 | 3 | Dashboard UI flow (stepped check-in form) | Planned |
-| 4 | Integration with recommendation pipeline | Planned |
+| 4 | Integration with recommendation pipeline | Done |

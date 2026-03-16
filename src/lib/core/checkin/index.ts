@@ -17,3 +17,5 @@ export {
   type CalibrationResult,
   type CheckinDeltas,
 } from "./calibrator";
+
+export { applyCandidateCalibration } from "./applyCandidateCalibration";

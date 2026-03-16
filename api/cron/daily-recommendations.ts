@@ -66,6 +66,7 @@ import {
   type Mood5,
   type ReasonBucket,
 } from "../../src/lib/core/checkin/calibrator.js";
+import { applyCandidateCalibration } from "../../src/lib/core/checkin/applyCandidateCalibration.js";
 
 // ============================================================================
 // Configuration
@@ -484,11 +485,14 @@ async function computeForUser(
   const candidates: RecommendationCandidate[] =
     generateDailyRecommendation(state, history, constraints);
 
-  const primary = candidates[0];
   const confidence = computeConfidence(row, loadRows);
 
   // 6. Run calibrator (non-fatal on error)
   const calibration = runCalibratorSafe(checkinRes.data, rfOutput);
+
+  // 6a. Apply calibration: re-order candidates, adjust caution, update rationale
+  const calibratedCandidates = applyCandidateCalibration(candidates, calibration);
+  const primary = calibratedCandidates[0];
 
   // 7. Build persisted output
   return {
@@ -504,7 +508,7 @@ async function computeForUser(
       confidence,
       days_since_rest: row?.days_since_rest ?? null,
       sleep_quality: row?.sleep_score ?? null,
-      candidates: candidates.map((c) => ({
+      candidates: calibratedCandidates.map((c) => ({
         candidate_id: c.candidate_id,
         template_ref: c.template_ref,
         caution_level: c.caution_level,
