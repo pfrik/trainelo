@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/garmin/trigger",
+      "schedule": "0 4 * * *"
+    },
+    {
       "path": "/api/cron/daily-recommendations",
       "schedule": "0 5 * * *"
     }

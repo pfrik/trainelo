@@ -701,6 +701,73 @@ export async function insertRecommendationEvent(
 }
 
 // ============================================================================
+// Sync State Queries
+// ============================================================================
+
+/** Row shape returned by getSyncStatuses (from sync_state table). */
+export interface SyncStateRow {
+  data_type: string;
+  last_synced_at: string | null;
+  record_count: number | null;
+  status: string | null;
+}
+
+/** Row shape returned by getIntegrationConnection. */
+export interface IntegrationConnectionRow {
+  provider: string;
+  connected_at: string | null;
+  status: string | null;
+}
+
+/**
+ * Fetch per-data-type sync statuses for a user from the sync_state table.
+ * Filters to provider='garmin'.
+ */
+export async function getSyncStatuses(
+  userId: string,
+): Promise<SyncStateRow[]> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("sync_state")
+    .select("data_type, last_synced_at, record_count, status")
+    .eq("user_id", userId)
+    .eq("provider", "garmin");
+
+  if (error) {
+    console.error("[db] Error fetching sync_state:", error.message);
+    return [];
+  }
+
+  return (data as SyncStateRow[]) || [];
+}
+
+/**
+ * Fetch the integration connection row for a user + provider.
+ * Returns null if no connection exists.
+ */
+export async function getIntegrationConnection(
+  userId: string,
+  provider: string,
+): Promise<IntegrationConnectionRow | null> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("integration_connections")
+    .select("provider, connected_at, status")
+    .eq("user_id", userId)
+    .eq("provider", provider)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching integration_connection:", error.message);
+    return null;
+  }
+
+  return data as IntegrationConnectionRow | null;
+}
+
+// ============================================================================
 // Daily Check-in Upsert
 // ============================================================================
 
