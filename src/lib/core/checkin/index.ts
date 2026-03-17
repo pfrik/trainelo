@@ -19,4 +19,4 @@ export {
   type CheckinDeltas,
 } from "./calibrator";
 
-export { applyCandidateCalibration } from "./applyCandidateCalibration";
+export { applyCandidateCalibration, type ApplyCalibrationOptions } from "./applyCandidateCalibration";

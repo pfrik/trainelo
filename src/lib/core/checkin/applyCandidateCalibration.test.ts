@@ -319,4 +319,78 @@ describe("applyCandidateCalibration", () => {
     expect(result[0].caution_level).toBe("none");
     expect(result[0].rationale).toContain("Green light");
   });
+
+  // -------------------------------------------------------------------------
+  // Recovery type override
+  // -------------------------------------------------------------------------
+
+  it("recovery_type=full_rest overrides lite_alternative to rest_day", () => {
+    const result = applyCandidateCalibration(
+      makeCandidates(),
+      makeCalibration({
+        level: "red",
+        swap_to: "recovery", // normally promotes lite_alternative
+        headline: "Take it easy",
+      }),
+      { recovery_type: "full_rest" },
+    );
+
+    expect(result[0].candidate_id).toBe("rest_day");
+  });
+
+  it("recovery_type=full_rest overrides easy swap to rest_day", () => {
+    const result = applyCandidateCalibration(
+      makeCandidates(),
+      makeCalibration({
+        level: "red",
+        swap_to: "easy", // normally promotes lite_alternative
+        headline: "Take it easy",
+      }),
+      { recovery_type: "full_rest" },
+    );
+
+    expect(result[0].candidate_id).toBe("rest_day");
+  });
+
+  it("recovery_type=active_recovery keeps lite_alternative (no override)", () => {
+    const result = applyCandidateCalibration(
+      makeCandidates(),
+      makeCalibration({
+        level: "red",
+        swap_to: "recovery",
+        headline: "Take it easy",
+      }),
+      { recovery_type: "active_recovery" },
+    );
+
+    expect(result[0].candidate_id).toBe("lite_alternative");
+  });
+
+  it("recovery_type=full_rest does not affect rest swap (already rest_day)", () => {
+    const result = applyCandidateCalibration(
+      makeCandidates(),
+      makeCalibration({
+        level: "red",
+        swap_to: "rest", // already maps to rest_day
+        headline: "Rest",
+      }),
+      { recovery_type: "full_rest" },
+    );
+
+    expect(result[0].candidate_id).toBe("rest_day");
+  });
+
+  it("recovery_type=null has no effect", () => {
+    const result = applyCandidateCalibration(
+      makeCandidates(),
+      makeCalibration({
+        level: "red",
+        swap_to: "recovery",
+        headline: "Take it easy",
+      }),
+      { recovery_type: null },
+    );
+
+    expect(result[0].candidate_id).toBe("lite_alternative");
+  });
 });

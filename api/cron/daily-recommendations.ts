@@ -505,7 +505,13 @@ async function computeForUser(
   const calibration = runCalibratorSafe(checkinRes.data, rfOutput);
 
   // 6a. Apply calibration: re-order candidates, adjust caution, update rationale
-  const calibratedCandidates = applyCandidateCalibration(candidates, calibration);
+  const rawRecovery = checkinRes.data?.payload && typeof checkinRes.data.payload === "object"
+    ? (checkinRes.data.payload as Record<string, unknown>).recovery_type
+    : null;
+  const recoveryType = rawRecovery === "full_rest" || rawRecovery === "active_recovery"
+    ? rawRecovery
+    : null;
+  const calibratedCandidates = applyCandidateCalibration(candidates, calibration, { recovery_type: recoveryType });
   const primary = calibratedCandidates[0];
 
   // 7. Build persisted output

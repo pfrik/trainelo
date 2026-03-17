@@ -62,11 +62,18 @@ function cautionForCalibrationLevel(level: CalibrationResult["level"]): CautionL
 // Main function
 // ---------------------------------------------------------------------------
 
+/** Options for applying calibration to candidates. */
+export interface ApplyCalibrationOptions {
+  /** User's recovery preference from drained/fried flow. */
+  recovery_type?: "full_rest" | "active_recovery" | null;
+}
+
 /**
  * Apply calibration to an ordered list of recommendation candidates.
  *
  * Effects:
  * 1. Re-orders candidates if calibrator suggests a swap (rest, recovery, etc.)
+ *    - recovery_type overrides: "full_rest" promotes rest_day over lite_alternative
  * 2. Escalates caution level on the primary candidate based on calibration level
  * 3. Appends calibration headline to the primary candidate's rationale
  *
@@ -76,6 +83,7 @@ function cautionForCalibrationLevel(level: CalibrationResult["level"]): CautionL
 export function applyCandidateCalibration(
   candidates: RecommendationCandidate[],
   calibration: CalibrationResult | null,
+  options?: ApplyCalibrationOptions,
 ): RecommendationCandidate[] {
   if (!calibration || candidates.length === 0) {
     return [...candidates];
@@ -84,7 +92,13 @@ export function applyCandidateCalibration(
   let result = candidates.map((c) => ({ ...c }));
 
   // --- Step 1: Re-order based on swap suggestion ---
-  const preferredId = SWAP_TO_CANDIDATE[calibration.swap_to];
+  let preferredId = SWAP_TO_CANDIDATE[calibration.swap_to];
+
+  // Override: recovery_type preference from fried flow
+  if (options?.recovery_type === "full_rest" && preferredId === "lite_alternative") {
+    preferredId = "rest_day";
+  }
+
   if (preferredId) {
     const preferredIndex = result.findIndex((c) => c.candidate_id === preferredId);
     if (preferredIndex > 0) {

@@ -646,7 +646,13 @@ export default async function handler(
     const calibration = runCalibrator(checkinRes.data, rfOutput, candidates[0]);
 
     // 6a. Apply calibration: re-order candidates, adjust caution, update rationale
-    const calibratedCandidates = applyCandidateCalibration(candidates, calibration);
+    const rawRecovery = checkinRes.data?.payload && typeof checkinRes.data.payload === "object"
+      ? (checkinRes.data.payload as Record<string, unknown>).recovery_type
+      : null;
+    const recoveryType = rawRecovery === "full_rest" || rawRecovery === "active_recovery"
+      ? rawRecovery
+      : null;
+    const calibratedCandidates = applyCandidateCalibration(candidates, calibration, { recovery_type: recoveryType });
 
     // 7. Build evidence summary
     const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration);
