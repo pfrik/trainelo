@@ -625,6 +625,155 @@ describe("calibrateSession — moderate pain", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Pain location-specific adjustments
+// ---------------------------------------------------------------------------
+
+describe("calibrateSession — pain location analysis", () => {
+  it("severe pain + knee => hard-stop with cross_train swap (lower body)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "okay",
+          reason_bucket: "hurt",
+          pain_severity: 8,
+          pain_locations: ["knee"],
+          pain_flag: true,
+        }),
+      }),
+    );
+    expect(result.level).toBe("red");
+    expect(result.swap_to).toBe("cross_train");
+    expect(result.applied_rules).toContain("PAIN_LOWER_BODY");
+    expect(result.warnings).toContain("Lower body pain — avoid high-impact activities (running, jumping)");
+  });
+
+  it("severe pain + back => hard-stop with mobility swap", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "okay",
+          reason_bucket: "hurt",
+          pain_severity: 9,
+          pain_locations: ["back"],
+          pain_flag: true,
+        }),
+      }),
+    );
+    expect(result.level).toBe("red");
+    expect(result.swap_to).toBe("mobility");
+    expect(result.applied_rules).toContain("PAIN_BACK");
+  });
+
+  it("severe pain + shoulder => hard-stop with easy swap (upper body only)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "okay",
+          reason_bucket: "hurt",
+          pain_severity: 7,
+          pain_locations: ["shoulder"],
+          pain_flag: true,
+        }),
+      }),
+    );
+    expect(result.level).toBe("red");
+    expect(result.swap_to).toBe("easy");
+    expect(result.applied_rules).toContain("PAIN_UPPER_BODY");
+  });
+
+  it("severe pain + knee + back => hard-stop with mobility swap (most conservative)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "okay",
+          reason_bucket: "hurt",
+          pain_severity: 8,
+          pain_locations: ["knee", "back"],
+          pain_flag: true,
+        }),
+      }),
+    );
+    expect(result.level).toBe("red");
+    expect(result.swap_to).toBe("mobility");
+    expect(result.applied_rules).toContain("PAIN_LOWER_BODY");
+    expect(result.applied_rules).toContain("PAIN_BACK");
+  });
+
+  it("moderate pain + foot_ankle => warning + intensity capped at 0.85", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "good",
+          reason_bucket: "hurt",
+          pain_severity: 4,
+          pain_locations: ["foot_ankle"],
+          pain_flag: true,
+        }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.level).not.toBe("red");
+    expect(result.applied_rules).toContain("MODERATE_PAIN_WARNING");
+    expect(result.applied_rules).toContain("PAIN_LOWER_BODY");
+    expect(result.applied_rules).toContain("PAIN_LOWER_BODY_INTENSITY_CAP");
+    expect(result.intensity_multiplier).toBeLessThanOrEqual(0.85);
+  });
+
+  it("moderate pain + back => intensity capped at 0.85", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "good",
+          reason_bucket: "hurt",
+          pain_severity: 3,
+          pain_locations: ["back"],
+          pain_flag: true,
+        }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.applied_rules).toContain("PAIN_BACK_INTENSITY_CAP");
+    expect(result.intensity_multiplier).toBeLessThanOrEqual(0.85);
+  });
+
+  it("moderate pain + shoulder => warning but no extra intensity cap", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "good",
+          reason_bucket: "hurt",
+          pain_severity: 3,
+          pain_locations: ["shoulder"],
+          pain_flag: true,
+        }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.applied_rules).toContain("PAIN_UPPER_BODY");
+    expect(result.applied_rules).not.toContain("PAIN_LOWER_BODY_INTENSITY_CAP");
+    expect(result.applied_rules).not.toContain("PAIN_BACK_INTENSITY_CAP");
+    // Intensity still affected by pain_flag delta, but no location-specific cap
+  });
+
+  it("severe pain + no pain locations => default injury_safe (backward compat)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "okay",
+          reason_bucket: "hurt",
+          pain_severity: 8,
+          pain_locations: [],
+          pain_flag: true,
+        }),
+      }),
+    );
+    expect(result.level).toBe("red");
+    expect(result.swap_to).toBe("injury_safe");
+    expect(result.applied_rules).not.toContain("PAIN_LOWER_BODY");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // RPE / soreness reductions (non-drained moods)
 // ---------------------------------------------------------------------------
 

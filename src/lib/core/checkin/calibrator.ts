@@ -147,6 +147,67 @@ const SCALE_CRITICAL_INTENSITY_CAP = 0.85;
 const SCALE_LOW_INTENSITY_CAP = 0.92;
 
 // ---------------------------------------------------------------------------
+// Pain location classification
+// ---------------------------------------------------------------------------
+
+const LOWER_BODY_LOCATIONS = new Set(["foot_ankle", "knee", "hip_glute"]);
+const BACK_LOCATIONS = new Set(["back"]);
+const UPPER_BODY_LOCATIONS = new Set(["shoulder"]);
+
+interface PainLocationAnalysis {
+  has_lower_body: boolean;
+  has_back: boolean;
+  has_upper_body: boolean;
+  preferred_swap: SwapSuggestion;
+  warnings: string[];
+  rules: string[];
+}
+
+/**
+ * Analyze pain locations to produce location-specific swap suggestions and warnings.
+ * Pure function — no IO.
+ */
+function analyzePainLocations(locations: string[]): PainLocationAnalysis {
+  const has_lower_body = locations.some((l) => LOWER_BODY_LOCATIONS.has(l));
+  const has_back = locations.some((l) => BACK_LOCATIONS.has(l));
+  const has_upper_body = locations.some((l) => UPPER_BODY_LOCATIONS.has(l));
+
+  const warnings: string[] = [];
+  const rules: string[] = [];
+
+  if (has_lower_body) {
+    warnings.push("Lower body pain — avoid high-impact activities (running, jumping)");
+    rules.push("PAIN_LOWER_BODY");
+  }
+  if (has_back) {
+    warnings.push("Back pain — avoid heavy loading and high-impact movement");
+    rules.push("PAIN_BACK");
+  }
+  if (has_upper_body) {
+    warnings.push("Upper body pain — avoid overhead and pulling movements");
+    rules.push("PAIN_UPPER_BODY");
+  }
+
+  // Determine preferred swap based on affected regions
+  let preferred_swap: SwapSuggestion = "injury_safe";
+  if (has_lower_body && has_back) {
+    // Multi-region including lower body + back → mobility only
+    preferred_swap = "mobility";
+  } else if (has_lower_body) {
+    // Lower body → cross-train (cycling, swimming, upper body work)
+    preferred_swap = "cross_train";
+  } else if (has_back) {
+    // Back → mobility/gentle movement
+    preferred_swap = "mobility";
+  } else if (has_upper_body) {
+    // Upper body only → lower body cardio is fine
+    preferred_swap = "easy";
+  }
+
+  return { has_lower_body, has_back, has_upper_body, preferred_swap, warnings, rules };
+}
+
+// ---------------------------------------------------------------------------
 // Exported delta computation (testable independently)
 // ---------------------------------------------------------------------------
 
@@ -325,11 +386,21 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
     applied_rules.push(`HARD_STOP:${cause}`);
     warnings.push(`Safety override: ${cause}`);
 
+    let hardStopSwap = swapForHardStop(cause);
+
+    // Refine swap for severe pain based on pain locations
+    if (cause === "SEVERE_PAIN" && morning_checkin?.pain_locations?.length) {
+      const locAnalysis = analyzePainLocations(morning_checkin.pain_locations);
+      hardStopSwap = locAnalysis.preferred_swap;
+      warnings.push(...locAnalysis.warnings);
+      applied_rules.push(...locAnalysis.rules);
+    }
+
     return {
       level: "red",
       intensity_multiplier: 0.65,
       duration_multiplier: 0.65,
-      swap_to: swapForHardStop(cause),
+      swap_to: hardStopSwap,
       headline: headlineForHardStop(cause),
       rationale: rationaleForHardStop(cause),
       applied_rules,
@@ -533,6 +604,23 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
       if (mood !== "drained") {
         warnings.push("Moderate pain reported — consider injury-aware modifications");
         applied_rules.push("MODERATE_PAIN_WARNING");
+
+        // Location-specific refinements
+        if (morning_checkin.pain_locations?.length) {
+          const locAnalysis = analyzePainLocations(morning_checkin.pain_locations);
+          warnings.push(...locAnalysis.warnings);
+          applied_rules.push(...locAnalysis.rules);
+
+          // For moderate pain with lower body involvement, cap intensity further
+          if (locAnalysis.has_lower_body) {
+            intensity_multiplier = Math.min(intensity_multiplier, 0.85);
+            applied_rules.push("PAIN_LOWER_BODY_INTENSITY_CAP");
+          }
+          if (locAnalysis.has_back) {
+            intensity_multiplier = Math.min(intensity_multiplier, 0.85);
+            applied_rules.push("PAIN_BACK_INTENSITY_CAP");
+          }
+        }
       }
     }
 
