@@ -169,6 +169,53 @@ const TIRED_DRIVERS: TiredDriverConfig[] = [
   },
 ];
 
+// Okay flow: baseline check drivers with expandable detail sections
+type OkayDriverId = "life_stress" | "motivation" | "minor_stiffness" | "energy_levels";
+
+interface OkayDriverConfig {
+  id: OkayDriverId;
+  label: string;
+  subtitle: string;
+  scaleName: string;
+  tags: string[];
+  tagsLabel: string;
+}
+
+const OKAY_DRIVERS: OkayDriverConfig[] = [
+  {
+    id: "life_stress",
+    label: "Life Stress",
+    subtitle: "Work, family, or mental load",
+    scaleName: "Stress Intensity (1-5)",
+    tags: ["Work pressure", "Family life", "Financial"],
+    tagsLabel: "Primary Drivers",
+  },
+  {
+    id: "motivation",
+    label: "Motivation",
+    subtitle: "Feeling a bit 'meh' or uninspired",
+    scaleName: "Motivation Level (1-5)",
+    tags: ["Uninspired", "Burnt out", "Just meh"],
+    tagsLabel: "Feeling...",
+  },
+  {
+    id: "minor_stiffness",
+    label: "Minor Stiffness",
+    subtitle: "Not injury, just general tightness",
+    scaleName: "Stiffness Level (1-5)",
+    tags: ["Lower back", "Hamstrings", "Shoulders", "Neck"],
+    tagsLabel: "Affected Areas",
+  },
+  {
+    id: "energy_levels",
+    label: "Energy Levels",
+    subtitle: "Neutral, neither peaking nor drained",
+    scaleName: "Energy Level (1-5)",
+    tags: ["Neutral", "Peaking", "Drained"],
+    tagsLabel: "Feeling...",
+  },
+];
+
 const SORENESS_OPTIONS = [
   { label: "No Soreness (1)", value: 1 },
   { label: "Light Soreness (2-3)", value: 2 },
@@ -212,7 +259,12 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   const [tiredDriverScales, setTiredDriverScales] = useState<Record<string, number | null>>({});
   const [tiredDriverTags, setTiredDriverTags] = useState<Record<string, string[]>>({});
 
-  // Non-drained protocol fields (okay + shared)
+  // Okay protocol state
+  const [okayDrivers, setOkayDrivers] = useState<Set<OkayDriverId>>(new Set());
+  const [okayDriverScales, setOkayDriverScales] = useState<Record<string, number | null>>({});
+  const [okayDriverTags, setOkayDriverTags] = useState<Record<string, string[]>>({});
+
+  // Non-drained protocol fields (shared)
   const [reasonTags, setReasonTags] = useState<string[]>([]);
   const [dragFactors, setDragFactors] = useState<string[]>([]);
   const [tiredTimeConstraint, setTiredTimeConstraint] = useState<number | null>(null);
@@ -256,6 +308,9 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     setTiredDrivers(new Set());
     setTiredDriverScales({});
     setTiredDriverTags({});
+    setOkayDrivers(new Set());
+    setOkayDriverScales({});
+    setOkayDriverTags({});
     setReasonTags([]);
     setDragFactors([]);
     setTiredTimeConstraint(null);
@@ -337,6 +392,28 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
 
   const toggleTiredDriverTag = useCallback((driverId: string, tag: string) => {
     setTiredDriverTags((prev) => {
+      const current = prev[driverId] ?? [];
+      const next = current.includes(tag)
+        ? current.filter((t) => t !== tag)
+        : [...current, tag];
+      return { ...prev, [driverId]: next };
+    });
+  }, []);
+
+  const toggleOkayDriver = useCallback((id: OkayDriverId) => {
+    setOkayDrivers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }, []);
+
+  const setOkayDriverScale = useCallback((driverId: string, value: number | null) => {
+    setOkayDriverScales((prev) => ({ ...prev, [driverId]: value }));
+  }, []);
+
+  const toggleOkayDriverTag = useCallback((driverId: string, tag: string) => {
+    setOkayDriverTags((prev) => {
       const current = prev[driverId] ?? [];
       const next = current.includes(tag)
         ? current.filter((t) => t !== tag)
@@ -440,12 +517,30 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
         p.payload = { ...p.payload, driver_details: detailTags };
       }
     } else if (mood === "okay") {
-      // Okay: use drag factors as reason_tags and dedicated time constraint
-      if (dragFactors.length > 0) p.reason_tags = dragFactors;
-      if (tiredTimeConstraint && tiredTimeConstraint > 0) {
-        p.time_constraint_minutes = tiredTimeConstraint;
+      const drivers = Array.from(okayDrivers);
+      if (drivers.length > 0) p.reason_tags = drivers;
+
+      if (okayDriverScales.life_stress != null) {
+        p.payload = { ...p.payload, life_stress: okayDriverScales.life_stress };
       }
-      if (tiredNotes.trim()) p.notes = tiredNotes.trim();
+      if (okayDriverScales.motivation != null) {
+        p.payload = { ...p.payload, motivation: okayDriverScales.motivation };
+      }
+      if (okayDriverScales.minor_stiffness != null) {
+        p.soreness = okayDriverScales.minor_stiffness * 2; // 1-5 → 2-10
+      }
+      if (okayDriverScales.energy_levels != null) {
+        p.payload = { ...p.payload, perceived_energy: okayDriverScales.energy_levels };
+      }
+
+      const detailTags: Record<string, string[]> = {};
+      for (const d of drivers) {
+        const tags = okayDriverTags[d];
+        if (tags && tags.length > 0) detailTags[d] = tags;
+      }
+      if (Object.keys(detailTags).length > 0) {
+        p.payload = { ...p.payload, driver_details: detailTags };
+      }
     } else if (mood === "good") {
       if (niggle) p.pain_flag = true;
       if (goodTimeConstraint === "short") p.time_constraint_minutes = 30;
@@ -474,7 +569,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     } finally {
       setSaving(false);
     }
-  }, [mood, niggle, goodTimeConstraint, upgradeType, nonRedTimeConstraint, dragFactors, tiredDrivers, tiredDriverScales, tiredDriverTags, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
+  }, [mood, niggle, goodTimeConstraint, upgradeType, nonRedTimeConstraint, dragFactors, tiredDrivers, tiredDriverScales, tiredDriverTags, okayDrivers, okayDriverScales, okayDriverTags, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
 
   // ---------------------------------------------------------------------------
   // Render: Saved
@@ -923,174 +1018,164 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Okay protocol — Calibration
+  // Render: Okay protocol — Baseline Check
   // ---------------------------------------------------------------------------
 
   if (mood === "okay") {
+    const hasOkayDrivers = okayDrivers.size > 0;
+
     return (
       <div>
         {/* Header */}
-        <div className="pb-5 border-b border-slate-700 flex justify-between items-start">
-          <div className="w-full">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2 py-0.5 text-xs font-medium text-yellow-500 ring-1 ring-inset ring-yellow-500/20">
-                  Status: Okay
-                </span>
-              </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700/30 px-2 py-1 rounded">
-                Step 2 of 2
-              </span>
+        <header className="pb-5 border-b border-slate-600/40 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="text-green-500 flex items-center">
+              <span className="material-symbols-outlined text-2xl">tune</span>
             </div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">
-              Let&apos;s calibrate
-            </h2>
-            <p className="text-sm text-slate-400 font-medium mt-1">
-              Adjusting session volume based on your feedback.
-            </p>
+            <div>
+              <h2 className="text-lg font-bold text-white tracking-tight uppercase">Okay Calibration</h2>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">Initial Diagnosis</p>
+            </div>
           </div>
           <button
             onClick={() => setStep("mood")}
-            className="text-slate-400 hover:text-white transition-colors p-2 rounded-md hover:bg-white/5 -mr-2 ml-4"
+            className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
             aria-label="Back to mood selection"
           >
-            <span className="material-symbols-outlined text-2xl">close</span>
+            <span className="material-symbols-outlined text-xl">close</span>
           </button>
-        </div>
+        </header>
 
-        <div className="pt-6 space-y-8">
-          {/* Drag factors — multi-select */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-                  What&apos;s dragging you down?
-                </h3>
-                <span className="text-[10px] font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded border border-red-400/20 uppercase tracking-widest">
-                  Required
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded border border-white/5">
-                Multi-select
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {DRAG_FACTORS.map((factor) => {
-                const sel = dragFactors.includes(factor.id);
-                return (
-                  <label
-                    key={factor.id}
-                    className={`cursor-pointer relative group ${factor.fullWidth ? "sm:col-span-2" : ""}`}
+        <div className="pt-6 space-y-6">
+          {/* Title */}
+          <div>
+            <h1 className="text-white text-2xl font-bold leading-tight mb-1">How&apos;s the baseline?</h1>
+            <p className="text-slate-400 text-sm font-medium">A quick check to fine-tune today&apos;s session.</p>
+          </div>
+
+          {/* Driver options with inline expanding details */}
+          <div className="space-y-3">
+            {OKAY_DRIVERS.map((driver) => {
+              const sel = okayDrivers.has(driver.id);
+              const scale = okayDriverScales[driver.id] ?? null;
+              const tags = okayDriverTags[driver.id] ?? [];
+
+              return (
+                <div key={driver.id}>
+                  {/* Driver card */}
+                  <button
+                    type="button"
+                    onClick={() => toggleOkayDriver(driver.id)}
+                    className={`w-full text-left rounded-lg border transition-all ${
+                      sel
+                        ? "border-green-500 bg-green-500/5 shadow-[0_0_0_1px_#22C55E] p-4"
+                        : hasOkayDrivers && !sel
+                          ? "border-slate-600/40 bg-slate-600/20 p-4 opacity-60"
+                          : "border-slate-600/40 bg-slate-600/20 p-4 hover:bg-slate-600/30"
+                    }`}
                   >
-                    <input
-                      type="checkbox"
-                      className="peer sr-only"
-                      checked={sel}
-                      onChange={() => toggleDragFactor(factor.id)}
-                    />
-                    <div className={`h-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
-                      sel
-                        ? "border-green-500 ring-1 ring-green-500 bg-green-500/10"
-                        : "border-slate-700 bg-[#0f1521]/50 hover:bg-[#0f1521]"
-                    }`}>
-                      <span className={`material-symbols-outlined transition-colors ${
-                        sel ? "text-green-500" : "text-slate-400"
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-white font-bold text-sm">{driver.label}</span>
+                        <span className="text-slate-400 text-xs">{driver.subtitle}</span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                        sel
+                          ? "bg-green-500 border-green-500"
+                          : "border-slate-600/60"
                       }`}>
-                        {factor.icon}
-                      </span>
-                      <span className={`text-sm font-bold transition-colors ${
-                        sel ? "text-green-500" : "text-white"
-                      }`}>
-                        {factor.label}
-                      </span>
+                        {sel && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
                     </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+                  </button>
 
-          {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
+                  {/* Expandable detail section */}
+                  {sel && (
+                    <div className="mt-0 rounded-b-lg border border-t-0 border-green-500 bg-green-500/5 px-4 pb-4 pt-3 space-y-4">
+                      <div className="border-t border-slate-600/20 pt-4 space-y-4">
+                        {/* Scale 1-5 */}
+                        <div className="space-y-3">
+                          <p className="text-[11px] font-bold text-green-500 uppercase tracking-wider">
+                            {driver.scaleName}
+                          </p>
+                          <div className="grid grid-cols-5 gap-1 p-1 bg-slate-600/30 rounded-lg border border-slate-600/30">
+                            {[1, 2, 3, 4, 5].map((v) => (
+                              <button
+                                key={v}
+                                type="button"
+                                onClick={() => setOkayDriverScale(driver.id, scale === v ? null : v)}
+                                className={`py-2 rounded-md text-xs font-medium transition-all ${
+                                  scale === v
+                                    ? "bg-green-500 text-white font-bold shadow-[0_0_20px_-5px_rgba(34,197,94,0.3)]"
+                                    : "text-slate-400 hover:bg-white/5"
+                                }`}
+                              >
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-          {/* Time constraint */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-              How much time do you have?
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              {TIME_OPTIONS.map((opt) => {
-                const sel = tiredTimeConstraint === opt.value;
-                return (
-                  <label key={opt.label} className="cursor-pointer relative flex-1">
-                    <input
-                      type="radio"
-                      name="time_check"
-                      className="peer sr-only"
-                      checked={sel}
-                      onChange={() => setTiredTimeConstraint(opt.value)}
-                    />
-                    <div className={`px-4 py-3 text-center rounded-xl border text-sm font-medium transition-all ${
-                      sel
-                        ? "bg-green-500 text-white border-green-500 shadow-[0_0_20px_-5px_rgba(34,197,94,0.3)] font-bold"
-                        : "border-slate-700 bg-[#0f1521] text-slate-400 hover:text-white hover:border-slate-600"
-                    }`}>
-                      {opt.label}
+                        {/* Context tags */}
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-bold text-green-500 uppercase tracking-wider">
+                            {driver.tagsLabel}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {driver.tags.map((tag) => {
+                              const tagSel = tags.includes(tag);
+                              return (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => toggleOkayDriverTag(driver.id, tag)}
+                                  className={`px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all ${
+                                    tagSel
+                                      ? "border-green-500 bg-green-500/10 text-green-500"
+                                      : "border-slate-600/20 bg-slate-600/30 text-slate-400 hover:border-green-500/50"
+                                  }`}
+                                >
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
-
-          {/* Niggles / notes */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-              Any niggles?
-            </h3>
-            <textarea
-              className="w-full bg-[#0f1521]/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500/50 focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none transition-all resize-none h-24"
-              placeholder="Add notes for your coach..."
-              maxLength={500}
-              value={tiredNotes}
-              onChange={(e) => setTiredNotes(e.target.value)}
-            />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="pt-5 mt-6 border-t border-slate-700 flex justify-between items-center">
+        <div className="pt-5 mt-6 border-t border-slate-600/40 flex flex-col gap-3">
+          <button
+            onClick={handleNonRedSubmit}
+            disabled={saving}
+            className={`w-full font-bold py-3.5 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg uppercase tracking-wide text-sm active:scale-[0.98] ${
+              saving
+                ? "bg-green-500/30 text-white/50 cursor-not-allowed shadow-none"
+                : "bg-green-500 hover:bg-green-600 text-white shadow-green-500/20"
+            }`}
+          >
+            {saving ? "Saving..." : "Continue to Logistics"}
+            {!saving && (
+              <span className="material-symbols-outlined text-lg">arrow_forward</span>
+            )}
+          </button>
           <button
             onClick={handleSkip}
             disabled={saving}
-            className="text-sm text-slate-400 hover:text-white font-medium transition-colors underline decoration-slate-500 underline-offset-4 hover:decoration-white"
+            className="w-full text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-widest py-2 transition-colors"
           >
-            Skip for now
+            I&apos;m all good, stick to plan
           </button>
-          <div className="flex items-center gap-3">
-            {saveError && (
-              <span className="text-xs text-red-400">{saveError}</span>
-            )}
-            <button
-              onClick={handleNonRedSubmit}
-              disabled={saving || dragFactors.length === 0}
-              className={`px-6 py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 active:scale-[0.98] ${
-                saving || dragFactors.length === 0
-                  ? "bg-green-500/30 text-white/50 cursor-not-allowed shadow-none"
-                  : "bg-green-500 hover:bg-green-600 text-white shadow-green-500/20 hover:shadow-green-500/30"
-              }`}
-            >
-              <span>{saving ? "Saving..." : "Update Training"}</span>
-              {!saving && (
-                <span className="material-symbols-outlined text-lg leading-none font-bold">
-                  arrow_forward
-                </span>
-              )}
-            </button>
-          </div>
+          {saveError && (
+            <p className="text-xs text-red-400 text-center">{saveError}</p>
+          )}
         </div>
       </div>
     );
