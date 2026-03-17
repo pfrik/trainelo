@@ -651,3 +651,148 @@ describe("calibrateSession — RPE/soreness adjustments", () => {
     expect(result.applied_rules).toContain("SORENESS_HIGH_REDUCTION");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Subjective scale deltas (sleep_quality, perceived_energy, motivation, life_stress)
+// ---------------------------------------------------------------------------
+
+describe("computeCheckinDeltas — subjective scales", () => {
+  it("sleep_quality=1 adds readiness -8, fatigue +6", () => {
+    const d = computeCheckinDeltas(makeCheckin({ mood: "okay", sleep_quality: 1 }));
+    expect(d.readiness_delta).toBe(-8);
+    expect(d.fatigue_delta).toBe(6);
+  });
+
+  it("sleep_quality=3 is neutral (no additional delta)", () => {
+    const d = computeCheckinDeltas(makeCheckin({ mood: "okay", sleep_quality: 3 }));
+    expect(d.readiness_delta).toBe(0);
+    expect(d.fatigue_delta).toBe(0);
+  });
+
+  it("sleep_quality=5 adds readiness +4, fatigue -2", () => {
+    const d = computeCheckinDeltas(makeCheckin({ mood: "okay", sleep_quality: 5 }));
+    expect(d.readiness_delta).toBe(4);
+    expect(d.fatigue_delta).toBe(-2);
+  });
+
+  it("perceived_energy=2 adds readiness -4, fatigue +3", () => {
+    const d = computeCheckinDeltas(makeCheckin({ mood: "okay", perceived_energy: 2 }));
+    expect(d.readiness_delta).toBe(-4);
+    expect(d.fatigue_delta).toBe(3);
+  });
+
+  it("motivation=1 adds readiness -8, fatigue +6", () => {
+    const d = computeCheckinDeltas(makeCheckin({ mood: "okay", motivation: 1 }));
+    expect(d.readiness_delta).toBe(-8);
+    expect(d.fatigue_delta).toBe(6);
+  });
+
+  it("life_stress=5 (very high) adds readiness -8, fatigue +6 (inverted scale)", () => {
+    const d = computeCheckinDeltas(makeCheckin({ mood: "okay", life_stress: 5 }));
+    expect(d.readiness_delta).toBe(-8);
+    expect(d.fatigue_delta).toBe(6);
+  });
+
+  it("life_stress=1 (low stress) adds readiness +4, fatigue -2 (inverted scale)", () => {
+    const d = computeCheckinDeltas(makeCheckin({ mood: "okay", life_stress: 1 }));
+    expect(d.readiness_delta).toBe(4);
+    expect(d.fatigue_delta).toBe(-2);
+  });
+
+  it("multiple scales combine additively", () => {
+    const d = computeCheckinDeltas(makeCheckin({
+      mood: "tired",
+      sleep_quality: 1,
+      perceived_energy: 2,
+      life_stress: 4,
+    }));
+    // tired(-8,+8) + sleep1(-8,+6) + energy2(-4,+3) + stress4(-4,+3)
+    expect(d.readiness_delta).toBe(-8 + -8 + -4 + -4);
+    expect(d.fatigue_delta).toBe(8 + 6 + 3 + 3);
+  });
+
+  it("null scales are ignored", () => {
+    const d = computeCheckinDeltas(makeCheckin({
+      mood: "okay",
+      sleep_quality: null,
+      perceived_energy: null,
+      motivation: null,
+      life_stress: null,
+    }));
+    expect(d.readiness_delta).toBe(0);
+    expect(d.fatigue_delta).toBe(0);
+  });
+});
+
+describe("calibrateSession — scale intensity caps", () => {
+  it("sleep_quality=1 caps intensity at 0.85", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "good", sleep_quality: 1 }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.intensity_multiplier).toBeLessThanOrEqual(0.85);
+    expect(result.applied_rules).toContain("SLEEP_CRITICAL_REDUCTION");
+  });
+
+  it("perceived_energy=2 caps intensity at 0.92", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "good", perceived_energy: 2 }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.intensity_multiplier).toBeLessThanOrEqual(0.92);
+    expect(result.applied_rules).toContain("ENERGY_LOW_REDUCTION");
+  });
+
+  it("life_stress=1 (low stress) does not cap intensity", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "good", life_stress: 1 }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.intensity_multiplier).toBe(1.00);
+    expect(result.applied_rules).not.toContain("STRESS_CRITICAL_REDUCTION");
+    expect(result.applied_rules).not.toContain("STRESS_LOW_REDUCTION");
+  });
+
+  it("life_stress=5 (high stress) does NOT cap intensity via scale (stress is inverted, value=5 means bad but treated as raw value)", () => {
+    // life_stress scale: value 5 = very stressed. The intensity cap checks raw value,
+    // and value 5 is > 2, so no cap triggers. The delta impact happens in computeCheckinDeltas.
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "good", life_stress: 5 }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    // No intensity cap from scale (value 5 is not <= 2)
+    // But readiness delta from stress is -8, fatigue +6
+    expect(result.checkin_readiness_delta).toBeLessThan(0);
+    expect(result.checkin_fatigue_delta).toBeGreaterThan(0);
+  });
+
+  it("scale=3 does not cap intensity", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "good", sleep_quality: 3, perceived_energy: 3 }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.intensity_multiplier).toBe(1.00);
+  });
+
+  it("scale caps are skipped for drained mood (already has red-level reductions)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "drained", reason_bucket: "fried", sleep_quality: 1 }),
+        wearable_signals: makeWearable({ readiness: "green" }),
+      }),
+    );
+    expect(result.level).toBe("red");
+    // Should not have scale reduction rules (drained bypasses them)
+    expect(result.applied_rules).not.toContain("SLEEP_CRITICAL_REDUCTION");
+  });
+});

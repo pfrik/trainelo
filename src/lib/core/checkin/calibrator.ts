@@ -118,6 +118,34 @@ const INTENSITY_MAX = 1.15;
 const DURATION_MIN = 0.5;
 const DURATION_MAX = 1.05;
 
+/**
+ * Subjective 1-5 scale deltas.
+ * Scales: sleep_quality, perceived_energy, motivation, life_stress.
+ * Value 3 is neutral (no adjustment). Lower values penalize, higher values give small boost.
+ * life_stress is inverted: higher stress = worse readiness.
+ */
+const SCALE_DELTAS: Record<number, { readiness: number; fatigue: number }> = {
+  1: { readiness: -8, fatigue: 6 },
+  2: { readiness: -4, fatigue: 3 },
+  3: { readiness: 0, fatigue: 0 },
+  4: { readiness: 2, fatigue: -1 },
+  5: { readiness: 4, fatigue: -2 },
+};
+
+/** life_stress is inverted: 5 = very stressed = bad. */
+const STRESS_SCALE_DELTAS: Record<number, { readiness: number; fatigue: number }> = {
+  1: { readiness: 4, fatigue: -2 },
+  2: { readiness: 2, fatigue: -1 },
+  3: { readiness: 0, fatigue: 0 },
+  4: { readiness: -4, fatigue: 3 },
+  5: { readiness: -8, fatigue: 6 },
+};
+
+/** Intensity cap when any scale is critically low (1). */
+const SCALE_CRITICAL_INTENSITY_CAP = 0.85;
+/** Intensity cap when any scale is low (2). */
+const SCALE_LOW_INTENSITY_CAP = 0.92;
+
 // ---------------------------------------------------------------------------
 // Exported delta computation (testable independently)
 // ---------------------------------------------------------------------------
@@ -160,6 +188,32 @@ export function computeCheckinDeltas(checkin: CheckinInput): CheckinDeltas {
   if (checkin.illness_flag) {
     readiness_delta += ILLNESS_READINESS_DELTA;
     fatigue_delta += ILLNESS_FATIGUE_DELTA;
+  }
+
+  // Subjective scales (1-5)
+  if (checkin.sleep_quality != null && SCALE_DELTAS[checkin.sleep_quality]) {
+    const d = SCALE_DELTAS[checkin.sleep_quality];
+    readiness_delta += d.readiness;
+    fatigue_delta += d.fatigue;
+  }
+
+  if (checkin.perceived_energy != null && SCALE_DELTAS[checkin.perceived_energy]) {
+    const d = SCALE_DELTAS[checkin.perceived_energy];
+    readiness_delta += d.readiness;
+    fatigue_delta += d.fatigue;
+  }
+
+  if (checkin.motivation != null && SCALE_DELTAS[checkin.motivation]) {
+    const d = SCALE_DELTAS[checkin.motivation];
+    readiness_delta += d.readiness;
+    fatigue_delta += d.fatigue;
+  }
+
+  // life_stress uses inverted scale (higher = worse)
+  if (checkin.life_stress != null && STRESS_SCALE_DELTAS[checkin.life_stress]) {
+    const d = STRESS_SCALE_DELTAS[checkin.life_stress];
+    readiness_delta += d.readiness;
+    fatigue_delta += d.fatigue;
   }
 
   return { readiness_delta, fatigue_delta };
@@ -479,6 +533,27 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
       if (mood !== "drained") {
         warnings.push("Moderate pain reported — consider injury-aware modifications");
         applied_rules.push("MODERATE_PAIN_WARNING");
+      }
+    }
+
+    // Subjective scale intensity caps (non-drained moods only)
+    // life_stress excluded: its inverted scale means low values = good (no cap needed)
+    if (mood !== "drained") {
+      const scales = [
+        { name: "SLEEP", value: morning_checkin.sleep_quality },
+        { name: "ENERGY", value: morning_checkin.perceived_energy },
+        { name: "MOTIVATION", value: morning_checkin.motivation },
+      ];
+
+      for (const s of scales) {
+        if (s.value == null) continue;
+        if (s.value <= 1) {
+          intensity_multiplier = Math.min(intensity_multiplier, SCALE_CRITICAL_INTENSITY_CAP);
+          applied_rules.push(`${s.name}_CRITICAL_REDUCTION`);
+        } else if (s.value <= 2) {
+          intensity_multiplier = Math.min(intensity_multiplier, SCALE_LOW_INTENSITY_CAP);
+          applied_rules.push(`${s.name}_LOW_REDUCTION`);
+        }
       }
     }
   }

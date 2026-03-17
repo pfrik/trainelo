@@ -116,6 +116,17 @@ SwapSuggestion   = 'rest' | 'recovery' | 'easy' | 'mobility'
 | soreness >= 7 | — | +8 |
 | pain_flag | -15 | +12 |
 | illness_flag | -20 | +15 |
+| scale = 1 (critical) | -8 | +6 |
+| scale = 2 (low) | -4 | +3 |
+| scale = 3 (neutral) | 0 | 0 |
+| scale = 4 (good) | +2 | -1 |
+| scale = 5 (excellent) | +4 | -2 |
+| life_stress = 4 (high) | -4 | +3 |
+| life_stress = 5 (very high) | -8 | +6 |
+
+*Scales: sleep_quality, perceived_energy, motivation (standard direction). life_stress is inverted (higher = worse).*
+
+*Additionally: any scale at 1 caps intensity at 0.85, any scale at 2 caps at 0.92.*
 
 ### Hard-stop rules (safety overrides)
 
