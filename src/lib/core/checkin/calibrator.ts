@@ -43,6 +43,8 @@ export interface CheckinInput {
   motivation?: number | null;
   life_stress?: number | null;
   time_constraint_minutes?: number | null;
+  /** Driver IDs from tired/okay flows (e.g. poor_sleep, heavy_legs). */
+  reason_tags?: string[] | null;
   /** Great mood: user preference for upgrade direction. */
   upgrade_type?: UpgradeType | null;
 }
@@ -205,6 +207,80 @@ function analyzePainLocations(locations: string[]): PainLocationAnalysis {
   }
 
   return { has_lower_body, has_back, has_upper_body, preferred_swap, warnings, rules };
+}
+
+// ---------------------------------------------------------------------------
+// Fatigue driver analysis (tired/okay reason_tags)
+// ---------------------------------------------------------------------------
+
+/**
+ * Driver-specific duration bias.
+ * Positive = reduce duration more, Negative = reduce duration less.
+ * Applied as: duration_multiplier *= (1 - bias)
+ */
+const DRIVER_DURATION_BIAS: Record<string, number> = {
+  poor_sleep: 0.05,     // shorter sessions — cognitive fatigue
+  heavy_legs: 0.08,     // legs need rest, favor duration cut
+  low_energy: 0.03,     // mild duration cut
+  mental_fog: -0.02,    // brief exercise clears fog — less duration cut
+  // Okay drivers
+  life_stress: 0.02,    // slightly shorter to reduce load
+  motivation: -0.03,    // keep session engaging, less duration cut
+  minor_stiffness: 0.0, // neutral — stiffness resolved by movement
+  energy_levels: 0.02,  // mild duration cut
+};
+
+/** Extra penalty when 3+ drivers are active simultaneously. */
+const COMPOUND_FATIGUE_INTENSITY_CAP = 0.88;
+/** Extra penalty when 2 drivers are active. */
+const DUAL_DRIVER_INTENSITY_CAP = 0.93;
+
+interface DriverAnalysis {
+  /** Multiplicative duration adjustment (e.g. 0.92 means 8% shorter). */
+  duration_factor: number;
+  /** Intensity cap from compound driver effects. null = no cap. */
+  compound_intensity_cap: number | null;
+  /** Applied rules for traceability. */
+  rules: string[];
+}
+
+/**
+ * Analyze fatigue driver tags to produce session-specific adjustments.
+ * Pure function — no IO.
+ */
+function analyzeDriverTags(tags: string[]): DriverAnalysis {
+  if (tags.length === 0) return { duration_factor: 1.0, compound_intensity_cap: null, rules: [] };
+
+  const rules: string[] = [];
+  let totalBias = 0;
+
+  for (const tag of tags) {
+    const bias = DRIVER_DURATION_BIAS[tag];
+    if (bias != null) {
+      totalBias += bias;
+      if (bias > 0) {
+        rules.push(`DRIVER_${tag.toUpperCase()}_DURATION_CUT`);
+      } else if (bias < 0) {
+        rules.push(`DRIVER_${tag.toUpperCase()}_DURATION_KEEP`);
+      }
+    }
+  }
+
+  // Compound effect: multiple drivers amplify the adjustment
+  let compound_intensity_cap: number | null = null;
+  if (tags.length >= 3) {
+    compound_intensity_cap = COMPOUND_FATIGUE_INTENSITY_CAP;
+    rules.push("COMPOUND_FATIGUE_3PLUS");
+  } else if (tags.length >= 2) {
+    compound_intensity_cap = DUAL_DRIVER_INTENSITY_CAP;
+    rules.push("COMPOUND_FATIGUE_DUAL");
+  }
+
+  // Clamp total bias to reasonable range
+  const clampedBias = Math.max(-0.05, Math.min(0.15, totalBias));
+  const duration_factor = 1 - clampedBias;
+
+  return { duration_factor, compound_intensity_cap, rules };
 }
 
 // ---------------------------------------------------------------------------
@@ -644,6 +720,26 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
         }
       }
     }
+  }
+
+  // --- Driver-specific adjustments (reason_tags from tired/okay flows) ---
+  if (
+    morning_checkin?.reason_tags?.length &&
+    mood !== "drained" // drained already has its own protocol
+  ) {
+    const driverAnalysis = analyzeDriverTags(morning_checkin.reason_tags);
+
+    // Apply duration bias
+    if (driverAnalysis.duration_factor !== 1.0) {
+      duration_multiplier *= driverAnalysis.duration_factor;
+    }
+
+    // Apply compound intensity cap
+    if (driverAnalysis.compound_intensity_cap != null) {
+      intensity_multiplier = Math.min(intensity_multiplier, driverAnalysis.compound_intensity_cap);
+    }
+
+    applied_rules.push(...driverAnalysis.rules);
   }
 
   // --- Time constraint handling ---

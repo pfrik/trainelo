@@ -472,6 +472,7 @@ function mapCheckinForCalibrator(row: DailyCheckinRow | null): CalibratorCheckin
     perceived_energy: row.perceived_energy,
     motivation: row.motivation,
     life_stress: row.life_stress,
+    reason_tags: row.reason_tags,
     time_constraint_minutes: row.time_constraint_minutes,
     upgrade_type: upgradeType,
   };

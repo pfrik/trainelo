@@ -33,6 +33,7 @@ function makeCheckin(overrides: Partial<CheckinInput> = {}): CheckinInput {
     perceived_energy: null,
     motivation: null,
     life_stress: null,
+    reason_tags: null,
     time_constraint_minutes: null,
     ...overrides,
   };
@@ -798,6 +799,115 @@ describe("calibrateSession — RPE/soreness adjustments", () => {
     );
     expect(result.intensity_multiplier).toBeLessThanOrEqual(0.90);
     expect(result.applied_rules).toContain("SORENESS_HIGH_REDUCTION");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Driver-specific adjustments (reason_tags)
+// ---------------------------------------------------------------------------
+
+describe("calibrateSession — driver tags", () => {
+  it("heavy_legs reduces duration more than baseline", () => {
+    const withDriver = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "tired", reason_tags: ["heavy_legs"] }),
+      }),
+    );
+    const baseline = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "tired" }),
+      }),
+    );
+    expect(withDriver.duration_multiplier).toBeLessThan(baseline.duration_multiplier);
+    expect(withDriver.applied_rules).toContain("DRIVER_HEAVY_LEGS_DURATION_CUT");
+  });
+
+  it("poor_sleep reduces duration", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "tired", reason_tags: ["poor_sleep"] }),
+      }),
+    );
+    expect(result.applied_rules).toContain("DRIVER_POOR_SLEEP_DURATION_CUT");
+  });
+
+  it("mental_fog has negative duration bias (keeps duration)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "tired", reason_tags: ["mental_fog"] }),
+      }),
+    );
+    expect(result.applied_rules).toContain("DRIVER_MENTAL_FOG_DURATION_KEEP");
+  });
+
+  it("2 drivers trigger compound dual intensity cap", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "tired", reason_tags: ["poor_sleep", "heavy_legs"] }),
+      }),
+    );
+    expect(result.applied_rules).toContain("COMPOUND_FATIGUE_DUAL");
+    expect(result.intensity_multiplier).toBeLessThanOrEqual(0.93);
+  });
+
+  it("3+ drivers trigger compound 3plus intensity cap", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "tired",
+          reason_tags: ["poor_sleep", "heavy_legs", "mental_fog"],
+        }),
+      }),
+    );
+    expect(result.applied_rules).toContain("COMPOUND_FATIGUE_3PLUS");
+    expect(result.intensity_multiplier).toBeLessThanOrEqual(0.88);
+  });
+
+  it("okay mood with life_stress driver applies duration bias", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "okay", reason_tags: ["life_stress"] }),
+      }),
+    );
+    expect(result.applied_rules).toContain("DRIVER_LIFE_STRESS_DURATION_CUT");
+  });
+
+  it("motivation driver keeps duration (negative bias)", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "okay", reason_tags: ["motivation"] }),
+      }),
+    );
+    expect(result.applied_rules).toContain("DRIVER_MOTIVATION_DURATION_KEEP");
+  });
+
+  it("drained mood skips driver analysis", () => {
+    const result = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({
+          mood: "drained",
+          reason_bucket: "fried",
+          reason_tags: ["poor_sleep", "heavy_legs", "mental_fog"],
+        }),
+      }),
+    );
+    expect(result.applied_rules).not.toContain("COMPOUND_FATIGUE_3PLUS");
+    expect(result.applied_rules).not.toContain("DRIVER_POOR_SLEEP_DURATION_CUT");
+  });
+
+  it("empty reason_tags has no effect", () => {
+    const baseline = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "tired" }),
+      }),
+    );
+    const withEmpty = calibrateSession(
+      makeInput({
+        morning_checkin: makeCheckin({ mood: "tired", reason_tags: [] }),
+      }),
+    );
+    expect(withEmpty.duration_multiplier).toBe(baseline.duration_multiplier);
+    expect(withEmpty.intensity_multiplier).toBe(baseline.intensity_multiplier);
   });
 });
 
