@@ -63,6 +63,10 @@ const UserFlagsRequestSchema = z.object({
   reason_tags: z.array(z.string().max(50)).max(10).optional(),
   pain_severity: z.number().int().min(0).max(10).optional(),
   pain_locations: z.array(z.string().max(50)).max(20).optional(),
+  sleep_quality: z.number().int().min(1).max(5).optional(),
+  perceived_energy: z.number().int().min(1).max(5).optional(),
+  motivation: z.number().int().min(1).max(5).optional(),
+  life_stress: z.number().int().min(1).max(5).optional(),
   time_constraint_minutes: z.number().int().min(1).optional(),
   checkin_version: z.number().int().min(1).optional(),
   payload: z.record(z.unknown()).optional(),
@@ -290,6 +294,10 @@ async function runPostPersistCalibration(
     reason_bucket?: string;
     pain_severity?: number;
     pain_locations?: string[];
+    sleep_quality?: number;
+    perceived_energy?: number;
+    motivation?: number;
+    life_stress?: number;
     time_constraint_minutes?: number;
   },
 ): Promise<CalibrationResult | null> {
@@ -307,6 +315,10 @@ async function runPostPersistCalibration(
         : null,
       pain_severity: checkinPayload.pain_severity ?? null,
       pain_locations: checkinPayload.pain_locations ?? null,
+      sleep_quality: checkinPayload.sleep_quality ?? null,
+      perceived_energy: checkinPayload.perceived_energy ?? null,
+      motivation: checkinPayload.motivation ?? null,
+      life_stress: checkinPayload.life_stress ?? null,
       time_constraint_minutes: checkinPayload.time_constraint_minutes ?? null,
     };
 
@@ -445,6 +457,17 @@ export default async function handler(
   const date = payload.date ?? new Date().toISOString().slice(0, 10);
   const recorded_at = new Date().toISOString();
 
+  // Extract scale values: prefer top-level fields, fall back to payload
+  const payloadObj = (payload.payload ?? {}) as Record<string, unknown>;
+  const sleepQuality = payload.sleep_quality
+    ?? (typeof payloadObj.sleep_quality === "number" ? payloadObj.sleep_quality : undefined);
+  const perceivedEnergy = payload.perceived_energy
+    ?? (typeof payloadObj.perceived_energy === "number" ? payloadObj.perceived_energy : undefined);
+  const motivation = payload.motivation
+    ?? (typeof payloadObj.motivation === "number" ? payloadObj.motivation : undefined);
+  const lifeStress = payload.life_stress
+    ?? (typeof payloadObj.life_stress === "number" ? payloadObj.life_stress : undefined);
+
   // Persist
   const result = await upsertDailyCheckin({
     user_id: userId,
@@ -459,6 +482,10 @@ export default async function handler(
     reason_tags: payload.reason_tags,
     pain_severity: payload.pain_severity,
     pain_locations: payload.pain_locations,
+    sleep_quality: sleepQuality,
+    perceived_energy: perceivedEnergy,
+    motivation,
+    life_stress: lifeStress,
     time_constraint_minutes: payload.time_constraint_minutes,
     checkin_version: payload.checkin_version ?? 2,
     payload: payload.payload,
@@ -489,6 +516,10 @@ export default async function handler(
     reason_bucket: payload.reason_bucket,
     pain_severity: payload.pain_severity,
     pain_locations: payload.pain_locations,
+    sleep_quality: sleepQuality,
+    perceived_energy: perceivedEnergy,
+    motivation,
+    life_stress: lifeStress,
     time_constraint_minutes: payload.time_constraint_minutes,
   });
 

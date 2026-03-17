@@ -591,6 +591,10 @@ export interface DailyCheckinRow {
   reason_bucket: string | null;
   pain_severity: number | null;
   pain_locations: string[] | null;
+  sleep_quality: number | null;
+  perceived_energy: number | null;
+  motivation: number | null;
+  life_stress: number | null;
   time_constraint_minutes: number | null;
   payload: Record<string, unknown> | null;
 }
@@ -612,7 +616,7 @@ export async function getDailyCheckin(
 
   const { data, error } = await client
     .from("daily_checkins")
-    .select("mood, rpe, soreness, pain_flag, illness_flag, reason_bucket, pain_severity, pain_locations, time_constraint_minutes, payload")
+    .select("mood, rpe, soreness, pain_flag, illness_flag, reason_bucket, pain_severity, pain_locations, sleep_quality, perceived_energy, motivation, life_stress, time_constraint_minutes, payload")
     .eq("user_id", userId)
     .eq("date", date)
     .maybeSingle();
@@ -713,6 +717,10 @@ export interface UpsertDailyCheckinParams {
   reason_tags?: string[] | null;
   pain_severity?: number | null;
   pain_locations?: string[] | null;
+  sleep_quality?: number | null;
+  perceived_energy?: number | null;
+  motivation?: number | null;
+  life_stress?: number | null;
   time_constraint_minutes?: number | null;
   checkin_version?: number;
   payload?: Record<string, unknown> | null;
@@ -747,6 +755,10 @@ export async function upsertDailyCheckin(
       reason_tags: params.reason_tags ?? [],
       pain_severity: params.pain_severity ?? null,
       pain_locations: params.pain_locations ?? [],
+      sleep_quality: params.sleep_quality ?? null,
+      perceived_energy: params.perceived_energy ?? null,
+      motivation: params.motivation ?? null,
+      life_stress: params.life_stress ?? null,
       time_constraint_minutes: params.time_constraint_minutes ?? null,
       checkin_version: params.checkin_version ?? 1,
       payload: params.payload ?? {},

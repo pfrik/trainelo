@@ -278,6 +278,10 @@ function mapCheckinForCalibrator(row: DailyCheckinRow | null): CalibratorCheckin
       : null,
     pain_severity: row.pain_severity,
     pain_locations: row.pain_locations,
+    sleep_quality: row.sleep_quality,
+    perceived_energy: row.perceived_energy,
+    motivation: row.motivation,
+    life_stress: row.life_stress,
     time_constraint_minutes: row.time_constraint_minutes,
     upgrade_type: upgradeType,
   };
