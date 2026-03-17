@@ -122,6 +122,53 @@ const TIME_OPTIONS: { label: string; value: number | null }[] = [
   { label: "45m", value: 45 },
 ];
 
+// Tired flow: fatigue driver definitions with expandable detail sections
+type TiredDriverId = "poor_sleep" | "heavy_legs" | "low_energy" | "mental_fog";
+
+interface TiredDriverConfig {
+  id: TiredDriverId;
+  label: string;
+  subtitle: string;
+  scaleName: string;
+  tags: string[];
+  tagsLabel: string;
+}
+
+const TIRED_DRIVERS: TiredDriverConfig[] = [
+  {
+    id: "poor_sleep",
+    label: "Poor Sleep",
+    subtitle: "Duration or Quality issues",
+    scaleName: "Sleep Quality (1-5)",
+    tags: ["Too Short", "Restless", "Late Night", "Woke Up Often"],
+    tagsLabel: "Issues",
+  },
+  {
+    id: "heavy_legs",
+    label: "Heavy Legs",
+    subtitle: "Muscle fatigue or physical soreness",
+    scaleName: "Soreness Level (1-5)",
+    tags: ["Quads", "Calves", "Hamstrings", "Glutes"],
+    tagsLabel: "Affected Areas",
+  },
+  {
+    id: "low_energy",
+    label: "Low Energy",
+    subtitle: "General lack of vitality",
+    scaleName: "Energy Level (1-5)",
+    tags: ["Physical Fatigue", "Drowsy", "Hungry"],
+    tagsLabel: "Feeling...",
+  },
+  {
+    id: "mental_fog",
+    label: "Mental Fog",
+    subtitle: "Difficulty concentrating",
+    scaleName: "Fog Intensity (1-5)",
+    tags: ["Stressful day", "Lack of focus", "Headache"],
+    tagsLabel: "Context",
+  },
+];
+
 const SORENESS_OPTIONS = [
   { label: "No Soreness (1)", value: 1 },
   { label: "Light Soreness (2-3)", value: 2 },
@@ -160,7 +207,12 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   const [redNotes, setRedNotes] = useState("");
   const [redErrors, setRedErrors] = useState<Record<string, string>>({});
 
-  // Non-drained protocol fields
+  // Tired protocol state
+  const [tiredDrivers, setTiredDrivers] = useState<Set<TiredDriverId>>(new Set());
+  const [tiredDriverScales, setTiredDriverScales] = useState<Record<string, number | null>>({});
+  const [tiredDriverTags, setTiredDriverTags] = useState<Record<string, string[]>>({});
+
+  // Non-drained protocol fields (okay + shared)
   const [reasonTags, setReasonTags] = useState<string[]>([]);
   const [dragFactors, setDragFactors] = useState<string[]>([]);
   const [tiredTimeConstraint, setTiredTimeConstraint] = useState<number | null>(null);
@@ -201,6 +253,9 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     setRedNotes("");
     setRedErrors({});
     setRedStep(1);
+    setTiredDrivers(new Set());
+    setTiredDriverScales({});
+    setTiredDriverTags({});
     setReasonTags([]);
     setDragFactors([]);
     setTiredTimeConstraint(null);
@@ -262,6 +317,32 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     setDragFactors((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id],
     );
+  }, []);
+
+  const toggleTiredDriver = useCallback((id: TiredDriverId) => {
+    setTiredDrivers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const setTiredDriverScale = useCallback((driverId: string, value: number | null) => {
+    setTiredDriverScales((prev) => ({ ...prev, [driverId]: value }));
+  }, []);
+
+  const toggleTiredDriverTag = useCallback((driverId: string, tag: string) => {
+    setTiredDriverTags((prev) => {
+      const current = prev[driverId] ?? [];
+      const next = current.includes(tag)
+        ? current.filter((t) => t !== tag)
+        : [...current, tag];
+      return { ...prev, [driverId]: next };
+    });
   }, []);
 
   // Red protocol submit
@@ -330,8 +411,36 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
 
     const p: CheckinPayload = { mood };
 
-    // Tired/okay: use drag factors as reason_tags and dedicated time constraint
-    if (mood === "tired" || mood === "okay") {
+    // Tired: driver-based diagnosis
+    if (mood === "tired") {
+      const drivers = Array.from(tiredDrivers);
+      if (drivers.length > 0) p.reason_tags = drivers;
+
+      // Map driver scales to existing fields where possible
+      if (tiredDriverScales.poor_sleep != null) {
+        p.payload = { ...p.payload, sleep_quality: tiredDriverScales.poor_sleep };
+      }
+      if (tiredDriverScales.heavy_legs != null) {
+        p.soreness = tiredDriverScales.heavy_legs * 2; // 1-5 → 2-10 range
+      }
+      if (tiredDriverScales.low_energy != null) {
+        p.payload = { ...p.payload, perceived_energy: tiredDriverScales.low_energy };
+      }
+      if (tiredDriverScales.mental_fog != null) {
+        p.payload = { ...p.payload, mental_fog_intensity: tiredDriverScales.mental_fog };
+      }
+
+      // Collect all detail tags per driver
+      const detailTags: Record<string, string[]> = {};
+      for (const d of drivers) {
+        const tags = tiredDriverTags[d];
+        if (tags && tags.length > 0) detailTags[d] = tags;
+      }
+      if (Object.keys(detailTags).length > 0) {
+        p.payload = { ...p.payload, driver_details: detailTags };
+      }
+    } else if (mood === "okay") {
+      // Okay: use drag factors as reason_tags and dedicated time constraint
       if (dragFactors.length > 0) p.reason_tags = dragFactors;
       if (tiredTimeConstraint && tiredTimeConstraint > 0) {
         p.time_constraint_minutes = tiredTimeConstraint;
@@ -365,7 +474,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     } finally {
       setSaving(false);
     }
-  }, [mood, niggle, goodTimeConstraint, upgradeType, nonRedTimeConstraint, dragFactors, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
+  }, [mood, niggle, goodTimeConstraint, upgradeType, nonRedTimeConstraint, dragFactors, tiredDrivers, tiredDriverScales, tiredDriverTags, tiredTimeConstraint, tiredNotes, reasonTags, rpe, soreness, notes, onSubmit]);
 
   // ---------------------------------------------------------------------------
   // Render: Saved
@@ -650,12 +759,174 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Tired / Okay protocol
+  // Render: Tired protocol — Fatigue Diagnosis
   // ---------------------------------------------------------------------------
 
-  if (mood === "tired" || mood === "okay") {
-    const moodLabel = mood === "tired" ? "Tired" : "Okay";
+  if (mood === "tired") {
+    const hasDrivers = tiredDrivers.size > 0;
 
+    return (
+      <div>
+        {/* Header */}
+        <header className="pb-5 border-b border-slate-600/40 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="text-green-500 flex items-center">
+              <span className="material-symbols-outlined text-2xl">bolt</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white tracking-tight">Tired Calibration</h2>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">Initial Diagnosis</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setStep("mood")}
+            className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
+            aria-label="Back to mood selection"
+          >
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </header>
+
+        <div className="pt-6 space-y-6">
+          {/* Title */}
+          <div>
+            <h1 className="text-white text-2xl font-bold leading-tight mb-1">Let&apos;s fix the fatigue.</h1>
+            <p className="text-slate-400 text-sm font-medium">What&apos;s the main driver?</p>
+          </div>
+
+          {/* Driver options with inline expanding details */}
+          <div className="space-y-3">
+            {TIRED_DRIVERS.map((driver) => {
+              const sel = tiredDrivers.has(driver.id);
+              const scale = tiredDriverScales[driver.id] ?? null;
+              const tags = tiredDriverTags[driver.id] ?? [];
+
+              return (
+                <div key={driver.id}>
+                  {/* Driver card */}
+                  <button
+                    type="button"
+                    onClick={() => toggleTiredDriver(driver.id)}
+                    className={`w-full text-left rounded-lg border transition-all ${
+                      sel
+                        ? "border-green-500 bg-green-500/5 shadow-[0_0_0_1px_#22C55E] p-4"
+                        : hasDrivers && !sel
+                          ? "border-slate-600/40 bg-slate-600/20 p-4 opacity-60"
+                          : "border-slate-600/40 bg-slate-600/20 p-4 hover:bg-slate-600/30"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-white font-bold text-sm">{driver.label}</span>
+                        <span className="text-slate-400 text-xs">{driver.subtitle}</span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                        sel
+                          ? "bg-green-500 border-green-500"
+                          : "border-slate-600/60"
+                      }`}>
+                        {sel && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Expandable detail section */}
+                  {sel && (
+                    <div className="mt-0 rounded-b-lg border border-t-0 border-green-500 bg-green-500/5 px-4 pb-4 pt-3 space-y-4">
+                      <div className="border-t border-slate-600/20 pt-4 space-y-4">
+                        {/* Scale 1-5 */}
+                        <div className="space-y-3">
+                          <p className="text-[11px] font-bold text-green-500 uppercase tracking-wider">
+                            {driver.scaleName}
+                          </p>
+                          <div className="grid grid-cols-5 gap-1 p-1 bg-slate-600/30 rounded-lg border border-slate-600/30">
+                            {[1, 2, 3, 4, 5].map((v) => (
+                              <button
+                                key={v}
+                                type="button"
+                                onClick={() => setTiredDriverScale(driver.id, scale === v ? null : v)}
+                                className={`py-2 rounded-md text-xs font-medium transition-all ${
+                                  scale === v
+                                    ? "bg-green-500 text-white font-bold shadow-[0_0_20px_-5px_rgba(34,197,94,0.3)]"
+                                    : "text-slate-400 hover:bg-white/5"
+                                }`}
+                              >
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Context tags */}
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-bold text-green-500 uppercase tracking-wider">
+                            {driver.tagsLabel}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {driver.tags.map((tag) => {
+                              const tagSel = tags.includes(tag);
+                              return (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => toggleTiredDriverTag(driver.id, tag)}
+                                  className={`px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all ${
+                                    tagSel
+                                      ? "border-green-500 bg-green-500/10 text-green-500"
+                                      : "border-slate-600/20 bg-slate-600/30 text-slate-400 hover:border-green-500/50"
+                                  }`}
+                                >
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-5 mt-6 border-t border-slate-600/40 flex flex-col gap-3">
+          <button
+            onClick={handleNonRedSubmit}
+            disabled={saving || !hasDrivers}
+            className={`w-full font-bold py-3.5 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg uppercase tracking-wide text-sm active:scale-[0.98] ${
+              saving || !hasDrivers
+                ? "bg-green-500/30 text-white/50 cursor-not-allowed shadow-none"
+                : "bg-green-500 hover:bg-green-600 text-white shadow-green-500/20"
+            }`}
+          >
+            {saving ? "Saving..." : hasDrivers ? "Complete Analysis" : "Select a driver"}
+            {!saving && hasDrivers && (
+              <span className="material-symbols-outlined text-lg">check_circle</span>
+            )}
+          </button>
+          <button
+            onClick={handleSkip}
+            disabled={saving}
+            className="w-full text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-widest py-2 transition-colors"
+          >
+            I&apos;m not sure, skip diagnosis
+          </button>
+          {saveError && (
+            <p className="text-xs text-red-400 text-center">{saveError}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Okay protocol — Calibration
+  // ---------------------------------------------------------------------------
+
+  if (mood === "okay") {
     return (
       <div>
         {/* Header */}
@@ -664,7 +935,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2 py-0.5 text-xs font-medium text-yellow-500 ring-1 ring-inset ring-yellow-500/20">
-                  Status: {moodLabel}
+                  Status: Okay
                 </span>
               </div>
               <span className="text-xs font-semibold text-slate-400 bg-slate-700/30 px-2 py-1 rounded">
