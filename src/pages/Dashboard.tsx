@@ -3,6 +3,7 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { useAuth } from '@/contexts/AuthContext';
 import { MorningCheckinFlow } from '@/components/checkin/MorningCheckinFlow';
+import { GarminSyncCard } from '@/components/garmin/GarminSyncCard';
 import type { CautionLevel, ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
 
 interface NavItemProps {
@@ -715,6 +716,9 @@ export default function Dashboard() {
 
             {/* Right Column (4/12) */}
             <div className="col-span-12 lg:col-span-4 space-y-6">
+
+              {/* Garmin Sync Status */}
+              <GarminSyncCard />
 
               {/* Recovery Score */}
               <div className="bg-light-surface dark:bg-dark-surface rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700/50 relative overflow-hidden">
