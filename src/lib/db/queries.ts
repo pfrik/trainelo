@@ -707,9 +707,9 @@ export async function insertRecommendationEvent(
 /** Row shape returned by getSyncStatuses (from sync_state table). */
 export interface SyncStateRow {
   data_type: string;
-  last_synced_at: string | null;
-  record_count: number | null;
-  status: string | null;
+  last_sync_completed_at: string | null;
+  sync_status: string | null;
+  last_sync_records_fetched: number | null;
 }
 
 /** Row shape returned by getIntegrationConnection. */
@@ -730,7 +730,7 @@ export async function getSyncStatuses(
 
   const { data, error } = await client
     .from("sync_state")
-    .select("data_type, last_synced_at, record_count, status")
+    .select("data_type, last_sync_completed_at, sync_status, last_sync_records_fetched")
     .eq("user_id", userId)
     .eq("provider", "garmin");
 

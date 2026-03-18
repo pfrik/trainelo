@@ -18,7 +18,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   getSyncStatuses,
-  getIntegrationConnection,
 } from "../../src/lib/db/queries.js";
 
 // ============================================================================
@@ -143,35 +142,37 @@ export default async function handler(
   }
 
   try {
-    const [connection, syncRows] = await Promise.all([
-      getIntegrationConnection(userId, "garmin"),
-      getSyncStatuses(userId),
-    ]);
+    const syncRows = await getSyncStatuses(userId);
+
+    // Derive connection status from sync_state rows
+    // (integration_connections isn't written by the sync script)
+    let mostRecentSync: string | null = null;
+    if (syncRows.length > 0) {
+      mostRecentSync = syncRows.reduce((latest, row) => {
+        if (!row.last_sync_completed_at) return latest;
+        if (!latest) return row.last_sync_completed_at;
+        return row.last_sync_completed_at > latest ? row.last_sync_completed_at : latest;
+      }, null as string | null);
+    }
 
     // Calculate data freshness: hours since most recent sync across all types
     let dataFreshnessHours: number | null = null;
-    if (syncRows.length > 0) {
-      const mostRecent = syncRows.reduce((latest, row) => {
-        if (!row.last_synced_at) return latest;
-        if (!latest) return row.last_synced_at;
-        return row.last_synced_at > latest ? row.last_synced_at : latest;
-      }, null as string | null);
-
-      if (mostRecent) {
-        const diffMs = Date.now() - new Date(mostRecent).getTime();
-        dataFreshnessHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
-      }
+    if (mostRecentSync) {
+      const diffMs = Date.now() - new Date(mostRecentSync).getTime();
+      dataFreshnessHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
     }
 
+    const connected = syncRows.length > 0 && mostRecentSync !== null;
+
     res.status(200).json({
-      connected: connection !== null,
+      connected,
       provider: "garmin",
-      last_connected_at: connection?.connected_at ?? null,
+      last_synced_at: mostRecentSync,
       sync_types: syncRows.map((r) => ({
         data_type: r.data_type,
-        last_synced_at: r.last_synced_at,
-        record_count: r.record_count,
-        status: r.status,
+        last_synced_at: r.last_sync_completed_at,
+        record_count: r.last_sync_records_fetched,
+        status: r.sync_status,
       })),
       data_freshness_hours: dataFreshnessHours,
     });
