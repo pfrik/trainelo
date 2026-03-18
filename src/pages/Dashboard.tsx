@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { useAuth } from '@/contexts/AuthContext';
-import { MorningCheckinFlow } from '@/components/checkin/MorningCheckinFlow';
+import { MorningCheckinFlow, type CheckinPayload } from '@/components/checkin/MorningCheckinFlow';
 import { GarminSyncCard } from '@/components/garmin/GarminSyncCard';
 import type { CautionLevel, ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
 
@@ -301,7 +301,7 @@ export default function Dashboard() {
   const [choiceState, setChoiceState] = useState<"idle" | "accepted" | "rejected">("idle");
 
   // Check-in submission handler — posts to /api/user-flags, then refetches recommendation
-  const handleCheckinSubmit = useCallback(async (payload: Record<string, unknown>) => {
+  const handleCheckinSubmit = useCallback(async (payload: CheckinPayload) => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (session?.access_token) {
       headers.Authorization = `Bearer ${session.access_token}`;

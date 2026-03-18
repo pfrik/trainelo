@@ -8,7 +8,7 @@ type Mood = "drained" | "tired" | "okay" | "good" | "great";
 type ReasonBucket = "sick" | "hurt" | "fried";
 type RecoveryType = "full_rest" | "active_recovery";
 
-interface CheckinPayload {
+export interface CheckinPayload {
   mood: Mood;
   rpe?: number;
   soreness?: number;
