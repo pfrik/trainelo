@@ -36,6 +36,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r scripts/garmin-sync/requirements.txt
 
+      - name: Restore Garmin OAuth tokens
+        uses: actions/cache@v4
+        with:
+          path: scripts/garmin-sync/.garmin_tokens
+          key: garmin-tokens
+
       - name: Run Garmin sync
         working-directory: scripts/garmin-sync
         env:

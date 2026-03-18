@@ -1,25 +1,34 @@
 """
 Garmin Connect API client wrapper.
 Handles authentication and data fetching from Garmin Connect.
+
+Supports OAuth token caching via garth to avoid repeated logins
+and Garmin's aggressive rate-limiting on cloud IPs.
 """
 
+import os
 import time
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any, Optional
 
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
 from config import GARMIN_EMAIL, GARMIN_PASSWORD, RATE_LIMIT_DELAY_SECONDS
 
+# Default token directory (next to this script)
+_DEFAULT_TOKEN_DIR = Path(__file__).parent / ".garmin_tokens"
+
 
 class GarminClient:
     """Wrapper around python-garminconnect library."""
 
-    def __init__(self, email: str = None, password: str = None):
+    def __init__(self, email: str = None, password: str = None, token_dir: str | Path | None = None):
         self.email = email or GARMIN_EMAIL
         self.password = password or GARMIN_PASSWORD
         self.client: Optional[Garmin] = None
         self._last_request_time: float = 0
+        self.token_dir = Path(token_dir) if token_dir else _DEFAULT_TOKEN_DIR
 
     def _rate_limit(self):
         """Ensure we don't make requests too quickly."""
@@ -32,9 +41,9 @@ class GarminClient:
         """
         Authenticate with Garmin Connect.
 
-        Note: If MFA is enabled on the account, you may need to:
-        1. First run may require entering MFA code interactively
-        2. The library will cache the session token for subsequent runs
+        Tries to resume from cached OAuth tokens first. Falls back to
+        full email/password login if tokens are missing or expired.
+        Saves tokens after successful authentication for next run.
 
         Returns:
             True if authentication successful
@@ -42,14 +51,37 @@ class GarminClient:
         Raises:
             GarminConnectAuthenticationError: If authentication fails
         """
+        # Try token-based resume first
+        if self.token_dir.exists():
+            try:
+                self.client = Garmin()
+                self.client.login(str(self.token_dir))
+                print(f"Resumed session from cached tokens")
+                self._save_tokens()
+                return True
+            except Exception as e:
+                print(f"Token resume failed ({e}), falling back to login...")
+                self.client = None
+
+        # Full login with credentials
         try:
             self.client = Garmin(self.email, self.password)
             self.client.login()
             print(f"Successfully authenticated as {self.email}")
+            self._save_tokens()
             return True
         except GarminConnectAuthenticationError as e:
             print(f"Authentication failed: {e}")
             raise
+
+    def _save_tokens(self):
+        """Save garth OAuth tokens to disk for reuse."""
+        try:
+            self.token_dir.mkdir(parents=True, exist_ok=True)
+            self.client.garth.dump(str(self.token_dir))
+            print(f"Saved OAuth tokens to {self.token_dir}")
+        except Exception as e:
+            print(f"Warning: Could not save tokens: {e}")
 
     def get_activities(
         self, start_date: date, end_date: date = None
