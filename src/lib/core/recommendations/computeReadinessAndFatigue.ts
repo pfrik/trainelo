@@ -93,6 +93,8 @@ export interface ReadinessAndFatigueOutput {
 const SLEEP_SCORE_LOW = 60;
 /** Hours of sleep below which SLEEP_POOR fires. */
 const SLEEP_HOURS_LOW = 6;
+/** Hours of sleep above which oversleeping penalty applies (possible illness/overtraining). */
+const SLEEP_HOURS_HIGH = 10;
 /** HRV rmssd / baseline ratio below which HRV_LOW fires. */
 const HRV_SUPPRESSION_RATIO = 0.8;
 /** 7-day total TSS above which TRAINING_LOAD_HIGH fires. */
@@ -160,12 +162,24 @@ function clamp0100(v: number): number {
 
 /**
  * Recovery signal from sleep data (0 = poor, 1 = excellent).
- * 60 % weight on sleep_score, 40 % on duration proximity to 8 h.
+ * 60 % weight on sleep_score, 40 % on duration quality.
+ *
+ * Duration scoring is asymmetric:
+ * - Under 8h: linear penalty (4h→0, 8h→1) — undersleeping is common
+ * - Over 8h: steeper penalty (8h→1, 10h→0.5, 12h→0) — oversleeping
+ *   is a stronger signal of illness or overtraining than undersleeping
  */
 function sleepSignal(s: SleepSessionInput): number {
   const scoreNorm = clamp01(s.sleep_score / 100);
   const hoursSlept = s.duration_seconds / 3600;
-  const durationNorm = clamp01(1 - Math.abs(hoursSlept - 8) / 4);
+  let durationNorm: number;
+  if (hoursSlept <= 8) {
+    // Under 8h: linear from 0 (at 4h) to 1 (at 8h)
+    durationNorm = clamp01((hoursSlept - 4) / 4);
+  } else {
+    // Over 8h: steeper decay — 0.5 at 10h, 0 at 12h
+    durationNorm = clamp01(1 - (hoursSlept - 8) / 4);
+  }
   return 0.6 * scoreNorm + 0.4 * durationNorm;
 }
 
@@ -209,7 +223,11 @@ export function computeReadinessAndFatigue(
   if (sleep) {
     sleepVal = sleepSignal(sleep);
     const hoursSlept = sleep.duration_seconds / 3600;
-    if (sleep.sleep_score < SLEEP_SCORE_LOW || hoursSlept < SLEEP_HOURS_LOW) {
+    if (
+      sleep.sleep_score < SLEEP_SCORE_LOW ||
+      hoursSlept < SLEEP_HOURS_LOW ||
+      hoursSlept >= SLEEP_HOURS_HIGH
+    ) {
       reasons.push("SLEEP_POOR");
     }
   }
@@ -431,6 +449,17 @@ export function computeReadinessAndFatigue(
       },
       mode,
     );
+  }
+
+  // --- Confidence dampening: bias toward neutral with low confidence ---
+  // With confidence 1.0: scores unchanged.
+  // With confidence 0.3: scores blend 70% toward 50 (neutral).
+  // This prevents extreme recommendations when data quality is poor.
+  if (confidence) {
+    const c = confidence.overall;
+    const NEUTRAL = 50;
+    readiness_score = clamp0100(readiness_score * c + NEUTRAL * (1 - c));
+    fatigue_score = clamp0100(fatigue_score * c + NEUTRAL * (1 - c));
   }
 
   // --- Guarantee non-empty reason_codes ---
