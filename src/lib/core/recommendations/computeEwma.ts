@@ -167,7 +167,10 @@ export function normalizeEwma(
 
   const fitness_score = clamp(0, Math.round((raw.fitness / ref) * 100), 100);
   const fatigue_score = clamp(0, Math.round((raw.fatigue / ref) * 100), 100);
-  const form_score = clamp(-100, fitness_score - fatigue_score, 100);
+  // Derive form_score from raw form (same source as form_raw) so both
+  // are consistent. Previously this used fitness_score - fatigue_score
+  // which could diverge from form_raw due to rounding and clamping.
+  const form_score = clamp(-100, Math.round((raw.form / ref) * 100), 100);
 
   return {
     fitness_score,

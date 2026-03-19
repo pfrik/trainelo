@@ -979,9 +979,9 @@ describe("computeReadinessAndFatigue", () => {
       expect(result.ewma!.form_score).toBeGreaterThan(0);
     });
 
-    it("FORM_POSITIVE fires when form_raw > 10", () => {
-      // Build scenario: trained hard 3 weeks ago, resting since
-      // This means high fitness (slow decay) but low fatigue (fast decay)
+    it("FORM_POSITIVE fires when form_score > 10", () => {
+      // Build scenario: trained hard 3 weeks ago, resting since.
+      // High fitness (slow decay) but low fatigue (fast decay) → positive form.
       const entries: DailyTssEntry[] = [];
       for (let i = 59; i >= 0; i--) {
         const d = new Date("2026-03-19T00:00:00Z");
@@ -999,13 +999,14 @@ describe("computeReadinessAndFatigue", () => {
         targetDate: "2026-03-19",
       });
 
-      // After 15 days of rest, fatigue should have decayed more than fitness
-      expect(result.ewma!.form_raw).toBeGreaterThan(10);
+      // After 15 days of rest, form_score should be positive and above threshold
+      expect(result.ewma!.form_score).toBeGreaterThan(10);
       expect(hasCode(result, "FORM_POSITIVE")).toBe(true);
     });
 
-    it("FORM_NEGATIVE fires when form_raw < -20", () => {
-      // Build scenario: low base then sudden heavy block
+    it("FORM_NEGATIVE fires when form_score < -20", () => {
+      // Build scenario: low base then sudden heavy block.
+      // Acute fatigue spikes while fitness is still low → negative form.
       const entries: DailyTssEntry[] = [];
       for (let i = 49; i >= 0; i--) {
         const d = new Date("2026-03-19T00:00:00Z");
@@ -1023,8 +1024,8 @@ describe("computeReadinessAndFatigue", () => {
         targetDate: "2026-03-19",
       });
 
-      // Acute fatigue should exceed fitness → negative form
-      expect(result.ewma!.form_raw).toBeLessThan(-20);
+      // Acute fatigue should exceed fitness → negative form score
+      expect(result.ewma!.form_score).toBeLessThan(-20);
       expect(hasCode(result, "FORM_NEGATIVE")).toBe(true);
     });
   });

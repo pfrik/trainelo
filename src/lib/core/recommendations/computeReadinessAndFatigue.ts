@@ -103,9 +103,9 @@ const MAX_TSS_REFERENCE = 700;
 const MIN_DATA_SOURCES = 2;
 /** Maximum readiness bonus from fitness (fitness_score/100 * this). */
 const FITNESS_READINESS_WEIGHT = 0.15;
-/** Form raw threshold above which FORM_POSITIVE fires. */
+/** Normalized form score above which FORM_POSITIVE fires (0-100 scale). */
 const FORM_POSITIVE_THRESHOLD = 10;
-/** Form raw threshold below which FORM_NEGATIVE fires. */
+/** Normalized form score below which FORM_NEGATIVE fires (-100 to 0 scale). */
 const FORM_NEGATIVE_THRESHOLD = -20;
 
 // ---------------------------------------------------------------------------
@@ -246,10 +246,11 @@ export function computeReadinessAndFatigue(
       fatigue_score = ewma.fatigue_score;
     }
 
-    // Form reason codes
-    if (ewma.form_raw > FORM_POSITIVE_THRESHOLD) {
+    // Form reason codes — use normalized form_score so thresholds are
+    // meaningful for all athlete levels, not just high-volume ones.
+    if (ewma.form_score > FORM_POSITIVE_THRESHOLD) {
       reasons.push("FORM_POSITIVE");
-    } else if (ewma.form_raw < FORM_NEGATIVE_THRESHOLD) {
+    } else if (ewma.form_score < FORM_NEGATIVE_THRESHOLD) {
       reasons.push("FORM_NEGATIVE");
     }
   }
