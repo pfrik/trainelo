@@ -24,6 +24,8 @@ export interface DailyState {
   fatigue_score: number;
   /** Non-empty reason codes from the scoring step. */
   reason_codes: ReasonCode[];
+  /** EWMA form score (-100 to +100). Positive = fresh+adapted, negative = overreaching. */
+  ewma_form_score?: number | null;
 }
 
 /** Minimal recent history needed for decision logic. */
@@ -54,6 +56,10 @@ const READINESS_LOW = 40;
 const READINESS_MODERATE = 65;
 /** Consecutive training days at/above which REST_DAY_DUE fires. */
 const REST_DAY_DUE_DAYS = 7;
+/** EWMA form score above which moderate tier can be promoted to normal. */
+const FORM_PROMOTE_THRESHOLD = 15;
+/** EWMA form score below which normal tier is demoted to moderate. */
+const FORM_DEMOTE_THRESHOLD = -15;
 
 // ---------------------------------------------------------------------------
 // Decision tiers
@@ -62,7 +68,8 @@ const REST_DAY_DUE_DAYS = 7;
 type Tier = "rest" | "insufficient_data" | "moderate" | "normal";
 
 function classifyTier(state: DailyState, history: DailyHistory): Tier {
-  // 1. Safety net — absolute fatigue/readiness or overdue rest
+  // 1. Safety net — absolute fatigue/readiness or overdue rest.
+  //    EWMA form never overrides the safety net.
   if (
     state.fatigue_score >= FATIGUE_HIGH ||
     state.readiness_score < READINESS_LOW ||
@@ -80,15 +87,27 @@ function classifyTier(state: DailyState, history: DailyHistory): Tier {
     return "insufficient_data";
   }
 
+  const formScore = state.ewma_form_score ?? null;
+
   // 3. Moderate concern
   if (
     state.fatigue_score >= FATIGUE_MODERATE ||
     state.readiness_score < READINESS_MODERATE
   ) {
+    // Promote to normal if EWMA form is strongly positive (fresh + adapted).
+    // The athlete has high fitness relative to fatigue — they can handle it.
+    if (formScore != null && formScore >= FORM_PROMOTE_THRESHOLD) {
+      return "normal";
+    }
     return "moderate";
   }
 
-  // 4. Normal — evidence supports full training
+  // 4. Normal — but demote to moderate if overreaching.
+  //    Negative form means fatigue is outpacing fitness adaptation.
+  if (formScore != null && formScore <= FORM_DEMOTE_THRESHOLD) {
+    return "moderate";
+  }
+
   return "normal";
 }
 

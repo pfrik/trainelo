@@ -101,6 +101,13 @@ const ACUTE_TSS_THRESHOLD = 500;
 const MAX_TSS_REFERENCE = 700;
 /** Minimum data sources to avoid INSUFFICIENT_DATA. */
 const MIN_DATA_SOURCES = 2;
+/**
+ * Fatigue penalty strength in readiness formula.
+ * Multiplicative: readiness = recovery * (1 - fatigue * FATIGUE_PENALTY_STRENGTH).
+ * At 0.6, max fatigue reduces readiness by 60% (e.g. recovery 0.85 → readiness 0.34).
+ * Previous additive formula (recovery - fatigue * 0.3) only reduced by 30 points max.
+ */
+const FATIGUE_PENALTY_STRENGTH = 0.6;
 /** Maximum readiness bonus from fitness (fitness_score/100 * this). */
 const FITNESS_READINESS_WEIGHT = 0.15;
 /** Normalized form score above which FORM_POSITIVE fires (0-100 scale). */
@@ -227,10 +234,6 @@ export function computeReadinessAndFatigue(
   const fatigueNorm = clamp01(totalTss / MAX_TSS_REFERENCE);
   let fatigue_score = Math.round(fatigueNorm * 100);
 
-  if (totalTss > ACUTE_TSS_THRESHOLD) {
-    reasons.push("TRAINING_LOAD_HIGH");
-  }
-
   // --- EWMA fitness/fatigue (when extended history provided) ---
   let ewma: NormalizedEwmaResult | undefined;
   if (
@@ -255,6 +258,19 @@ export function computeReadinessAndFatigue(
     }
   }
 
+  // TRAINING_LOAD_HIGH: use EWMA fatigue when available (harmonized),
+  // otherwise fall back to flat 7-day TSS sum. This prevents the
+  // contradictory state where EWMA fatigue=30 but TRAINING_LOAD_HIGH
+  // fires because the flat sum > 500.
+  if (ewma && !ewma.cold_start_fatigue) {
+    if (ewma.fatigue_score >= 71) {
+      // EWMA fatigue ≥71 ≈ equivalent to the old 500/700 ratio
+      reasons.push("TRAINING_LOAD_HIGH");
+    }
+  } else if (totalTss > ACUTE_TSS_THRESHOLD) {
+    reasons.push("TRAINING_LOAD_HIGH");
+  }
+
   // --- Readiness ---
   const signals = [sleepVal, hrvVal, metricsVal].filter(
     (s): s is number => s !== null,
@@ -269,7 +285,12 @@ export function computeReadinessAndFatigue(
   // readiness — not just the display score.
   const effectiveFatigueNorm =
     ewma && !ewma.cold_start_fatigue ? ewma.fatigue_score / 100 : fatigueNorm;
-  const readinessNorm = clamp01(avgRecovery - effectiveFatigueNorm * 0.3);
+  // Multiplicative penalty: high fatigue proportionally reduces readiness.
+  // At fatigue=100: readiness = recovery * (1 - 0.6) = recovery * 0.4
+  // At fatigue=50:  readiness = recovery * (1 - 0.3) = recovery * 0.7
+  // At fatigue=0:   readiness = recovery * 1.0
+  const fatiguePenalty = 1 - effectiveFatigueNorm * FATIGUE_PENALTY_STRENGTH;
+  const readinessNorm = clamp01(avgRecovery * fatiguePenalty);
   let readiness_score = Math.round(readinessNorm * 100);
 
   // --- Fitness bonus (only when EWMA has enough data) ---

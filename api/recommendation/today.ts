@@ -668,6 +668,7 @@ export default async function handler(
       readiness_score: rfOutput.readiness_score,
       fatigue_score: rfOutput.fatigue_score,
       reason_codes: rfOutput.reason_codes,
+      ewma_form_score: rfOutput.ewma?.form_score ?? null,
     };
 
     const history: DailyHistory = {
