@@ -51,6 +51,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TRAINELO_USER_ID: ${{ secrets.TRAINELO_USER_ID }}
+          GARMIN_TOKENS_BASE64: ${{ secrets.GARMIN_TOKENS_BASE64 }}
         run: |
           if [ "${{ inputs.full_sync }}" = "true" ]; then
             python sync.py --full

@@ -6,6 +6,8 @@ Supports OAuth token caching via garth to avoid repeated logins
 and Garmin's aggressive rate-limiting on cloud IPs.
 """
 
+import base64
+import json
 import os
 import time
 from datetime import date, datetime, timedelta
@@ -89,9 +91,37 @@ class GarminClient:
 
         raise last_error
 
+    def _restore_tokens_from_env(self) -> bool:
+        """
+        Restore OAuth tokens from GARMIN_TOKENS_BASE64 env var.
+        Returns True if tokens were written to disk.
+        """
+        encoded = os.environ.get("GARMIN_TOKENS_BASE64")
+        if not encoded:
+            return False
+
+        try:
+            bundle = json.loads(base64.b64decode(encoded))
+            self.token_dir.mkdir(parents=True, exist_ok=True)
+            (self.token_dir / "oauth1_token.json").write_text(
+                json.dumps(bundle["oauth1"])
+            )
+            (self.token_dir / "oauth2_token.json").write_text(
+                json.dumps(bundle["oauth2"])
+            )
+            print("Restored OAuth tokens from GARMIN_TOKENS_BASE64 secret")
+            return True
+        except Exception as e:
+            print(f"Warning: Failed to restore tokens from env: {e}")
+            return False
+
     def _try_authenticate(self) -> bool:
-        """Single authentication attempt (token resume → full login)."""
-        # Try token-based resume first
+        """Single authentication attempt (env secret → cached tokens → full login)."""
+        # Try restoring tokens from GitHub secret first
+        if not self.token_dir.exists():
+            self._restore_tokens_from_env()
+
+        # Try token-based resume
         if self.token_dir.exists():
             try:
                 self.client = Garmin()
