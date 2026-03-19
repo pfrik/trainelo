@@ -71,12 +71,16 @@ describe("computeEwma", () => {
     expect(result).toEqual({ fitness: 0, fatigue: 0, form: 0, data_days: 0 });
   });
 
-  it("returns data for a single day", () => {
+  it("returns data for a single day (zero-seeded, absorbs alpha * TSS)", () => {
     const result = computeEwma(singleImpulse(100, "2026-03-19"), "2026-03-19");
     expect(result.data_days).toBe(1);
-    expect(result.fitness).toBe(100);
-    expect(result.fatigue).toBe(100);
-    expect(result.form).toBeCloseTo(0);
+    // With zero seeding: ewma = alpha * 100 + (1-alpha) * 0 = alpha * 100
+    // alpha_fatigue ≈ 0.133, alpha_fitness ≈ 0.0235
+    expect(result.fatigue).toBeGreaterThan(10);
+    expect(result.fatigue).toBeLessThan(20);
+    expect(result.fitness).toBeGreaterThan(1);
+    expect(result.fitness).toBeLessThan(5);
+    expect(result.form).toBeLessThan(0); // fatigue absorbs more initially
   });
 
   it("returns zeroes when targetDate is before all entries", () => {
@@ -86,39 +90,71 @@ describe("computeEwma", () => {
 
   // --- Constant load convergence ---
 
-  it("converges to ~50 for constant 50 TSS/day over 60 days", () => {
-    const entries = constantLoad(50, 60);
+  it("converges to ~50 for constant 50 TSS/day over 180 days", () => {
+    // With zero seeding, fitness (tau=42) needs ~4 tau = 168 days to converge.
+    // At 180 days: 50 * (1 - exp(-180/42)) ≈ 49.3
+    const entries = constantLoad(50, 180);
     const result = computeEwma(entries, "2026-03-19");
-    expect(result.fitness).toBeCloseTo(50, 0);
+    expect(result.fitness).toBeGreaterThan(48);
+    expect(result.fitness).toBeLessThan(51);
     expect(result.fatigue).toBeCloseTo(50, 0);
-    expect(result.data_days).toBe(60);
+    expect(result.data_days).toBe(180);
   });
 
-  it("converges to ~100 for constant 100 TSS/day over 90 days", () => {
-    const entries = constantLoad(100, 90);
+  it("converges to ~100 for constant 100 TSS/day over 180 days", () => {
+    const entries = constantLoad(100, 180);
     const result = computeEwma(entries, "2026-03-19");
-    expect(result.fitness).toBeCloseTo(100, 0);
+    expect(result.fitness).toBeGreaterThan(97);
+    expect(result.fitness).toBeLessThan(101);
     expect(result.fatigue).toBeCloseTo(100, 0);
+  });
+
+  it("fatigue converges faster than fitness for constant load", () => {
+    // After 30 days of constant 50 TSS, fatigue (tau=7) should be
+    // much closer to 50 than fitness (tau=42)
+    const entries = constantLoad(50, 30);
+    const result = computeEwma(entries, "2026-03-19");
+    // Fatigue: 50 * (1 - exp(-30/7)) ≈ 50 * 0.987 ≈ 49.3
+    expect(result.fatigue).toBeGreaterThan(48);
+    // Fitness: 50 * (1 - exp(-30/42)) ≈ 50 * 0.511 ≈ 25.6
+    expect(result.fitness).toBeLessThan(30);
   });
 
   // --- Impulse response: fatigue decays faster ---
 
-  it("fatigue decays faster than fitness after a single impulse", () => {
-    // Single 100 TSS day, then compute 10 days later
-    const entries = singleImpulse(100, "2026-03-01");
-    const result = computeEwma(entries, "2026-03-11"); // 10 days later
+  it("fatigue decays faster than fitness after a training block + rest", () => {
+    // 30 days of training then 15 days of rest — the classic taper scenario.
+    // After rest, fatigue (tau=7) should have decayed much more than fitness (tau=42).
+    const entries: DailyTssEntry[] = [];
+    for (let i = 44; i >= 0; i--) {
+      const d = new Date("2026-03-19T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() - i);
+      entries.push({
+        date: d.toISOString().slice(0, 10),
+        total_tss: i >= 15 ? 80 : 0, // 30 days training, 15 days rest
+      });
+    }
+    const result = computeEwma(entries, "2026-03-19");
 
-    // Fatigue (tau=7) should have decayed more than fitness (tau=42)
+    // Fatigue should have decayed to near zero after 15 rest days (2+ tau)
+    expect(result.fatigue).toBeLessThan(10);
+    // Fitness decays slowly — still substantial after 15 days rest
+    expect(result.fitness).toBeGreaterThan(15);
     expect(result.fatigue).toBeLessThan(result.fitness);
-    // After 10 days, fatigue should be about 100 * exp(-10/7) ≈ 24
-    expect(result.fatigue).toBeLessThan(40);
-    // Fitness should still be relatively high: 100 * exp(-10/42) ≈ 79
-    expect(result.fitness).toBeGreaterThan(60);
   });
 
-  it("form is positive after impulse decay (fresh + adapted)", () => {
-    const entries = singleImpulse(100, "2026-03-01");
-    const result = computeEwma(entries, "2026-03-11");
+  it("form is positive after training block + taper (fresh + adapted)", () => {
+    // Same taper scenario: positive form means fitness exceeds fatigue
+    const entries: DailyTssEntry[] = [];
+    for (let i = 44; i >= 0; i--) {
+      const d = new Date("2026-03-19T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() - i);
+      entries.push({
+        date: d.toISOString().slice(0, 10),
+        total_tss: i >= 15 ? 80 : 0,
+      });
+    }
+    const result = computeEwma(entries, "2026-03-19");
     expect(result.form).toBeGreaterThan(0);
   });
 
@@ -146,9 +182,10 @@ describe("computeEwma", () => {
       { date: "2026-03-19", total_tss: 60 },
     ];
     const result = computeEwma(entries, "2026-03-19");
-    // Should be 100 total, same as single 100 entry
-    expect(result.fitness).toBe(100);
-    expect(result.fatigue).toBe(100);
+    // Should produce same result as a single 100 TSS entry
+    const single = computeEwma(singleImpulse(100, "2026-03-19"), "2026-03-19");
+    expect(result.fitness).toBe(single.fitness);
+    expect(result.fatigue).toBe(single.fatigue);
   });
 
   // --- Determinism ---
@@ -375,8 +412,8 @@ describe("normalizeEwma", () => {
 // ---------------------------------------------------------------------------
 
 describe("computeEwma → normalizeEwma integration", () => {
-  it("constant 50 TSS/day × 60 days → fitness_score ~50, fatigue_score ~50", () => {
-    const entries = constantLoad(50, 60);
+  it("constant 50 TSS/day × 180 days → fitness_score ~50, fatigue_score ~50", () => {
+    const entries = constantLoad(50, 180);
     const raw = computeEwma(entries, "2026-03-19");
     const norm = normalizeEwma(raw);
 
@@ -388,9 +425,18 @@ describe("computeEwma → normalizeEwma integration", () => {
     expect(norm.cold_start_fitness).toBe(false);
   });
 
-  it("impulse + decay → positive form_score (fresh + adapted)", () => {
-    const entries = singleImpulse(100, "2026-03-01");
-    const raw = computeEwma(entries, "2026-03-11");
+  it("training block + taper → positive form_score (fresh + adapted)", () => {
+    // 30 days at 80 TSS, then 15 days rest
+    const entries: DailyTssEntry[] = [];
+    for (let i = 44; i >= 0; i--) {
+      const d = new Date("2026-03-19T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() - i);
+      entries.push({
+        date: d.toISOString().slice(0, 10),
+        total_tss: i >= 15 ? 80 : 0,
+      });
+    }
+    const raw = computeEwma(entries, "2026-03-19");
     const norm = normalizeEwma(raw);
 
     expect(norm.form_score).toBeGreaterThan(0);

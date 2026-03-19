@@ -127,12 +127,13 @@ export function computeEwma(
     }
   }
 
-  // Seed at first day's TSS
-  let ewmaFatigue = dailyValues[0];
-  let ewmaFitness = dailyValues[0];
+  // Seed at 0 and let EWMA warm up naturally.
+  // Seeding at first day's TSS would create a spike artifact if the first
+  // recorded day happens to be unusually high (e.g. a race).
+  let ewmaFatigue = 0;
+  let ewmaFitness = 0;
 
-  // Walk forward from day 1
-  for (let i = 1; i < totalDays; i++) {
+  for (let i = 0; i < totalDays; i++) {
     const tss = dailyValues[i];
     ewmaFatigue = alphaFatigue * tss + (1 - alphaFatigue) * ewmaFatigue;
     ewmaFitness = alphaFitness * tss + (1 - alphaFitness) * ewmaFitness;

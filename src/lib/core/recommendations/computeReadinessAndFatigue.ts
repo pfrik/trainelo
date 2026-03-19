@@ -263,7 +263,12 @@ export function computeReadinessAndFatigue(
       ? signals.reduce((a, b) => a + b, 0) / signals.length
       : 0.5; // neutral when no recovery data
 
-  const readinessNorm = clamp01(avgRecovery - fatigueNorm * 0.3);
+  // Use EWMA fatigue for readiness penalty when available and reliable,
+  // so that decayed fatigue (rested after a hard block) actually improves
+  // readiness — not just the display score.
+  const effectiveFatigueNorm =
+    ewma && !ewma.cold_start_fatigue ? ewma.fatigue_score / 100 : fatigueNorm;
+  const readinessNorm = clamp01(avgRecovery - effectiveFatigueNorm * 0.3);
   let readiness_score = Math.round(readinessNorm * 100);
 
   // --- Fitness bonus (only when EWMA has enough data) ---

@@ -950,20 +950,33 @@ describe("computeReadinessAndFatigue", () => {
     });
 
     it("fitness provides readiness bonus when not cold start", () => {
-      // High fitness (60 days at 80 TSS/day), low fatigue from 7-day load
+      // Taper scenario: built fitness over 45 days at moderate load,
+      // then 15 days rest. Fatigue has decayed, fitness remains.
+      // The fitness bonus should lift readiness above baseline (no EWMA).
+      const taperHistory: DailyTssEntry[] = [];
+      for (let i = 59; i >= 0; i--) {
+        const d = new Date("2026-03-19T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() - i);
+        taperHistory.push({
+          date: d.toISOString().slice(0, 10),
+          total_tss: i >= 15 ? 60 : 0, // 45 days training, 15 days rest
+        });
+      }
       const result = computeReadinessAndFatigue({
         ...fullHealthyInput(),
-        trainingLoad7Days: makeLoad(100), // low 7d load
-        dailyTssHistory: makeDailyTss(80, 60),
+        trainingLoad7Days: makeLoad(0), // no recent load (rest week)
+        dailyTssHistory: taperHistory,
         targetDate: "2026-03-19",
       });
       const baseline = computeReadinessAndFatigue({
         ...fullHealthyInput(),
-        trainingLoad7Days: makeLoad(100),
+        trainingLoad7Days: makeLoad(0),
       });
 
-      // Readiness should be higher with fitness bonus
+      // With low EWMA fatigue (tapered) + fitness bonus, readiness should exceed baseline
       expect(result.readiness_score).toBeGreaterThan(baseline.readiness_score);
+      // Fitness bonus should be present (form positive after taper)
+      expect(result.ewma!.form_score).toBeGreaterThan(0);
     });
 
     it("FORM_POSITIVE fires when form_raw > 10", () => {
