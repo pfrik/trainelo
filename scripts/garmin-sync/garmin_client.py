@@ -14,7 +14,13 @@ from typing import Any, Optional
 
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
-from config import GARMIN_EMAIL, GARMIN_PASSWORD, RATE_LIMIT_DELAY_SECONDS
+from config import (
+    GARMIN_EMAIL,
+    GARMIN_PASSWORD,
+    RATE_LIMIT_DELAY_SECONDS,
+    AUTH_MAX_RETRIES,
+    AUTH_INITIAL_BACKOFF_SECONDS,
+)
 
 # Default token directory (next to this script)
 _DEFAULT_TOKEN_DIR = Path(__file__).parent / ".garmin_tokens"
@@ -37,12 +43,18 @@ class GarminClient:
             time.sleep(RATE_LIMIT_DELAY_SECONDS - elapsed)
         self._last_request_time = time.time()
 
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """Check if an exception is caused by Garmin 429 rate limiting."""
+        error_str = str(error).lower()
+        return "429" in error_str or "too many" in error_str or "max retries" in error_str
+
     def authenticate(self) -> bool:
         """
         Authenticate with Garmin Connect.
 
         Tries to resume from cached OAuth tokens first. Falls back to
         full email/password login if tokens are missing or expired.
+        Retries with exponential backoff on 429 rate-limit errors.
         Saves tokens after successful authentication for next run.
 
         Returns:
@@ -50,7 +62,35 @@ class GarminClient:
 
         Raises:
             GarminConnectAuthenticationError: If authentication fails
+            Exception: If all retry attempts are exhausted
         """
+        last_error: Exception | None = None
+
+        for attempt in range(1, AUTH_MAX_RETRIES + 1):
+            try:
+                return self._try_authenticate()
+            except GarminConnectAuthenticationError:
+                # Bad credentials — don't retry
+                raise
+            except Exception as e:
+                last_error = e
+                if not self._is_rate_limit_error(e):
+                    # Non-rate-limit error — don't retry
+                    raise
+
+                if attempt < AUTH_MAX_RETRIES:
+                    backoff = AUTH_INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                    print(f"⏳ Rate limited by Garmin (attempt {attempt}/{AUTH_MAX_RETRIES}). "
+                          f"Waiting {backoff}s before retry...")
+                    time.sleep(backoff)
+                    self.client = None
+                else:
+                    print(f"❌ All {AUTH_MAX_RETRIES} authentication attempts failed (429 rate limit)")
+
+        raise last_error
+
+    def _try_authenticate(self) -> bool:
+        """Single authentication attempt (token resume → full login)."""
         # Try token-based resume first
         if self.token_dir.exists():
             try:
@@ -59,20 +99,22 @@ class GarminClient:
                 print(f"Resumed session from cached tokens")
                 self._save_tokens()
                 return True
+            except GarminConnectAuthenticationError:
+                # Bad token + bad credentials — bubble up immediately
+                raise
             except Exception as e:
+                if self._is_rate_limit_error(e):
+                    # Don't fall through to full login — it will also 429
+                    raise
                 print(f"Token resume failed ({e}), falling back to login...")
                 self.client = None
 
         # Full login with credentials
-        try:
-            self.client = Garmin(self.email, self.password)
-            self.client.login()
-            print(f"Successfully authenticated as {self.email}")
-            self._save_tokens()
-            return True
-        except GarminConnectAuthenticationError as e:
-            print(f"Authentication failed: {e}")
-            raise
+        self.client = Garmin(self.email, self.password)
+        self.client.login()
+        print(f"Successfully authenticated as {self.email}")
+        self._save_tokens()
+        return True
 
     def _save_tokens(self):
         """Save garth OAuth tokens to disk for reuse."""

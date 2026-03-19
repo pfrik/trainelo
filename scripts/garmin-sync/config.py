@@ -40,6 +40,10 @@ DATA_TYPES = ["activities", "daily_summary", "sleep", "hrv"]
 # Rate limiting
 RATE_LIMIT_DELAY_SECONDS = 1  # Delay between API calls to avoid rate limiting
 
+# Authentication retry (Garmin SSO aggressively 429s cloud IPs)
+AUTH_MAX_RETRIES = 3
+AUTH_INITIAL_BACKOFF_SECONDS = 30  # Doubles each attempt: 30s, 60s, 120s
+
 
 def validate_config():
     """Validate that all required configuration is present."""
