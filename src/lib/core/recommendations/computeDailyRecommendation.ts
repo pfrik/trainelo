@@ -40,6 +40,9 @@ export interface TrainingLoadInput {
   total_tss: number;
 }
 
+/** Re-exported from detectTrends for convenience. */
+export type { HrvHistoryEntry } from "./detectTrends.js";
+
 export interface ComputeRecommendationInput {
   userId: string;
   date: string;

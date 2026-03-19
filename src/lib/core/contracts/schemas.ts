@@ -72,6 +72,10 @@ export const EvidenceSummarySchema = z.object({
   calibration_swap_to: z.string().nullable().optional(),
   calibration_safety_flags: z.array(z.string()).nullable().optional(),
   calibration_version: z.number().int().nullable().optional(),
+  confidence_data_availability: z.number().min(0).max(1).nullable().optional(),
+  confidence_signal_consistency: z.number().min(0).max(1).nullable().optional(),
+  confidence_data_recency: z.number().min(0).max(1).nullable().optional(),
+  baseline_mode: z.enum(["cold_start", "building", "mature"]).nullable().optional(),
 });
 
 /** Recommendation candidate schema */

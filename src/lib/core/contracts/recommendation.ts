@@ -88,6 +88,14 @@ export interface EvidenceSummary {
   calibration_safety_flags?: string[] | null;
   /** Calibrator: algorithm version (1 = initial deterministic) */
   calibration_version?: number | null;
+  /** Confidence: data availability factor (0-1) */
+  confidence_data_availability?: number | null;
+  /** Confidence: signal consistency factor (0-1) */
+  confidence_signal_consistency?: number | null;
+  /** Confidence: data recency factor (0-1) */
+  confidence_data_recency?: number | null;
+  /** Baseline mode: user data maturity */
+  baseline_mode?: "cold_start" | "building" | "mature" | null;
 }
 
 /** A single recommendation candidate */

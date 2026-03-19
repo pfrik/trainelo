@@ -52,6 +52,9 @@ import {
   getDailyUserState,
   getTrainingLoad7Days,
   getDailyCheckin,
+  getHrvHistory,
+  getUserDataDays,
+  getPriorChronicLoad,
   type DailyUserStateRow,
   type TrainingLoadRow,
   type DailyCheckinRow,
@@ -445,10 +448,13 @@ async function computeForUser(
   targetDate: string,
 ): Promise<UserOutput> {
   // 1. Fetch from DB views
-  const [stateRes, loadRes, checkinRes] = await Promise.all([
+  const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes] = await Promise.all([
     getDailyUserState(userId, targetDate),
     getTrainingLoad7Days(userId, targetDate),
     getDailyCheckin(userId, targetDate),
+    getHrvHistory(userId, targetDate, 7).catch(() => ({ data: [], error: "fetch_failed" as string | null })),
+    getUserDataDays(userId).catch(() => ({ data: 0, error: "fetch_failed" as string | null })),
+    getPriorChronicLoad(userId, targetDate).catch(() => ({ data: null, error: "fetch_failed" as string | null })),
   ]);
 
   // Query errors are fatal for this user — surface as failure, don't silently upsert
@@ -477,6 +483,13 @@ async function computeForUser(
     metrics,
     trainingLoad7Days,
     dailyCheckin,
+    hrvHistory: hrvHistRes.error ? null : hrvHistRes.data.map((r) => ({ date: r.date, hrv_rmssd: r.hrv_rmssd })),
+    totalDataDays: dataDaysRes.error ? null : dataDaysRes.data,
+    consecutiveTrainingDays: row?.days_since_rest ?? null,
+    chronicLoad28d: row?.chronic_load_28d ?? null,
+    priorChronicLoad28d: priorLoadRes.error ? null : priorLoadRes.data,
+    latestDataTimestamp: row?.last_garmin_sync_at ?? null,
+    currentTimestamp: new Date().toISOString(),
   };
   const rfOutput: ReadinessAndFatigueOutput = computeReadinessAndFatigue(rfInput);
 
@@ -500,7 +513,7 @@ async function computeForUser(
   const candidates: RecommendationCandidate[] =
     generateDailyRecommendation(state, history, constraints);
 
-  const confidence = computeConfidence(row, loadRows);
+  const confidence = rfOutput.confidence?.overall ?? computeConfidence(row, loadRows);
 
   // 6. Run calibrator (non-fatal on error)
   const calibration = runCalibratorSafe(checkinRes.data, rfOutput);
@@ -545,6 +558,10 @@ async function computeForUser(
       calibration_swap_to: calibration?.swap_to ?? null,
       calibration_safety_flags: calibration?.warnings ?? null,
       calibration_version: calibration ? 1 : null,
+      confidence_data_availability: rfOutput.confidence?.data_availability ?? null,
+      confidence_signal_consistency: rfOutput.confidence?.signal_consistency ?? null,
+      confidence_data_recency: rfOutput.confidence?.data_recency ?? null,
+      baseline_mode: rfOutput.baseline_mode ?? null,
     },
   };
 }

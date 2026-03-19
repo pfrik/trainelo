@@ -12,6 +12,7 @@ import type {
   DailyMetricsInput,
   TrainingLoadInput,
 } from "./computeDailyRecommendation";
+import type { HrvHistoryEntry } from "./detectTrends";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -670,6 +671,188 @@ describe("computeReadinessAndFatigue", () => {
       );
       const count = result.reason_codes.filter((c) => c === "FATIGUE_HIGH").length;
       expect(count).toBe(1);
+    });
+  });
+
+  // ======= Phase 5: Confidence, Baseline, Trends ============================
+
+  describe("Phase 5 — confidence, baseline mode, and trend detection", () => {
+    it("omits confidence and baseline_mode when optional inputs absent", () => {
+      const result = computeReadinessAndFatigue(fullHealthyInput());
+      expect(result.confidence).toBeUndefined();
+      expect(result.baseline_mode).toBeUndefined();
+    });
+
+    it("returns baseline_mode when totalDataDays is provided", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 3,
+      });
+      expect(result.baseline_mode).toBe("cold_start");
+    });
+
+    it("returns mature baseline_mode for 30 days", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 30,
+      });
+      expect(result.baseline_mode).toBe("mature");
+    });
+
+    it("adds COLD_START reason for cold_start baseline mode", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 3,
+      });
+      expect(hasCode(result, "COLD_START")).toBe(true);
+    });
+
+    it("does not add COLD_START for mature baseline mode", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 30,
+      });
+      expect(hasCode(result, "COLD_START")).toBe(false);
+    });
+
+    it("returns confidence breakdown when totalDataDays provided", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 30,
+        latestDataTimestamp: "2026-03-18T10:00:00Z",
+        currentTimestamp: "2026-03-18T12:00:00Z",
+      });
+      expect(result.confidence).toBeDefined();
+      expect(result.confidence!.data_availability).toBe(1); // all 4 sources
+      expect(result.confidence!.signal_consistency).toBeGreaterThan(0.5);
+      expect(result.confidence!.data_recency).toBe(1.0); // 2h old
+      expect(result.confidence!.overall).toBeGreaterThan(0);
+      expect(result.confidence!.overall).toBeLessThanOrEqual(1);
+    });
+
+    it("fires HRV_DECLINING with declining HRV history", () => {
+      const hrvHistory: HrvHistoryEntry[] = [
+        { date: "2026-03-18", hrv_rmssd: 32 },
+        { date: "2026-03-17", hrv_rmssd: 38 },
+        { date: "2026-03-16", hrv_rmssd: 44 },
+        { date: "2026-03-15", hrv_rmssd: 50 },
+        { date: "2026-03-14", hrv_rmssd: 55 },
+      ];
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        hrvHistory,
+      });
+      expect(hasCode(result, "HRV_DECLINING")).toBe(true);
+    });
+
+    it("does not fire HRV_DECLINING with stable HRV history", () => {
+      const hrvHistory: HrvHistoryEntry[] = [
+        { date: "2026-03-18", hrv_rmssd: 50 },
+        { date: "2026-03-17", hrv_rmssd: 51 },
+        { date: "2026-03-16", hrv_rmssd: 49 },
+        { date: "2026-03-15", hrv_rmssd: 50 },
+        { date: "2026-03-14", hrv_rmssd: 50 },
+      ];
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        hrvHistory,
+      });
+      expect(hasCode(result, "HRV_DECLINING")).toBe(false);
+    });
+
+    it("fires STREAK_RISK at 5 consecutive training days", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        consecutiveTrainingDays: 5,
+      });
+      expect(hasCode(result, "STREAK_RISK")).toBe(true);
+    });
+
+    it("does not fire STREAK_RISK at 4 consecutive training days", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        consecutiveTrainingDays: 4,
+      });
+      expect(hasCode(result, "STREAK_RISK")).toBe(false);
+    });
+
+    it("does not fire TRAINING_LOAD_LOW when priorChronicLoad28d is null (MVP)", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        chronicLoad28d: 100,
+        priorChronicLoad28d: null,
+      });
+      expect(hasCode(result, "TRAINING_LOAD_LOW")).toBe(false);
+    });
+
+    it("fires TRAINING_LOAD_LOW when current < 60% of prior", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        chronicLoad28d: 200,
+        priorChronicLoad28d: 500,
+      });
+      expect(hasCode(result, "TRAINING_LOAD_LOW")).toBe(true);
+    });
+
+    it("backward compat: existing tests produce same output without new fields", () => {
+      const input = fullHealthyInput();
+      const result = computeReadinessAndFatigue(input);
+      // No confidence or baseline_mode keys
+      expect("confidence" in result).toBe(false);
+      expect("baseline_mode" in result).toBe(false);
+      // Same shape as before
+      expect(result).toHaveProperty("readiness_score");
+      expect(result).toHaveProperty("fatigue_score");
+      expect(result).toHaveProperty("reason_codes");
+    });
+
+    it("confidence uses neutral recency when no latestDataTimestamp", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 30,
+        // no latestDataTimestamp
+      });
+      expect(result.confidence).toBeDefined();
+      expect(result.confidence!.data_recency).toBe(0.5);
+    });
+
+    it("fires ADAPTATION_PHASE when load increased ≥120% in mature mode", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 30,
+        chronicLoad28d: 600,
+        priorChronicLoad28d: 400,
+      });
+      expect(hasCode(result, "ADAPTATION_PHASE")).toBe(true);
+    });
+
+    it("does not fire ADAPTATION_PHASE in cold_start mode", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 3, // cold_start
+        chronicLoad28d: 600,
+        priorChronicLoad28d: 400,
+      });
+      expect(hasCode(result, "ADAPTATION_PHASE")).toBe(false);
+    });
+
+    it("does not fire ADAPTATION_PHASE when load is stable", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        totalDataDays: 30,
+        chronicLoad28d: 500,
+        priorChronicLoad28d: 500,
+      });
+      expect(hasCode(result, "ADAPTATION_PHASE")).toBe(false);
+    });
+
+    it("does not fire ADAPTATION_PHASE without totalDataDays (no baseline_mode)", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        chronicLoad28d: 600,
+        priorChronicLoad28d: 400,
+      });
+      expect(hasCode(result, "ADAPTATION_PHASE")).toBe(false);
     });
   });
 });

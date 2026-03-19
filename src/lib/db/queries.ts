@@ -477,6 +477,129 @@ export function calculateEvidence(data: UserDataSummary): CalculatedEvidence {
 }
 
 // ============================================================================
+// HRV History Query (for trend detection)
+// ============================================================================
+
+/** Row shape returned by getHrvHistory. */
+export interface HrvHistoryRow {
+  date: string;
+  hrv_rmssd: number;
+}
+
+/** Result wrapper for getHrvHistory. */
+export interface HrvHistoryResult {
+  data: HrvHistoryRow[];
+  error: string | null;
+}
+
+/**
+ * Fetch N-day HRV rmssd history from hrv_nights, newest-first.
+ * Filters out rows where hrv_rmssd is null.
+ */
+export async function getHrvHistory(
+  userId: string,
+  date: string,
+  days: number = 7,
+): Promise<HrvHistoryResult> {
+  const client = getServiceRoleClient();
+
+  const startDate = new Date(date + "T00:00:00Z");
+  startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+  const startDateStr = startDate.toISOString().slice(0, 10);
+
+  const { data, error } = await client
+    .from("hrv_nights")
+    .select("date, hrv_rmssd")
+    .eq("user_id", userId)
+    .gte("date", startDateStr)
+    .lte("date", date)
+    .not("hrv_rmssd", "is", null)
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("[db] Error fetching HRV history:", error.message);
+    return { data: [], error: error.message };
+  }
+
+  return { data: (data as HrvHistoryRow[]) || [], error: null };
+}
+
+// ============================================================================
+// User Data Days Query (for baseline mode detection)
+// ============================================================================
+
+/** Result wrapper for getUserDataDays. */
+export interface UserDataDaysResult {
+  data: number;
+  error: string | null;
+}
+
+/**
+ * Count distinct dates in canonical_daily_metrics for a user.
+ * Used to determine baseline mode (cold_start / building / mature).
+ */
+export async function getUserDataDays(
+  userId: string,
+): Promise<UserDataDaysResult> {
+  const client = getServiceRoleClient();
+
+  const { count, error } = await client
+    .from("canonical_daily_metrics")
+    .select("date", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[db] Error fetching user data days:", error.message);
+    return { data: 0, error: error.message };
+  }
+
+  return { data: count ?? 0, error: null };
+}
+
+// ============================================================================
+// Prior Chronic Load Query (for TRAINING_LOAD_LOW detection)
+// ============================================================================
+
+/** Result wrapper for getPriorChronicLoad. */
+export interface PriorChronicLoadResult {
+  data: number | null;
+  error: string | null;
+}
+
+/**
+ * Fetch chronic_load_28d from daily_user_state for 28 days prior.
+ * This gives the chronic load from the preceding 28-day window,
+ * used to detect significant load drops or increases.
+ */
+export async function getPriorChronicLoad(
+  userId: string,
+  date: string,
+): Promise<PriorChronicLoadResult> {
+  const client = getServiceRoleClient();
+
+  const priorDate = new Date(date + "T00:00:00Z");
+  priorDate.setUTCDate(priorDate.getUTCDate() - 28);
+  const priorDateStr = priorDate.toISOString().slice(0, 10);
+
+  const { data, error } = await client
+    .from("daily_user_state")
+    .select("chronic_load_28d")
+    .eq("user_id", userId)
+    .eq("date", priorDateStr)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching prior chronic load:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return {
+    data: (data as { chronic_load_28d: number } | null)?.chronic_load_28d ?? null,
+    error: null,
+  };
+}
+
+// ============================================================================
 // View Query Types
 // ============================================================================
 

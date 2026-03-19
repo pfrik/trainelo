@@ -13,6 +13,21 @@ import type {
   TrainingLoadInput,
 } from "./computeDailyRecommendation";
 import type { ReasonCode } from "../contracts";
+import type { ConfidenceBreakdown, BaselineMode } from "./computeConfidence";
+import type { HrvHistoryEntry } from "./detectTrends";
+import {
+  computeDataAvailability,
+  computeSignalConsistency,
+  computeDataRecency,
+  detectBaselineMode,
+  computeCompositeConfidence,
+} from "./computeConfidence";
+import {
+  detectHrvDeclining,
+  detectTrainingLoadLow,
+  detectStreakRisk,
+  detectAdaptationPhase,
+} from "./detectTrends";
 
 // ---------------------------------------------------------------------------
 // Input / Output types
@@ -33,6 +48,20 @@ export interface ReadinessAndFatigueInput {
   metrics: DailyMetricsInput | null;
   trainingLoad7Days: TrainingLoadInput[];
   dailyCheckin?: DailyCheckinInput | null;
+  /** 5-7 day HRV window, newest-first (for trend detection). */
+  hrvHistory?: HrvHistoryEntry[] | null;
+  /** Calendar days of user data (for baseline mode detection). */
+  totalDataDays?: number | null;
+  /** Consecutive training days from days_since_rest (for streak risk). */
+  consecutiveTrainingDays?: number | null;
+  /** 28-day chronic training load (from view). */
+  chronicLoad28d?: number | null;
+  /** Prior 28-day chronic load (from daily_user_state 28 days ago). */
+  priorChronicLoad28d?: number | null;
+  /** Timestamp of latest data sync (ISO 8601, for data recency). */
+  latestDataTimestamp?: string | null;
+  /** Current timestamp (ISO 8601) — injectable for purity; defaults to now. */
+  currentTimestamp?: string | null;
 }
 
 export interface ReadinessAndFatigueOutput {
@@ -42,6 +71,10 @@ export interface ReadinessAndFatigueOutput {
   fatigue_score: number;
   /** Non-empty array of codes explaining the scores. */
   reason_codes: ReasonCode[];
+  /** Multi-factor confidence breakdown (present when totalDataDays or latestDataTimestamp provided). */
+  confidence?: ConfidenceBreakdown;
+  /** User maturity mode (present when totalDataDays provided). */
+  baseline_mode?: BaselineMode;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,10 +287,90 @@ export function computeReadinessAndFatigue(
     fatigue_score = clamp0100(fatigue_score + fatigueDelta);
   }
 
+  // --- Trend detection (only when optional inputs are provided) ---
+  if (input.hrvHistory) {
+    const hrvCode = detectHrvDeclining(input.hrvHistory);
+    if (hrvCode && !reasons.includes(hrvCode)) {
+      reasons.push(hrvCode);
+    }
+  }
+
+  if (input.chronicLoad28d != null || input.priorChronicLoad28d != null) {
+    const loadCode = detectTrainingLoadLow(
+      input.chronicLoad28d ?? null,
+      input.priorChronicLoad28d ?? null,
+    );
+    if (loadCode && !reasons.includes(loadCode)) {
+      reasons.push(loadCode);
+    }
+  }
+
+  if (input.consecutiveTrainingDays != null) {
+    const streakCode = detectStreakRisk(input.consecutiveTrainingDays);
+    if (streakCode && !reasons.includes(streakCode)) {
+      reasons.push(streakCode);
+    }
+  }
+
+  // --- Baseline mode detection ---
+  let baseline_mode: BaselineMode | undefined;
+  if (input.totalDataDays != null) {
+    baseline_mode = detectBaselineMode(input.totalDataDays);
+    if (baseline_mode === "cold_start" && !reasons.includes("COLD_START")) {
+      reasons.push("COLD_START");
+    }
+  }
+
+  // --- Adaptation phase (needs baseline_mode, so runs after it) ---
+  if (input.chronicLoad28d != null && input.priorChronicLoad28d != null) {
+    const adaptCode = detectAdaptationPhase(
+      input.chronicLoad28d,
+      input.priorChronicLoad28d,
+      baseline_mode ?? null,
+    );
+    if (adaptCode && !reasons.includes(adaptCode)) {
+      reasons.push(adaptCode);
+    }
+  }
+
+  // --- Confidence scoring (when enough context is available) ---
+  let confidence: ConfidenceBreakdown | undefined;
+  if (input.totalDataDays != null || input.latestDataTimestamp != null) {
+    const mode = baseline_mode ?? "building";
+    const dataAvailability = computeDataAvailability(
+      !!sleep,
+      !!hrv,
+      !!metrics,
+      trainingLoad7Days.length > 0,
+    );
+    const signalConsistency = computeSignalConsistency(signals);
+    const dataRecency = input.latestDataTimestamp
+      ? computeDataRecency(
+          input.latestDataTimestamp,
+          input.currentTimestamp ?? new Date().toISOString(),
+        )
+      : 0.5; // neutral when no timestamp
+
+    confidence = computeCompositeConfidence(
+      {
+        data_availability: dataAvailability,
+        signal_consistency: signalConsistency,
+        data_recency: dataRecency,
+      },
+      mode,
+    );
+  }
+
   // --- Guarantee non-empty reason_codes ---
   if (reasons.length === 0) {
     reasons.push("RECOVERY_OPTIMAL");
   }
 
-  return { readiness_score, fatigue_score, reason_codes: reasons };
+  return {
+    readiness_score,
+    fatigue_score,
+    reason_codes: reasons,
+    ...(confidence !== undefined && { confidence }),
+    ...(baseline_mode !== undefined && { baseline_mode }),
+  };
 }
