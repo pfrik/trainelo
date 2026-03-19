@@ -20,7 +20,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -37,10 +37,11 @@ jobs:
         run: pip install -r scripts/garmin-sync/requirements.txt
 
       - name: Restore Garmin OAuth tokens
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: scripts/garmin-sync/.garmin_tokens
-          key: garmin-tokens
+          key: garmin-tokens-${{ github.run_id }}
+          restore-keys: garmin-tokens-
 
       - name: Run Garmin sync
         working-directory: scripts/garmin-sync
@@ -58,3 +59,10 @@ jobs:
           else
             python sync.py --days 3
           fi
+
+      - name: Save Garmin OAuth tokens
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: scripts/garmin-sync/.garmin_tokens
+          key: garmin-tokens-${{ github.run_id }}
