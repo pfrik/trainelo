@@ -33,6 +33,8 @@ export type ReasonCode =
   | "ADAPTATION_PHASE"
   | "INSUFFICIENT_DATA"
   | "COLD_START"
+  | "FORM_POSITIVE"
+  | "FORM_NEGATIVE"
   | "LLM_UNAVAILABLE"
   | "USER_PREFERENCE";
 
@@ -96,6 +98,20 @@ export interface EvidenceSummary {
   confidence_data_recency?: number | null;
   /** Baseline mode: user data maturity */
   baseline_mode?: "cold_start" | "building" | "mature" | null;
+  /** EWMA fitness score (0-100) */
+  ewma_fitness_score?: number | null;
+  /** EWMA fatigue score (0-100) */
+  ewma_fatigue_score?: number | null;
+  /** EWMA form score (-100 to 100) */
+  ewma_form_score?: number | null;
+  /** EWMA raw fitness (TSS units) */
+  ewma_fitness_raw?: number | null;
+  /** EWMA raw fatigue (TSS units) */
+  ewma_fatigue_raw?: number | null;
+  /** EWMA cold start: fatigue unreliable (<7 days data) */
+  ewma_cold_start_fatigue?: boolean | null;
+  /** EWMA cold start: fitness unreliable (<14 days data) */
+  ewma_cold_start_fitness?: boolean | null;
 }
 
 /** A single recommendation candidate */

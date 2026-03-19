@@ -700,6 +700,48 @@ export async function getTrainingLoad7Days(
 }
 
 // ============================================================================
+// Training Load History (extended range for EWMA)
+// ============================================================================
+
+/** Result wrapper for getTrainingLoadHistory. */
+export interface TrainingLoadHistoryResult {
+  data: TrainingLoadRow[];
+  error: string | null;
+}
+
+/**
+ * Fetch N-day training load rows from the daily_training_load view.
+ * Default 63 days = 1.5x fitness tau (42d) for EWMA warm-up.
+ * Returns rows per (source, date); multiple rows per day is expected.
+ */
+export async function getTrainingLoadHistory(
+  userId: string,
+  date: string,
+  days: number = 63,
+): Promise<TrainingLoadHistoryResult> {
+  const client = getServiceRoleClient();
+
+  const startDate = new Date(date + "T00:00:00Z");
+  startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+  const startDateStr = startDate.toISOString().slice(0, 10);
+
+  const { data, error } = await client
+    .from("daily_training_load")
+    .select("date, workouts_count, total_duration_seconds, total_tss")
+    .eq("user_id", userId)
+    .gte("date", startDateStr)
+    .lte("date", date)
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("[db] Error fetching training load history:", error.message);
+    return { data: [], error: error.message };
+  }
+
+  return { data: (data as TrainingLoadRow[]) || [], error: null };
+}
+
+// ============================================================================
 // Daily Check-in Read
 // ============================================================================
 

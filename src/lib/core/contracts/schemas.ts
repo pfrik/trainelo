@@ -41,6 +41,8 @@ export const ReasonCodeSchema = z.enum([
   "ADAPTATION_PHASE",
   "INSUFFICIENT_DATA",
   "COLD_START",
+  "FORM_POSITIVE",
+  "FORM_NEGATIVE",
   "LLM_UNAVAILABLE",
   "USER_PREFERENCE",
 ]);
@@ -76,6 +78,13 @@ export const EvidenceSummarySchema = z.object({
   confidence_signal_consistency: z.number().min(0).max(1).nullable().optional(),
   confidence_data_recency: z.number().min(0).max(1).nullable().optional(),
   baseline_mode: z.enum(["cold_start", "building", "mature"]).nullable().optional(),
+  ewma_fitness_score: z.number().min(0).max(100).nullable().optional(),
+  ewma_fatigue_score: z.number().min(0).max(100).nullable().optional(),
+  ewma_form_score: z.number().min(-100).max(100).nullable().optional(),
+  ewma_fitness_raw: z.number().nullable().optional(),
+  ewma_fatigue_raw: z.number().nullable().optional(),
+  ewma_cold_start_fatigue: z.boolean().nullable().optional(),
+  ewma_cold_start_fitness: z.boolean().nullable().optional(),
 });
 
 /** Recommendation candidate schema */

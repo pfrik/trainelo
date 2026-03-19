@@ -55,10 +55,12 @@ import {
   getHrvHistory,
   getUserDataDays,
   getPriorChronicLoad,
+  getTrainingLoadHistory,
   type DailyUserStateRow,
   type TrainingLoadRow,
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
+import type { DailyTssEntry } from "../../src/lib/core/recommendations/computeEwma.js";
 import {
   calibrateSession,
   type CalibratorInput,
@@ -235,6 +237,15 @@ function mapTrainingLoad(rows: TrainingLoadRow[]): TrainingLoadInput[] {
     total_duration_seconds: r.total_duration_seconds,
     total_tss: r.total_tss,
   }));
+}
+
+/** Aggregate per-source training load rows into per-date TSS totals. */
+function aggregateDailyTss(rows: TrainingLoadRow[]): DailyTssEntry[] {
+  const byDate = new Map<string, number>();
+  for (const r of rows) {
+    byDate.set(r.date, (byDate.get(r.date) ?? 0) + r.total_tss);
+  }
+  return Array.from(byDate, ([date, total_tss]) => ({ date, total_tss }));
 }
 
 const VALID_MOODS = new Set(["drained", "tired", "okay", "good", "great"]);
@@ -448,13 +459,14 @@ async function computeForUser(
   targetDate: string,
 ): Promise<UserOutput> {
   // 1. Fetch from DB views
-  const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes] = await Promise.all([
+  const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes] = await Promise.all([
     getDailyUserState(userId, targetDate),
     getTrainingLoad7Days(userId, targetDate),
     getDailyCheckin(userId, targetDate),
     getHrvHistory(userId, targetDate, 7).catch(() => ({ data: [], error: "fetch_failed" as string | null })),
     getUserDataDays(userId).catch(() => ({ data: 0, error: "fetch_failed" as string | null })),
     getPriorChronicLoad(userId, targetDate).catch(() => ({ data: null, error: "fetch_failed" as string | null })),
+    getTrainingLoadHistory(userId, targetDate, 63).catch(() => ({ data: [], error: "fetch_failed" as string | null })),
   ]);
 
   // Query errors are fatal for this user — surface as failure, don't silently upsert
@@ -477,6 +489,7 @@ async function computeForUser(
   const dailyCheckin = mapCheckin(checkinRes.data);
 
   // 3. Compute readiness & fatigue
+  const dailyTssHistory = loadHistRes.error ? null : aggregateDailyTss(loadHistRes.data);
   const rfInput: ReadinessAndFatigueInput = {
     sleep,
     hrv,
@@ -490,6 +503,8 @@ async function computeForUser(
     priorChronicLoad28d: priorLoadRes.error ? null : priorLoadRes.data,
     latestDataTimestamp: row?.last_garmin_sync_at ?? null,
     currentTimestamp: new Date().toISOString(),
+    dailyTssHistory,
+    targetDate,
   };
   const rfOutput: ReadinessAndFatigueOutput = computeReadinessAndFatigue(rfInput);
 
@@ -562,6 +577,14 @@ async function computeForUser(
       confidence_signal_consistency: rfOutput.confidence?.signal_consistency ?? null,
       confidence_data_recency: rfOutput.confidence?.data_recency ?? null,
       baseline_mode: rfOutput.baseline_mode ?? null,
+      ewma_fitness_score: rfOutput.ewma?.fitness_score ?? null,
+      ewma_fatigue_score: rfOutput.ewma?.fatigue_score ?? null,
+      ewma_form_score: rfOutput.ewma?.form_score ?? null,
+      ewma_fitness_raw: rfOutput.ewma?.fitness_raw ?? null,
+      ewma_fatigue_raw: rfOutput.ewma?.fatigue_raw ?? null,
+      ewma_cold_start_fatigue: rfOutput.ewma?.cold_start_fatigue ?? null,
+      ewma_cold_start_fitness: rfOutput.ewma?.cold_start_fitness ?? null,
+      fitness_score: rfOutput.ewma?.fitness_score ?? null,
     },
   };
 }

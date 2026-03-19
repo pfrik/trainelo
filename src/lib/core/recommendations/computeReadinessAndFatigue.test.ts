@@ -6,6 +6,7 @@ import {
   type DailyCheckinInput,
 } from "./computeReadinessAndFatigue";
 import type { ReasonCode } from "../contracts";
+import type { DailyTssEntry } from "./computeEwma";
 import type {
   SleepSessionInput,
   HrvNightInput,
@@ -853,6 +854,165 @@ describe("computeReadinessAndFatigue", () => {
         priorChronicLoad28d: 400,
       });
       expect(hasCode(result, "ADAPTATION_PHASE")).toBe(false);
+    });
+  });
+
+  // ======= Phase 6: EWMA fitness/fatigue integration ========================
+
+  describe("Phase 6 — EWMA fitness/fatigue integration", () => {
+    /** Generate N days of constant TSS ending on a fixed date. */
+    function makeDailyTss(tssPerDay: number, days: number): DailyTssEntry[] {
+      const entries: DailyTssEntry[] = [];
+      const end = new Date("2026-03-19T00:00:00Z");
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(end);
+        d.setUTCDate(d.getUTCDate() - i);
+        entries.push({
+          date: d.toISOString().slice(0, 10),
+          total_tss: tssPerDay,
+        });
+      }
+      return entries;
+    }
+
+    it("omits ewma when dailyTssHistory is absent", () => {
+      const result = computeReadinessAndFatigue(fullHealthyInput());
+      expect(result.ewma).toBeUndefined();
+    });
+
+    it("omits ewma when dailyTssHistory is null", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        dailyTssHistory: null,
+        targetDate: "2026-03-19",
+      });
+      expect(result.ewma).toBeUndefined();
+    });
+
+    it("omits ewma when dailyTssHistory is empty", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        dailyTssHistory: [],
+        targetDate: "2026-03-19",
+      });
+      expect(result.ewma).toBeUndefined();
+    });
+
+    it("omits ewma when targetDate is null", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        dailyTssHistory: makeDailyTss(50, 30),
+        targetDate: null,
+      });
+      expect(result.ewma).toBeUndefined();
+    });
+
+    it("backward compat: identical scores without EWMA input", () => {
+      const input = fullHealthyInput();
+      const withoutEwma = computeReadinessAndFatigue(input);
+      const withNullEwma = computeReadinessAndFatigue({
+        ...input,
+        dailyTssHistory: null,
+        targetDate: null,
+      });
+      expect(withoutEwma.readiness_score).toBe(withNullEwma.readiness_score);
+      expect(withoutEwma.fatigue_score).toBe(withNullEwma.fatigue_score);
+      expect(withoutEwma.reason_codes).toEqual(withNullEwma.reason_codes);
+    });
+
+    it("returns ewma when history is provided", () => {
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        dailyTssHistory: makeDailyTss(50, 30),
+        targetDate: "2026-03-19",
+      });
+      expect(result.ewma).toBeDefined();
+      expect(result.ewma!.fitness_score).toBeGreaterThan(0);
+      expect(result.ewma!.fatigue_score).toBeGreaterThan(0);
+      expect(result.ewma!.data_days).toBe(30);
+      expect(result.ewma!.cold_start_fatigue).toBe(false);
+      expect(result.ewma!.cold_start_fitness).toBe(false);
+    });
+
+    it("cold start fatigue preserves legacy fatigue_score", () => {
+      // Only 5 days of history → cold_start_fatigue=true
+      const shortHistory = makeDailyTss(80, 5);
+      const withEwma = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        dailyTssHistory: shortHistory,
+        targetDate: "2026-03-19",
+      });
+      const withoutEwma = computeReadinessAndFatigue(fullHealthyInput());
+
+      // Should keep legacy fatigue score
+      expect(withEwma.fatigue_score).toBe(withoutEwma.fatigue_score);
+      expect(withEwma.ewma!.cold_start_fatigue).toBe(true);
+    });
+
+    it("fitness provides readiness bonus when not cold start", () => {
+      // High fitness (60 days at 80 TSS/day), low fatigue from 7-day load
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        trainingLoad7Days: makeLoad(100), // low 7d load
+        dailyTssHistory: makeDailyTss(80, 60),
+        targetDate: "2026-03-19",
+      });
+      const baseline = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        trainingLoad7Days: makeLoad(100),
+      });
+
+      // Readiness should be higher with fitness bonus
+      expect(result.readiness_score).toBeGreaterThan(baseline.readiness_score);
+    });
+
+    it("FORM_POSITIVE fires when form_raw > 10", () => {
+      // Build scenario: trained hard 3 weeks ago, resting since
+      // This means high fitness (slow decay) but low fatigue (fast decay)
+      const entries: DailyTssEntry[] = [];
+      for (let i = 59; i >= 0; i--) {
+        const d = new Date("2026-03-19T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() - i);
+        // High TSS for first 45 days, then rest for last 15 days
+        entries.push({
+          date: d.toISOString().slice(0, 10),
+          total_tss: i >= 15 ? 80 : 0,
+        });
+      }
+
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        dailyTssHistory: entries,
+        targetDate: "2026-03-19",
+      });
+
+      // After 15 days of rest, fatigue should have decayed more than fitness
+      expect(result.ewma!.form_raw).toBeGreaterThan(10);
+      expect(hasCode(result, "FORM_POSITIVE")).toBe(true);
+    });
+
+    it("FORM_NEGATIVE fires when form_raw < -20", () => {
+      // Build scenario: low base then sudden heavy block
+      const entries: DailyTssEntry[] = [];
+      for (let i = 49; i >= 0; i--) {
+        const d = new Date("2026-03-19T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() - i);
+        // Low TSS for first 40 days, then very high for last 10 days
+        entries.push({
+          date: d.toISOString().slice(0, 10),
+          total_tss: i >= 10 ? 20 : 150,
+        });
+      }
+
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        dailyTssHistory: entries,
+        targetDate: "2026-03-19",
+      });
+
+      // Acute fatigue should exceed fitness → negative form
+      expect(result.ewma!.form_raw).toBeLessThan(-20);
+      expect(hasCode(result, "FORM_NEGATIVE")).toBe(true);
     });
   });
 });

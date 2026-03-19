@@ -80,6 +80,8 @@ const REASON_CODE_LABELS: Record<ReasonCode, string> = {
   ADAPTATION_PHASE: "Adapting",
   INSUFFICIENT_DATA: "Limited data",
   COLD_START: "New user",
+  FORM_POSITIVE: "Fresh & adapted",
+  FORM_NEGATIVE: "Overreaching",
   LLM_UNAVAILABLE: "AI unavailable",
   USER_PREFERENCE: "Your preference",
 };

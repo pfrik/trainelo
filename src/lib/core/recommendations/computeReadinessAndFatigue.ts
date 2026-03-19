@@ -15,6 +15,8 @@ import type {
 import type { ReasonCode } from "../contracts";
 import type { ConfidenceBreakdown, BaselineMode } from "./computeConfidence";
 import type { HrvHistoryEntry } from "./detectTrends";
+import type { DailyTssEntry, NormalizedEwmaResult } from "./computeEwma";
+import { computeEwma, normalizeEwma } from "./computeEwma";
 import {
   computeDataAvailability,
   computeSignalConsistency,
@@ -62,6 +64,10 @@ export interface ReadinessAndFatigueInput {
   latestDataTimestamp?: string | null;
   /** Current timestamp (ISO 8601) — injectable for purity; defaults to now. */
   currentTimestamp?: string | null;
+  /** Extended daily TSS history (typically 63 days) for EWMA computation. */
+  dailyTssHistory?: DailyTssEntry[] | null;
+  /** Target date for EWMA alignment (YYYY-MM-DD). */
+  targetDate?: string | null;
 }
 
 export interface ReadinessAndFatigueOutput {
@@ -75,6 +81,8 @@ export interface ReadinessAndFatigueOutput {
   confidence?: ConfidenceBreakdown;
   /** User maturity mode (present when totalDataDays provided). */
   baseline_mode?: BaselineMode;
+  /** EWMA normalized result (present when dailyTssHistory provided). */
+  ewma?: NormalizedEwmaResult;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +101,12 @@ const ACUTE_TSS_THRESHOLD = 500;
 const MAX_TSS_REFERENCE = 700;
 /** Minimum data sources to avoid INSUFFICIENT_DATA. */
 const MIN_DATA_SOURCES = 2;
+/** Maximum readiness bonus from fitness (fitness_score/100 * this). */
+const FITNESS_READINESS_WEIGHT = 0.15;
+/** Form raw threshold above which FORM_POSITIVE fires. */
+const FORM_POSITIVE_THRESHOLD = 10;
+/** Form raw threshold below which FORM_NEGATIVE fires. */
+const FORM_NEGATIVE_THRESHOLD = -20;
 
 // ---------------------------------------------------------------------------
 // Check-in adjustment constants
@@ -217,6 +231,29 @@ export function computeReadinessAndFatigue(
     reasons.push("TRAINING_LOAD_HIGH");
   }
 
+  // --- EWMA fitness/fatigue (when extended history provided) ---
+  let ewma: NormalizedEwmaResult | undefined;
+  if (
+    input.dailyTssHistory &&
+    input.dailyTssHistory.length > 0 &&
+    input.targetDate
+  ) {
+    const rawEwma = computeEwma(input.dailyTssHistory, input.targetDate);
+    ewma = normalizeEwma(rawEwma);
+
+    // Replace flat-sum fatigue with EWMA fatigue when not in cold start
+    if (!ewma.cold_start_fatigue) {
+      fatigue_score = ewma.fatigue_score;
+    }
+
+    // Form reason codes
+    if (ewma.form_raw > FORM_POSITIVE_THRESHOLD) {
+      reasons.push("FORM_POSITIVE");
+    } else if (ewma.form_raw < FORM_NEGATIVE_THRESHOLD) {
+      reasons.push("FORM_NEGATIVE");
+    }
+  }
+
   // --- Readiness ---
   const signals = [sleepVal, hrvVal, metricsVal].filter(
     (s): s is number => s !== null,
@@ -228,6 +265,14 @@ export function computeReadinessAndFatigue(
 
   const readinessNorm = clamp01(avgRecovery - fatigueNorm * 0.3);
   let readiness_score = Math.round(readinessNorm * 100);
+
+  // --- Fitness bonus (only when EWMA has enough data) ---
+  if (ewma && !ewma.cold_start_fitness) {
+    const fitnessBonus = Math.round(
+      (ewma.fitness_score / 100) * FITNESS_READINESS_WEIGHT * 100,
+    );
+    readiness_score = clamp0100(readiness_score + fitnessBonus);
+  }
 
   // --- Daily check-in adjustments ---
   const checkin = input.dailyCheckin;
@@ -372,5 +417,6 @@ export function computeReadinessAndFatigue(
     reason_codes: reasons,
     ...(confidence !== undefined && { confidence }),
     ...(baseline_mode !== undefined && { baseline_mode }),
+    ...(ewma !== undefined && { ewma }),
   };
 }

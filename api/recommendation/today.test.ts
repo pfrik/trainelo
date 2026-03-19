@@ -16,6 +16,7 @@ vi.mock("../../src/lib/db/queries.js", () => ({
   getHrvHistory: vi.fn().mockResolvedValue({ data: [], error: null }),
   getUserDataDays: vi.fn().mockResolvedValue({ data: 0, error: null }),
   getPriorChronicLoad: vi.fn().mockResolvedValue({ data: null, error: null }),
+  getTrainingLoadHistory: vi.fn().mockResolvedValue({ data: [], error: null }),
 }));
 
 // Mock @supabase/supabase-js to prevent real client creation
@@ -28,6 +29,7 @@ import {
   getDailyUserState,
   getTrainingLoad7Days,
   getDailyCheckin,
+  getTrainingLoadHistory,
 } from "../../src/lib/db/queries.js";
 
 // ---------------------------------------------------------------------------
@@ -283,5 +285,98 @@ describe("POST /api/recommendation/today — calibration evidence", () => {
     expect(evidence.calibration_level).toBe("green");
     expect(evidence.calibration_intensity_multiplier).toBe(1.0);
     expect(evidence.calibration_applied_rules).toContain("NO_CHECKIN");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — EWMA evidence integration
+// ---------------------------------------------------------------------------
+
+describe("POST /api/recommendation/today — EWMA evidence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.TRAINELO_USER_ID = "test-user";
+  });
+
+  it("includes EWMA evidence fields when training load history is provided", async () => {
+    // Generate 30 days of training load history (50 TSS/day)
+    const today = new Date().toISOString().slice(0, 10);
+    const loadHistory = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      loadHistory.push({
+        date: d.toISOString().slice(0, 10),
+        workouts_count: 1,
+        total_duration_seconds: 3600,
+        total_tss: 50,
+      });
+    }
+
+    vi.mocked(getDailyUserState).mockResolvedValueOnce({
+      data: STATE_ROW,
+      error: null,
+    });
+    vi.mocked(getTrainingLoad7Days).mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+    vi.mocked(getDailyCheckin).mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    vi.mocked(getTrainingLoadHistory).mockResolvedValueOnce({
+      data: loadHistory,
+      error: null,
+    });
+
+    const req = makeReq();
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const evidence = res._body.evidence;
+
+    // EWMA fields should be present
+    expect(evidence.ewma_fitness_score).toBeTypeOf("number");
+    expect(evidence.ewma_fatigue_score).toBeTypeOf("number");
+    expect(evidence.ewma_form_score).toBeTypeOf("number");
+    expect(evidence.ewma_fitness_raw).toBeTypeOf("number");
+    expect(evidence.ewma_fatigue_raw).toBeTypeOf("number");
+    expect(evidence.ewma_cold_start_fatigue).toBe(false);
+    expect(evidence.ewma_cold_start_fitness).toBe(false);
+    // fitness_score should be derived from EWMA
+    expect(evidence.fitness_score).toBeTypeOf("number");
+  });
+
+  it("returns null EWMA fields when no training load history", async () => {
+    vi.mocked(getDailyUserState).mockResolvedValueOnce({
+      data: STATE_ROW,
+      error: null,
+    });
+    vi.mocked(getTrainingLoad7Days).mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+    vi.mocked(getDailyCheckin).mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    vi.mocked(getTrainingLoadHistory).mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    const req = makeReq();
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    const evidence = res._body.evidence;
+
+    // No EWMA data → null fields
+    expect(evidence.ewma_fitness_score).toBeNull();
+    expect(evidence.ewma_fatigue_score).toBeNull();
+    expect(evidence.ewma_form_score).toBeNull();
   });
 });
