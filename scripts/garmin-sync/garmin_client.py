@@ -117,8 +117,11 @@ class GarminClient:
 
     def _try_authenticate(self) -> bool:
         """Single authentication attempt (env secret → cached tokens → full login)."""
-        # Try restoring tokens from GitHub secret first
-        if not self.token_dir.exists():
+        # Always prefer tokens from GARMIN_TOKENS_BASE64 when set —
+        # the env secret is fresher than stale tokens restored from Actions cache.
+        if os.environ.get("GARMIN_TOKENS_BASE64"):
+            self._restore_tokens_from_env()
+        elif not self.token_dir.exists():
             self._restore_tokens_from_env()
 
         # Try token-based resume
