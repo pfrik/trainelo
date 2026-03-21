@@ -19,6 +19,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   getSyncStatuses,
 } from "../../src/lib/db/queries.js";
+import { createLogger, generateRequestId } from "../../src/lib/core/observability/log.js";
 
 // ============================================================================
 // Auth helpers (same pattern as recommendation/today)
@@ -121,6 +122,8 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
+  const log = createLogger("garmin/sync-status", generateRequestId());
+
   if (req.method !== "GET") {
     res.status(405).json({ error: "Method not allowed" });
     return;
@@ -177,7 +180,7 @@ export default async function handler(
       data_freshness_hours: dataFreshnessHours,
     });
   } catch (err) {
-    console.error("[sync-status] Error:", err);
+    log.error("sync status failed", { error: err instanceof Error ? err.message : String(err) });
     res.status(500).json({ error: "Internal server error" });
   }
 }

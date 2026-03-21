@@ -55,7 +55,7 @@ import {
   type ReasonBucket,
 } from "../../src/lib/core/checkin/calibrator.js";
 import { applyCandidateCalibration } from "../../src/lib/core/checkin/applyCandidateCalibration.js";
-import { timer } from "../../src/lib/core/observability/log.js";
+import { createLogger, generateRequestId, timer } from "../../src/lib/core/observability/log.js";
 import type { RecommendationCandidate } from "../../src/lib/core/contracts/recommendation.js";
 
 // ============================================================================
@@ -218,10 +218,16 @@ function runCalibrator(checkinRow: DailyCheckinRow | null, rfOutput: ReadinessAn
 // ============================================================================
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const log = createLogger("debug/recommendation", generateRequestId());
+
   if (req.method !== "GET") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+
+  // Access control: restrict to admin users or non-production
+  const adminIds = (process.env.ADMIN_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
 
   const total = timer();
 
@@ -229,6 +235,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const userId = await resolveUserId(req.headers.authorization);
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  if (isProduction && adminIds.length > 0 && !adminIds.includes(userId)) {
+    log.warn("debug access denied", { user_id: userId });
+    res.status(403).json({ error: "Forbidden — debug endpoint restricted to admin users" });
     return;
   }
 
@@ -363,6 +375,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    log.error("pipeline failed", { error: msg });
     res.status(500).json({ error: "Pipeline failed", message: msg });
   }
 }

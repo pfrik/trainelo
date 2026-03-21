@@ -63,7 +63,9 @@ import {
   type ReasonBucket,
 } from "../../src/lib/core/checkin/calibrator.js";
 import { applyCandidateCalibration } from "../../src/lib/core/checkin/applyCandidateCalibration.js";
-import { createLogger, timer } from "../../src/lib/core/observability/log.js";
+import { createLogger, generateRequestId, timer, type Logger } from "../../src/lib/core/observability/log.js";
+
+const authLog = createLogger("today/auth");
 
 // ============================================================================
 // Configuration
@@ -151,7 +153,7 @@ function getAuthClient(
     authClientConfig = { supabaseUrl, supabaseKey };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : undefined;
-    console.warn("[auth] Supabase client init failed.", {
+    authLog.warn("supabase client init failed", {
       supabaseUrl: JSON.stringify(supabaseUrl),
       message: errorMessage,
     });
@@ -198,7 +200,7 @@ async function resolveUserIdFromAuthHeader(
   }
 
   if (!supabaseUrl) {
-    console.warn("[auth] No valid supabaseUrl candidate.", {
+    authLog.warn("no valid supabaseUrl candidate", {
       envHasSupabaseUrl: !!process.env.SUPABASE_URL,
       inferredFromJwt: !!inferredBaseUrl,
     });
@@ -215,7 +217,7 @@ async function resolveUserIdFromAuthHeader(
   const supabaseKey = anonKey || serviceRoleKey;
 
   if (!supabaseKey) {
-    console.warn("[auth] Missing supabase key for token verification.", {
+    authLog.warn("missing supabase key", {
       hasServiceRoleKey,
       hasAnonKey,
     });
@@ -229,7 +231,7 @@ async function resolveUserIdFromAuthHeader(
 
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) {
-    console.warn("[auth] Auth token verification failed.", {
+    authLog.warn("token verification failed", {
       url: supabaseUrl,
       hasAnonKey,
       hasServiceRoleKey,
@@ -537,6 +539,7 @@ function runCalibrator(
   checkinRow: DailyCheckinRow | null,
   rfOutput: ReadinessAndFatigueOutput,
   primaryCandidate: { template_ref: string | null },
+  log: Logger,
 ): CalibrationResult | null {
   try {
     const calibratorInput: CalibratorInput = {
@@ -549,7 +552,7 @@ function runCalibrator(
     };
     return calibrateSession(calibratorInput);
   } catch (err) {
-    console.warn("[today] Calibrator error (non-fatal):", err);
+    log.warn("calibrator error (non-fatal)", { error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -584,7 +587,7 @@ export default async function handler(
     return;
   }
 
-  const log = createLogger("today");
+  const log = createLogger("today", generateRequestId());
   const total = timer();
 
   const now = new Date();
@@ -706,7 +709,7 @@ export default async function handler(
 
     // 6. Run calibrator (non-fatal on error)
     const calTimer = timer();
-    const calibration = runCalibrator(checkinRes.data, rfOutput, candidates[0]);
+    const calibration = runCalibrator(checkinRes.data, rfOutput, candidates[0], log);
 
     // 6a. Apply calibration: re-order candidates, adjust caution, update rationale
     const rawRecovery = checkinRes.data?.payload && typeof checkinRes.data.payload === "object"

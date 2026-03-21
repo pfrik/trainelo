@@ -9,6 +9,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { createLogger, generateRequestId } from "../src/lib/core/observability/log.js";
+
+const authLog = createLogger("user-flags/auth");
+const calibLog = createLogger("user-flags/calibration");
 import {
   upsertDailyCheckin,
   getDailyUserState,
@@ -157,7 +161,7 @@ function getAuthClient(
     authClientConfig = { supabaseUrl, supabaseKey };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : undefined;
-    console.warn("[auth] Supabase client init failed.", {
+    authLog.warn("supabase client init failed", {
       supabaseUrl: JSON.stringify(supabaseUrl),
       message: errorMessage,
     });
@@ -206,7 +210,7 @@ async function resolveUserIdFromAuthHeader(
   }
 
   if (!supabaseUrl) {
-    console.warn("[auth] No valid supabaseUrl candidate.");
+    authLog.warn("no valid supabaseUrl candidate");
     return null;
   }
 
@@ -218,7 +222,7 @@ async function resolveUserIdFromAuthHeader(
   const supabaseKey = anonKey || serviceRoleKey;
 
   if (!supabaseKey) {
-    console.warn("[auth] Missing supabase key for token verification.");
+    authLog.warn("missing supabase key for token verification");
     return null;
   }
 
@@ -229,7 +233,7 @@ async function resolveUserIdFromAuthHeader(
 
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) {
-    console.warn("[auth] Auth token verification failed.", {
+    authLog.warn("auth token verification failed", {
       message: error?.message,
     });
     return null;
@@ -360,7 +364,7 @@ async function runPostPersistCalibration(
 
     return calibrateSession(calibratorInput);
   } catch (err) {
-    console.warn("[user-flags] Calibration error (non-fatal):", err);
+    calibLog.warn("calibration error (non-fatal)", { error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -373,6 +377,8 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
+  const log = createLogger("user-flags", generateRequestId());
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
@@ -495,16 +501,16 @@ export default async function handler(
     // Constraint violations (check, not-null, exclusion) are client errors
     const constraintCodes = ["23514", "23502", "23503"];
     if (result.error_code && constraintCodes.includes(result.error_code)) {
-      console.warn("[user-flags] Constraint violation:", result.error);
+      log.warn("constraint violation", { error: result.error });
       res.status(400).json({ error: "VALIDATION_FAILED" });
       return;
     }
-    console.error("[user-flags] Persistence failed:", result.error);
+    log.error("persistence failed", { error: result.error });
     res.status(500).json({ error: "PERSISTENCE_FAILED" });
     return;
   }
 
-  console.log("[user-flags] Recorded:", { user_id: userId, date, mood: payload.mood });
+  log.info("check-in recorded", { user_id: userId, date, mood: payload.mood });
 
   // Run calibrator (non-fatal — persistence already succeeded)
   const calibration = await runPostPersistCalibration(userId, date, {
@@ -524,10 +530,11 @@ export default async function handler(
   });
 
   if (calibration) {
-    console.log(
-      `[user-flags] Calibration: level=${calibration.level} ` +
-        `intensity=${calibration.intensity_multiplier} duration=${calibration.duration_multiplier}`,
-    );
+    log.info("calibration result", {
+      level: calibration.level,
+      intensity_multiplier: calibration.intensity_multiplier,
+      duration_multiplier: calibration.duration_multiplier,
+    });
   }
 
   res.status(200).json({ ok: true, recorded_at, date, calibration: calibration ?? null });

@@ -10,6 +10,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { createLogger, generateRequestId } from "../../src/lib/core/observability/log.js";
 import {
   getCalibrationEvent,
   markCalibrationEventUndone,
@@ -171,6 +172,8 @@ export default async function handler(
     return;
   }
 
+  const log = createLogger("calibration/undo", generateRequestId());
+
   try {
     const now = new Date().toISOString();
 
@@ -211,7 +214,7 @@ export default async function handler(
         now,
       );
       if (restoreRes.error) {
-        console.warn("[undo] Threshold restore failed (non-fatal):", restoreRes.error);
+        log.warn("threshold restore failed (non-fatal)", { error: restoreRes.error });
       } else {
         restoredThresholdId = restoreRes.data?.id ?? null;
       }
@@ -250,10 +253,12 @@ export default async function handler(
       return;
     }
 
-    console.log(
-      `[undo] user=${userId} event=${calibration_event_id} ` +
-        `threshold_type=${event.threshold_type} cooldown_until=${cooldownEndsAt.toISOString()}`,
-    );
+    log.info("undo complete", {
+      user_id: userId,
+      event_id: calibration_event_id,
+      threshold_type: event.threshold_type,
+      cooldown_until: cooldownEndsAt.toISOString(),
+    });
 
     res.status(200).json({
       ok: true,
@@ -264,7 +269,7 @@ export default async function handler(
       cooldown_ends_at: cooldownEndsAt.toISOString(),
     });
   } catch (error) {
-    console.error("[undo] Error:", error);
+    log.error("undo failed", { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ error: "UNDO_FAILED" });
   }
 }

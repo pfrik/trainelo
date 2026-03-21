@@ -8,6 +8,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ChoiceRequestSchema } from "../../src/lib/core/contracts/index.js";
+import { createLogger, generateRequestId } from "../../src/lib/core/observability/log.js";
+
+const authLog = createLogger("choice/auth");
 import { buildChoiceResponse } from "../../src/lib/core/recommendation/choiceResponseBuilder.js";
 import { insertRecommendationEvent } from "../../src/lib/db/queries.js";
 
@@ -99,7 +102,7 @@ function getAuthClient(
     authClientConfig = { supabaseUrl, supabaseKey };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : undefined;
-    console.warn("[auth] Supabase client init failed.", {
+    authLog.warn("supabase client init failed", {
       supabaseUrl: JSON.stringify(supabaseUrl),
       message: errorMessage,
     });
@@ -146,7 +149,7 @@ async function resolveUserIdFromAuthHeader(
   }
 
   if (!supabaseUrl) {
-    console.warn("[auth] No valid supabaseUrl candidate.");
+    authLog.warn("no valid supabaseUrl candidate");
     return null;
   }
 
@@ -158,7 +161,7 @@ async function resolveUserIdFromAuthHeader(
   const supabaseKey = anonKey || serviceRoleKey;
 
   if (!supabaseKey) {
-    console.warn("[auth] Missing supabase key for token verification.");
+    authLog.warn("missing supabase key for token verification");
     return null;
   }
 
@@ -169,7 +172,7 @@ async function resolveUserIdFromAuthHeader(
 
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) {
-    console.warn("[auth] Auth token verification failed.", {
+    authLog.warn("auth token verification failed", {
       message: error?.message,
     });
     return null;
@@ -186,6 +189,8 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  const log = createLogger("choice", generateRequestId());
+
   // Only allow POST
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -249,12 +254,12 @@ export default async function handler(
   });
 
   if (!result.success) {
-    console.error("[choice] Persistence failed:", result.error);
+    log.error("persistence failed", { error: result.error });
     res.status(500).json({ error: "PERSISTENCE_FAILED" });
     return;
   }
 
-  console.log(`[choice] ${result.duplicate ? "Duplicate (idempotent)" : "Recorded"}:`, {
+  log.info(result.duplicate ? "duplicate choice (idempotent)" : "choice recorded", {
     user_id: userId,
     recommendation_id: choiceRequest.recommendation_id,
     candidate: choiceRequest.chosen_candidate_id,

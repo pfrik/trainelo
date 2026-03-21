@@ -10,6 +10,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { createLogger, generateRequestId } from "../../src/lib/core/observability/log.js";
 import {
   getUserThreshold,
   updateUserThresholdLock,
@@ -167,6 +168,8 @@ export default async function handler(
     return;
   }
 
+  const log = createLogger("calibration/lock", generateRequestId());
+
   try {
     const now = new Date().toISOString();
 
@@ -241,13 +244,16 @@ export default async function handler(
 
     if (auditRes.error) {
       // Non-fatal: lock was applied, audit failed
-      console.warn("[lock] Audit event insert failed (non-fatal):", auditRes.error);
+      log.warn("audit event failed (non-fatal)", { error: auditRes.error });
     }
 
-    console.log(
-      `[lock] user=${userId} threshold=${threshold_id} ` +
-        `type=${threshold.threshold_type} lock=${lock} expires=${lock_until ?? "never"}`,
-    );
+    log.info("lock updated", {
+      user_id: userId,
+      threshold_id,
+      threshold_type: threshold.threshold_type,
+      lock,
+      expires: lock_until ?? "never",
+    });
 
     res.status(200).json({
       ok: true,
@@ -259,7 +265,7 @@ export default async function handler(
       lock_expires_at: lock ? (lock_until ?? null) : null,
     });
   } catch (error) {
-    console.error("[lock] Error:", error);
+    log.error("lock failed", { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ error: "LOCK_FAILED" });
   }
 }

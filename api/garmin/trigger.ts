@@ -11,6 +11,8 @@
  *   { ok: boolean, error?: string }
  */
 
+import { createLogger, generateRequestId } from "../../src/lib/core/observability/log.js";
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -34,7 +36,6 @@ function isAuthorized(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
   const cronSecret = sanitizeEnvValue(process.env.CRON_SECRET);
   if (!cronSecret) {
-    console.warn("[trigger] CRON_SECRET not configured");
     return false;
   }
   return authHeader === `Bearer ${cronSecret}`;
@@ -45,6 +46,7 @@ function isAuthorized(request: Request): boolean {
 // ============================================================================
 
 export async function POST(request: Request): Promise<Response> {
+  const log = createLogger("garmin/trigger", generateRequestId());
   const headers = { "cache-control": "no-store" };
 
   if (!isAuthorized(request)) {
@@ -55,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
   const githubRepo = sanitizeEnvValue(process.env.GITHUB_REPO);
 
   if (!githubPat || !githubRepo) {
-    console.error("[trigger] Missing GITHUB_PAT or GITHUB_REPO");
+    log.error("missing GitHub configuration");
     return Response.json(
       { ok: false, error: "Missing GitHub configuration" },
       { status: 500, headers },
@@ -78,19 +80,19 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (resp.status === 204) {
-      console.log("[trigger] GitHub Actions workflow dispatched successfully");
+      log.info("workflow dispatched");
       return Response.json({ ok: true }, { headers });
     }
 
     const body = await resp.text();
-    console.error(`[trigger] GitHub API error: ${resp.status} ${body}`);
+    log.error("GitHub API error", { status: resp.status, body });
     return Response.json(
       { ok: false, error: `GitHub API returned ${resp.status}` },
       { status: 502, headers },
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[trigger] Dispatch error:", msg);
+    log.error("dispatch error", { error: msg });
     return Response.json(
       { ok: false, error: msg },
       { status: 500, headers },

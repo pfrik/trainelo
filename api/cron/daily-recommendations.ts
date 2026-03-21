@@ -26,6 +26,7 @@
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createLogger, generateRequestId, timer, type Logger } from "../../src/lib/core/observability/log.js";
 import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
@@ -115,12 +116,12 @@ function getSupabaseClient(): SupabaseClient {
 // Authentication
 // ============================================================================
 
-function isAuthorized(request: Request): boolean {
+function isAuthorized(request: Request, log: Logger): boolean {
   const authHeader = request.headers.get("authorization");
   const cronSecret = sanitizeEnvValue(process.env.CRON_SECRET);
 
   if (!cronSecret) {
-    console.warn("[cron] CRON_SECRET not configured");
+    log.warn("CRON_SECRET not configured");
     return false;
   }
 
@@ -322,6 +323,7 @@ function buildWearableSignals(rfOutput: ReadinessAndFatigueOutput): WearableSign
 function runCalibratorSafe(
   checkinRow: DailyCheckinRow | null,
   rfOutput: ReadinessAndFatigueOutput,
+  log: Logger,
 ): CalibrationResult | null {
   try {
     const calibratorInput: CalibratorInput = {
@@ -331,7 +333,7 @@ function runCalibratorSafe(
     };
     return calibrateSession(calibratorInput);
   } catch (err) {
-    console.warn("[cron] Calibrator error (non-fatal):", err);
+    log.warn("calibrator error (non-fatal)", { error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -401,6 +403,7 @@ async function upsertRecommendation(
   userId: string,
   date: string,
   payload: UpsertPayload,
+  log: Logger,
 ): Promise<UpsertResult> {
   const { error } = await client.from("daily_recommendations").upsert(
     {
@@ -421,7 +424,7 @@ async function upsertRecommendation(
   );
 
   if (error) {
-    console.error(`[cron] Upsert failed for user ${userId}:`, error.message);
+    log.error("upsert failed", { user_id: userId, error: error.message });
     return { success: false, error: error.message };
   }
 
@@ -457,6 +460,7 @@ interface UserOutput {
 async function computeForUser(
   userId: string,
   targetDate: string,
+  log: Logger,
 ): Promise<UserOutput> {
   // 1. Fetch from DB views
   const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes] = await Promise.all([
@@ -475,7 +479,7 @@ async function computeForUser(
   }
   // Check-in fetch failure is non-fatal
   if (checkinRes.error) {
-    console.warn(`[cron] Check-in fetch error (non-fatal) for ${userId}: ${checkinRes.error}`);
+    log.warn("check-in fetch error (non-fatal)", { user_id: userId, error: checkinRes.error });
   }
 
   const row = stateRes.data;
@@ -532,7 +536,7 @@ async function computeForUser(
   const confidence = rfOutput.confidence?.overall ?? computeConfidence(row, loadRows);
 
   // 6. Run calibrator (non-fatal on error)
-  const calibration = runCalibratorSafe(checkinRes.data, rfOutput);
+  const calibration = runCalibratorSafe(checkinRes.data, rfOutput, log);
 
   // 6a. Apply calibration: re-order candidates, adjust caution, update rationale
   const rawRecovery = checkinRes.data?.payload && typeof checkinRes.data.payload === "object"
@@ -607,13 +611,14 @@ async function processBatch(
   client: SupabaseClient,
   userIds: string[],
   targetDate: string,
-  dryRun: boolean
+  dryRun: boolean,
+  log: Logger,
 ): Promise<ProcessResult[]> {
   const results: ProcessResult[] = [];
 
   for (const userId of userIds) {
     try {
-      const output = await computeForUser(userId, targetDate);
+      const output = await computeForUser(userId, targetDate, log);
 
       // Upsert (unless dry run)
       let upsertOk = true;
@@ -625,6 +630,7 @@ async function processBatch(
           userId,
           targetDate,
           output,
+          log,
         );
         upsertOk = upsertResult.success;
         error = upsertResult.error;
@@ -639,15 +645,18 @@ async function processBatch(
         error,
       });
 
-      console.log(
-        `[cron] ${dryRun ? "[DRY RUN] " : ""}User ${userId}: ${output.decision} (confidence: ${output.confidence.toFixed(2)})`
-      );
+      log.info("user processed", {
+        user_id: userId,
+        decision: output.decision,
+        confidence: output.confidence,
+        dry_run: dryRun,
+      });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       if (err instanceof QueryError) {
-        console.warn(`[cron] ${errorMsg} (user: ${userId})`);
+        log.warn("query failed", { user_id: userId, error: errorMsg });
       } else {
-        console.error(`[cron] Error processing user ${userId}:`, errorMsg);
+        log.error("error processing user", { user_id: userId, error: errorMsg });
       }
       results.push({
         userId,
@@ -688,13 +697,15 @@ interface CronResponse {
 // ============================================================================
 
 export async function GET(request: Request): Promise<Response> {
-  const startTime = Date.now();
+  const requestId = generateRequestId();
+  const log = createLogger("cron", requestId);
+  const t = timer();
 
   const headers = { "cache-control": "no-store" };
 
   // Check authorization
-  if (!isAuthorized(request)) {
-    console.warn("[cron] Unauthorized request");
+  if (!isAuthorized(request, log)) {
+    log.warn("unauthorized request");
     return Response.json({ error: "Unauthorized" }, { status: 401, headers });
   }
 
@@ -710,16 +721,14 @@ export async function GET(request: Request): Promise<Response> {
       ? dateOverride
       : now.toISOString().slice(0, 10);
 
-  console.log(
-    `[cron] Starting daily recommendations for ${targetDate}${dryRun ? " (DRY RUN)" : ""}`
-  );
+  log.info("starting daily recommendations", { target_date: targetDate, dry_run: dryRun });
 
   try {
     const client = getSupabaseClient();
 
     // Get users with data for today
     const userIds = await getUserIdsWithData(client, targetDate);
-    console.log(`[cron] Found ${userIds.length} users with data`);
+    log.info("users found", { count: userIds.length });
 
     if (userIds.length === 0) {
       const response: CronResponse = {
@@ -729,7 +738,7 @@ export async function GET(request: Request): Promise<Response> {
         upserts_ok: 0,
         upserts_failed: 0,
         dry_run: dryRun,
-        duration_ms: Date.now() - startTime,
+        duration_ms: t.elapsed(),
       };
       return Response.json(response, { headers });
     }
@@ -739,7 +748,7 @@ export async function GET(request: Request): Promise<Response> {
 
     for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
       const batch = userIds.slice(i, i + BATCH_SIZE);
-      const batchResults = await processBatch(client, batch, targetDate, dryRun);
+      const batchResults = await processBatch(client, batch, targetDate, dryRun, log);
       allResults.push(...batchResults);
     }
 
@@ -750,6 +759,8 @@ export async function GET(request: Request): Promise<Response> {
       .filter((r) => r.error)
       .map((r) => `${r.userId}: ${r.error}`);
 
+    const durationMs = t.elapsed();
+
     const response: CronResponse = {
       ok: upsertsFailed === 0,
       target_date: targetDate,
@@ -757,7 +768,7 @@ export async function GET(request: Request): Promise<Response> {
       upserts_ok: upsertsOk,
       upserts_failed: upsertsFailed,
       dry_run: dryRun,
-      duration_ms: Date.now() - startTime,
+      duration_ms: durationMs,
     };
 
     // Include results in dry run mode
@@ -774,14 +785,12 @@ export async function GET(request: Request): Promise<Response> {
       response.errors = errors;
     }
 
-    console.log(
-      `[cron] Completed: ${upsertsOk} ok, ${upsertsFailed} failed, ${Date.now() - startTime}ms`
-    );
+    log.info("completed", { upserts_ok: upsertsOk, upserts_failed: upsertsFailed, duration_ms: durationMs });
 
     return Response.json(response, { headers });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error("[cron] Fatal error:", errorMsg);
+    log.error("fatal error", { error: errorMsg, duration_ms: t.elapsed() });
     return Response.json(
       {
         ok: false,

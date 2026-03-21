@@ -14,6 +14,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { createLogger, generateRequestId } from "../../src/lib/core/observability/log.js";
+
+const authLog = createLogger("calibrate/auth");
 import {
   getDailyUserState,
   getTrainingLoad7Days,
@@ -146,7 +149,7 @@ function getAuthClient(supabaseUrl: string, supabaseKey: string): SupabaseClient
     });
     authClientConfig = { supabaseUrl, supabaseKey };
   } catch (error) {
-    console.warn("[auth] Supabase client init failed.", {
+    authLog.warn("supabase client init failed", {
       message: error instanceof Error ? error.message : undefined,
     });
     return null;
@@ -315,6 +318,8 @@ export default async function handler(
   const now = new Date();
   const date = payload.date ?? now.toISOString().slice(0, 10);
 
+  const log = createLogger("calibrate", generateRequestId());
+
   try {
     // ---- Resolve check-in data ----
     // Prefer inline check-in; fall back to DB row for this user+date
@@ -395,7 +400,7 @@ export default async function handler(
       const rfOutput = computeReadinessAndFatigue(rfInput);
       wearableSignals = buildWearableSignals(rfOutput);
     } else {
-      console.warn("[calibrate] DB fetch error (non-fatal), proceeding without wearable signals.");
+      log.warn("db fetch error (non-fatal)");
     }
 
     // ---- Run calibrator ----
@@ -412,11 +417,14 @@ export default async function handler(
 
     const result: CalibrationResult = calibrateSession(calibratorInput);
 
-    console.log(
-      `[calibrate] user=${userId} date=${date} level=${result.level} ` +
-        `intensity=${result.intensity_multiplier} duration=${result.duration_multiplier} ` +
-        `rules=[${result.applied_rules.join(",")}]`,
-    );
+    log.info("calibration complete", {
+      user_id: userId,
+      date,
+      level: result.level,
+      intensity_multiplier: result.intensity_multiplier,
+      duration_multiplier: result.duration_multiplier,
+      applied_rules: result.applied_rules,
+    });
 
     res.status(200).json({
       ok: true,
@@ -424,7 +432,7 @@ export default async function handler(
       calibration: result,
     });
   } catch (error) {
-    console.error("[calibrate] Error:", error);
+    log.error("calibration failed", { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ error: "CALIBRATION_FAILED" });
   }
 }
