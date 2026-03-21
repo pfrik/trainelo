@@ -11,31 +11,31 @@ import type {
   HrvNightInput,
   DailyMetricsInput,
   TrainingLoadInput,
-} from "./computeDailyRecommendation";
-import type { ReasonCode } from "../contracts";
-import type { ConfidenceBreakdown, BaselineMode } from "./computeConfidence";
-import type { HrvHistoryEntry } from "./detectTrends";
-import type { DailyTssEntry, NormalizedEwmaResult } from "./computeEwma";
-import { computeEwma, normalizeEwma } from "./computeEwma";
+} from "./computeDailyRecommendation.js";
+import type { ReasonCode } from "../contracts/index.js";
+import type { ConfidenceBreakdown, BaselineMode } from "./computeConfidence.js";
+import type { HrvHistoryEntry } from "./detectTrends.js";
+import type { DailyTssEntry, NormalizedEwmaResult } from "./computeEwma.js";
+import { computeEwma, normalizeEwma } from "./computeEwma.js";
 import {
   computeDataAvailability,
   computeSignalConsistency,
   computeDataRecency,
   detectBaselineMode,
   computeCompositeConfidence,
-} from "./computeConfidence";
+} from "./computeConfidence.js";
 import {
   detectHrvDeclining,
   detectTrainingLoadLow,
   detectStreakRisk,
   detectAdaptationPhase,
   computeTrendStates,
-} from "./detectTrends";
-import type { TrendState } from "./detectTrends";
+} from "./detectTrends.js";
+import type { TrendState } from "./detectTrends.js";
 import {
   computeSignalValidityReport,
-} from "./computeSignalValidity";
-import type { SignalValidityReport } from "./computeSignalValidity";
+} from "./computeSignalValidity.js";
+import type { SignalValidityReport } from "./computeSignalValidity.js";
 
 // ---------------------------------------------------------------------------
 // Input / Output types

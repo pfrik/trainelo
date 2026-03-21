@@ -11,9 +11,9 @@
  *  - LOW_CONFIDENCE_ANOMALY: data unreliable in non-cold-start mode
  */
 
-import type { ReadinessAndFatigueOutput } from "../recommendations/computeReadinessAndFatigue";
-import type { ReasonCode, CautionLevel, Restriction } from "../contracts";
-import type { TrendState } from "../recommendations/detectTrends";
+import type { ReadinessAndFatigueOutput } from "../recommendations/computeReadinessAndFatigue.js";
+import type { ReasonCode, CautionLevel, Restriction } from "../contracts/index.js";
+import type { TrendState } from "../recommendations/detectTrends.js";
 
 // ---------------------------------------------------------------------------
 // Output type

@@ -11,7 +11,7 @@ import type {
   HrvNightInput,
   DailyMetricsInput,
   TrainingLoadInput,
-} from "./computeDailyRecommendation";
+} from "./computeDailyRecommendation.js";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -10,7 +10,7 @@ import type {
   ReasonCode,
   CautionLevel,
   RecommendationCandidate,
-} from "../contracts";
+} from "../contracts/index.js";
 
 // ---------------------------------------------------------------------------
 // Input types (local to this module)

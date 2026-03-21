@@ -5,8 +5,8 @@
  * Each detector returns a ReasonCode or null.
  */
 
-import type { ReasonCode } from "../contracts";
-import type { BaselineMode } from "./computeConfidence";
+import type { ReasonCode } from "../contracts/index.js";
+import type { BaselineMode } from "./computeConfidence.js";
 
 // ---------------------------------------------------------------------------
 // Types
