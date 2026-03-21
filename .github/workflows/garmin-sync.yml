@@ -61,6 +61,14 @@ jobs:
             python sync.py --days 3
           fi
 
+      - name: Update GARMIN_TOKENS_BASE64 secret with fresh tokens
+        if: success()
+        working-directory: scripts/garmin-sync
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python update_github_secret.py
+
       - name: Save Garmin OAuth tokens
         if: always()
         uses: actions/cache/save@v5

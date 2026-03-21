@@ -116,12 +116,11 @@ class GarminClient:
             return False
 
     def _try_authenticate(self) -> bool:
-        """Single authentication attempt (env secret → cached tokens → full login)."""
-        # Always prefer tokens from GARMIN_TOKENS_BASE64 when set —
-        # the env secret is fresher than stale tokens restored from Actions cache.
-        if os.environ.get("GARMIN_TOKENS_BASE64"):
-            self._restore_tokens_from_env()
-        elif not self.token_dir.exists():
+        """Single authentication attempt (cached tokens → env secret → full login)."""
+        # Prefer cached tokens (refreshed by garth on each successful run)
+        # over the static GARMIN_TOKENS_BASE64 secret, which may be stale.
+        # Only use the env secret as bootstrap when no cached tokens exist.
+        if not self.token_dir.exists() or not any(self.token_dir.iterdir()):
             self._restore_tokens_from_env()
 
         # Try token-based resume
@@ -157,6 +156,22 @@ class GarminClient:
             print(f"Saved OAuth tokens to {self.token_dir}")
         except Exception as e:
             print(f"Warning: Could not save tokens: {e}")
+
+    def export_tokens_base64(self) -> str | None:
+        """Export current tokens as a base64 string (for updating GitHub secret)."""
+        try:
+            oauth1_path = self.token_dir / "oauth1_token.json"
+            oauth2_path = self.token_dir / "oauth2_token.json"
+            if not oauth1_path.exists() or not oauth2_path.exists():
+                return None
+            bundle = {
+                "oauth1": json.loads(oauth1_path.read_text()),
+                "oauth2": json.loads(oauth2_path.read_text()),
+            }
+            return base64.b64encode(json.dumps(bundle).encode()).decode()
+        except Exception as e:
+            print(f"Warning: Could not export tokens: {e}")
+            return None
 
     def get_activities(
         self, start_date: date, end_date: date = None
