@@ -1,73 +1,54 @@
-# Welcome to your Lovable project
+# Trainelo
 
-## Project info
+Deterministic daily training recommendation engine powered by Garmin wearable data. Ingests HRV, sleep, training load, and recovery signals to produce personalized workout recommendations with full confidence scoring and audit trail.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Architecture
 
-## How can I edit this code?
+- **Frontend**: React + Vite + Tailwind CSS + shadcn/ui
+- **Backend**: Vercel serverless functions (TypeScript)
+- **Database**: Supabase (PostgreSQL + RLS)
+- **Data sync**: Garmin Connect via GitHub Actions (every 6 hours)
+- **Cron**: Daily recommendation generation (5:00 UTC), Garmin sync trigger (4:00 UTC)
 
-There are several ways of editing your application.
+## Core Pipeline
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+Garmin Sync → DB Ingestion → Readiness/Fatigue Scoring → Anomaly Detection
+→ Candidate Generation → Session Calibration → Anomaly Enforcement
+→ Workout Template Resolution → API Response
 ```
 
-**Edit a file directly in GitHub**
+Key modules:
+- **Readiness & Fatigue** — multi-signal scoring (sleep, HRV, metrics, training load, EWMA)
+- **Passive Calibration** — auto-detects HR max, resting HR, HRV baseline from observed data
+- **Anomaly Detection** — HRV dissociation, overtraining risk, low confidence
+- **Session Calibrator** — morning check-in (mood, RPE, pain, illness) adjusts intensity/duration
+- **Workout Templates** — 7 templates with segment-level detail, calibration multipliers applied
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Local Development
 
-**Use GitHub Codespaces**
+```sh
+npm install
+npm run dev:full    # Frontend (Vite :8080) + API (Express :3001)
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Testing
 
-## What technologies are used for this project?
+```sh
+npm run test        # Run all tests
+npm run test:watch  # Watch mode
+```
 
-This project is built with:
+## Garmin Sync
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Tokens are managed automatically — each successful sync refreshes the `GARMIN_TOKENS_BASE64` GitHub secret. Manual token refresh if needed:
 
-## How can I deploy this project?
+```sh
+cd scripts/garmin-sync
+python sync.py --days 1
+python export_tokens.py
+```
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Deployment
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Auto-deploys to Vercel on push to `main`.
