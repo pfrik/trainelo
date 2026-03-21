@@ -17,6 +17,6 @@ export {
   type CalibratorInput,
   type CalibrationResult,
   type CheckinDeltas,
-} from "./calibrator";
+} from "./calibrator.js";
 
-export { applyCandidateCalibration, type ApplyCalibrationOptions } from "./applyCandidateCalibration";
+export { applyCandidateCalibration, type ApplyCalibrationOptions } from "./applyCandidateCalibration.js";

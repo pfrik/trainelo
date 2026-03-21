@@ -7,9 +7,9 @@ export {
   buildDeterministicCandidates,
   buildDeterministicTodayResponse,
   type TodayResponseInput,
-} from "./todayResponseBuilder";
+} from "./todayResponseBuilder.js";
 
 export {
   buildChoiceResponse,
   type ChoiceResponseInput,
-} from "./choiceResponseBuilder";
+} from "./choiceResponseBuilder.js";
