@@ -16,6 +16,7 @@ import {
   getUserDataDays,
   getPriorChronicLoad,
   getTrainingLoadHistory,
+  getPersonalThresholds,
   type DailyUserStateRow,
   type TrainingLoadRow,
   type DailyUserStateResult,
@@ -51,6 +52,9 @@ import {
   detectAnomalies,
   type AnomalyResult,
 } from "../../src/lib/core/safety/anomaly.js";
+import { applyAnomalyRestrictions } from "../../src/lib/core/safety/applyAnomalyRestrictions.js";
+import { resolveTemplate } from "../../src/lib/core/templates/resolveTemplate.js";
+import { applyCalibratedTemplate } from "../../src/lib/core/templates/applyCalibratedTemplate.js";
 import { buildDeterministicTodayResponse } from "../../src/lib/core/recommendation/todayResponseBuilder.js";
 import {
   calibrateSession,
@@ -617,7 +621,7 @@ export default async function handler(
   try {
     // 1. Fetch from DB views in parallel
     const dbTimer = timer();
-    const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes] = await Promise.all([
+    const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes, thresholdsRes] = await Promise.all([
       getDailyUserState(userId, date),
       getTrainingLoad7Days(userId, date),
       getDailyCheckin(userId, date),
@@ -625,6 +629,7 @@ export default async function handler(
       getUserDataDays(userId).catch(() => ({ data: 0, error: "fetch_failed" as string | null })),
       getPriorChronicLoad(userId, date).catch(() => ({ data: null, error: "fetch_failed" as string | null })),
       getTrainingLoadHistory(userId, date, 63).catch(() => ({ data: [], error: "fetch_failed" as string | null })),
+      getPersonalThresholds(userId).catch(() => ({ data: { hrv_baseline: null, hr_max: null, resting_hr: null }, error: "fetch_failed" as string | null })),
     ]);
 
     const dbMs = dbTimer.elapsed();
@@ -666,6 +671,7 @@ export default async function handler(
       currentTimestamp: generatedAt,
       dailyTssHistory,
       targetDate: date,
+      personalThresholds: thresholdsRes.error ? null : thresholdsRes.data,
     };
     const rfOutput = computeReadinessAndFatigue(rfInput);
     const rfMs = rfTimer.elapsed();
@@ -719,6 +725,22 @@ export default async function handler(
       ? rawRecovery
       : null;
     const calibratedCandidates = applyCandidateCalibration(candidates, calibration, { recovery_type: recoveryType });
+
+    // 6b. Apply anomaly restrictions (after calibration, before response)
+    const hasCheckin = checkinRes.data != null;
+    const anomalyEnforced = applyAnomalyRestrictions(calibratedCandidates, anomalyResult, hasCheckin);
+    // 6c. Resolve workout templates and apply calibration multipliers
+    const intensityMul = anomalyEnforced.intensityCap != null
+      ? Math.min(calibration?.intensity_multiplier ?? 1.0, anomalyEnforced.intensityCap)
+      : (calibration?.intensity_multiplier ?? 1.0);
+    const durationMul = calibration?.duration_multiplier ?? 1.0;
+
+    const finalCandidates = anomalyEnforced.candidates.map((c) => {
+      const template = resolveTemplate(c.template_ref);
+      if (!template) return c;
+      const workout = applyCalibratedTemplate(template, intensityMul, durationMul);
+      return { ...c, workout };
+    });
     const calMs = calTimer.elapsed();
 
     // 7. Build evidence summary
@@ -730,7 +752,7 @@ export default async function handler(
       fatigue: rfOutput.fatigue_score,
       confidence: rfOutput.confidence?.overall,
       anomaly_caution: anomalyResult.caution_level,
-      candidates: calibratedCandidates.length,
+      candidates: finalCandidates.length,
       timing_ms: { total: total.elapsed(), db: dbMs, rf: rfMs, anomaly: anomalyMs, candidates: candidateMs, calibration: calMs },
     });
 
@@ -740,7 +762,7 @@ export default async function handler(
       recommendation_id: `${userId}:${date}`,
       date,
       user_id: userId,
-      candidates: calibratedCandidates,
+      candidates: finalCandidates,
       evidence,
       llm_used: false,
       generated_at: generatedAt,

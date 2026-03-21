@@ -87,6 +87,7 @@ const REASON_CODE_LABELS: Record<ReasonCode, string> = {
   ANOMALY_HRV_DISSOCIATION: "HRV dissociation",
   ANOMALY_OVERTRAINING_RISK: "Overtraining risk",
   ANOMALY_LOW_CONFIDENCE: "Low confidence",
+  RHR_ELEVATED: "Elevated resting HR",
 };
 
 /** Format reason code for display using label map */
@@ -507,7 +508,58 @@ export default function Dashboard() {
             {/* Left Column (8/12) */}
             <div className="col-span-12 lg:col-span-8 space-y-6">
 
-              {/* Hero Card: Today's Focus — single prescribed session */}
+                {/* Anomaly Warning Banner */}
+              {evidence && evidence.anomaly_caution_level && evidence.anomaly_caution_level !== "none" && (() => {
+                const severity = evidence.anomaly_caution_level;
+                const styles = getCautionStyles(severity);
+                const restrictions = evidence.anomaly_restrictions || [];
+                const anomalyReasons = (recommendation?.candidates[0]?.reason_codes || []).filter(
+                  (c) => c.startsWith("ANOMALY_")
+                );
+                return (
+                  <div className={`${styles.bg} ${styles.border} border rounded-xl p-4 flex items-start gap-3`}>
+                    <span className={`material-symbols-outlined ${styles.text} text-xl mt-0.5`} style={{ fontVariationSettings: '"FILL" 1' }}>
+                      {severity === "high" ? "emergency" : "warning"}
+                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-sm font-bold ${styles.text} uppercase`}>{severity} caution</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {anomalyReasons.map((code) => (
+                          <span key={code} className={`${styles.bg} ${styles.text} text-xs font-semibold px-2 py-0.5 rounded`}>
+                            {formatReasonCode(code as ReasonCode)}
+                          </span>
+                        ))}
+                      </div>
+                      {restrictions.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {restrictions.includes("cap_intensity") && (
+                            <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded flex items-center gap-1">
+                              <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: '"FILL" 1' }}>speed</span>
+                              Intensity capped
+                            </span>
+                          )}
+                          {restrictions.includes("suggest_rest") && (
+                            <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded flex items-center gap-1">
+                              <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: '"FILL" 1' }}>hotel</span>
+                              Rest suggested
+                            </span>
+                          )}
+                          {restrictions.includes("require_checkin") && (
+                            <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded flex items-center gap-1">
+                              <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: '"FILL" 1' }}>edit_note</span>
+                              Check-in required
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+            {/* Hero Card: Today's Focus — single prescribed session */}
               <div className="bg-slate-900 dark:bg-dark-surface rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700/50 group relative">
                 <div className="relative z-10 p-8">
                   <div className="flex items-center gap-3 mb-6">

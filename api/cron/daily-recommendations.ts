@@ -57,6 +57,7 @@ import {
   getUserDataDays,
   getPriorChronicLoad,
   getTrainingLoadHistory,
+  getPersonalThresholds,
   type DailyUserStateRow,
   type TrainingLoadRow,
   type DailyCheckinRow,
@@ -73,6 +74,8 @@ import {
   type ReasonBucket,
 } from "../../src/lib/core/checkin/calibrator.js";
 import { applyCandidateCalibration } from "../../src/lib/core/checkin/applyCandidateCalibration.js";
+import { detectAnomalies } from "../../src/lib/core/safety/anomaly.js";
+import { applyAnomalyRestrictions } from "../../src/lib/core/safety/applyAnomalyRestrictions.js";
 import { runPassiveCalibration } from "../../src/lib/core/calibration/index.js";
 
 // ============================================================================
@@ -464,7 +467,7 @@ async function computeForUser(
   log: Logger,
 ): Promise<UserOutput> {
   // 1. Fetch from DB views
-  const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes] = await Promise.all([
+  const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes, thresholdsRes] = await Promise.all([
     getDailyUserState(userId, targetDate),
     getTrainingLoad7Days(userId, targetDate),
     getDailyCheckin(userId, targetDate),
@@ -472,6 +475,7 @@ async function computeForUser(
     getUserDataDays(userId).catch(() => ({ data: 0, error: "fetch_failed" as string | null })),
     getPriorChronicLoad(userId, targetDate).catch(() => ({ data: null, error: "fetch_failed" as string | null })),
     getTrainingLoadHistory(userId, targetDate, 63).catch(() => ({ data: [], error: "fetch_failed" as string | null })),
+    getPersonalThresholds(userId).catch(() => ({ data: { hrv_baseline: null, hr_max: null, resting_hr: null }, error: "fetch_failed" as string | null })),
   ]);
 
   // Query errors are fatal for this user — surface as failure, don't silently upsert
@@ -510,14 +514,24 @@ async function computeForUser(
     currentTimestamp: new Date().toISOString(),
     dailyTssHistory,
     targetDate,
+    personalThresholds: thresholdsRes.error ? null : thresholdsRes.data,
   };
   const rfOutput: ReadinessAndFatigueOutput = computeReadinessAndFatigue(rfInput);
 
+  // 3a. Anomaly detection
+  const anomalyResult = detectAnomalies(rfOutput);
+
   // 4. Build candidate-generation inputs
+  const mergedReasonCodes = [...rfOutput.reason_codes, ...anomalyResult.reason_codes];
+  const effectiveReadiness =
+    anomalyResult.caution_level === "high"
+      ? Math.min(rfOutput.readiness_score, 55)
+      : rfOutput.readiness_score;
+
   const state: DailyState = {
-    readiness_score: rfOutput.readiness_score,
+    readiness_score: effectiveReadiness,
     fatigue_score: rfOutput.fatigue_score,
-    reason_codes: rfOutput.reason_codes,
+    reason_codes: mergedReasonCodes,
     ewma_form_score: rfOutput.ewma?.form_score ?? null,
   };
 
@@ -547,7 +561,12 @@ async function computeForUser(
     ? rawRecovery
     : null;
   const calibratedCandidates = applyCandidateCalibration(candidates, calibration, { recovery_type: recoveryType });
-  const primary = calibratedCandidates[0];
+
+  // 6b. Apply anomaly restrictions
+  const hasCheckin = checkinRes.data != null;
+  const anomalyEnforced = applyAnomalyRestrictions(calibratedCandidates, anomalyResult, hasCheckin);
+  const finalCandidates = anomalyEnforced.candidates;
+  const primary = finalCandidates[0];
 
   // 7. Build persisted output
   return {
@@ -563,12 +582,14 @@ async function computeForUser(
       confidence,
       days_since_rest: row?.days_since_rest ?? null,
       sleep_quality: row?.sleep_score ?? null,
-      candidates: calibratedCandidates.map((c) => ({
+      candidates: finalCandidates.map((c) => ({
         candidate_id: c.candidate_id,
         template_ref: c.template_ref,
         caution_level: c.caution_level,
         reason_codes: c.reason_codes,
       })),
+      anomaly_caution_level: anomalyResult.caution_level,
+      anomaly_restrictions: anomalyResult.restrictions,
       calibration_level: calibration?.level ?? null,
       calibration_intensity_multiplier: calibration?.intensity_multiplier ?? null,
       calibration_duration_multiplier: calibration?.duration_multiplier ?? null,

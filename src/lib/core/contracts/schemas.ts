@@ -48,6 +48,7 @@ export const ReasonCodeSchema = z.enum([
   "ANOMALY_HRV_DISSOCIATION",
   "ANOMALY_OVERTRAINING_RISK",
   "ANOMALY_LOW_CONFIDENCE",
+  "RHR_ELEVATED",
 ]);
 
 /** Evidence summary schema */

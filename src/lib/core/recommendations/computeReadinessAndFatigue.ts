@@ -50,6 +50,16 @@ export interface DailyCheckinInput {
   illness_flag?: boolean | null;
 }
 
+/** Calibrated personal thresholds from passive calibration. */
+export interface PersonalThresholds {
+  /** Calibrated HRV baseline (overrides Garmin nightly baseline). */
+  hrv_baseline?: number | null;
+  /** Calibrated HR max (for future zone calculations). */
+  hr_max?: number | null;
+  /** Calibrated resting HR (for RHR deviation detection). */
+  resting_hr?: number | null;
+}
+
 export interface ReadinessAndFatigueInput {
   sleep: SleepSessionInput | null;
   hrv: HrvNightInput | null;
@@ -74,6 +84,8 @@ export interface ReadinessAndFatigueInput {
   dailyTssHistory?: DailyTssEntry[] | null;
   /** Target date for EWMA alignment (YYYY-MM-DD). */
   targetDate?: string | null;
+  /** Calibrated personal thresholds (from user_thresholds table). */
+  personalThresholds?: PersonalThresholds | null;
 }
 
 export interface ReadinessAndFatigueOutput {
@@ -195,12 +207,19 @@ function sleepSignal(s: SleepSessionInput): number {
 
 /**
  * Recovery signal from HRV data (0 = suppressed, 1 = at/above baseline).
+ * Uses calibrated personal baseline when available, falls back to Garmin nightly baseline.
  * Returns 0.5 (neutral) when baseline is unusable.
  */
-function hrvSignal(h: HrvNightInput): number {
-  if (h.hrv_baseline <= 0) return 0.5;
-  return clamp01(h.hrv_rmssd / h.hrv_baseline);
+function hrvSignal(h: HrvNightInput, calibratedBaseline?: number | null): number {
+  const baseline = (calibratedBaseline != null && calibratedBaseline > 0)
+    ? calibratedBaseline
+    : h.hrv_baseline;
+  if (baseline <= 0) return 0.5;
+  return clamp01(h.hrv_rmssd / baseline);
 }
+
+/** Threshold for RHR deviation: 10% above calibrated resting HR. */
+const RHR_ELEVATION_RATIO = 1.10;
 
 /** Recovery signal from daily metrics (0 = poor, 1 = excellent). */
 function metricsSignal(m: DailyMetricsInput): number {
@@ -214,7 +233,7 @@ function metricsSignal(m: DailyMetricsInput): number {
 export function computeReadinessAndFatigue(
   input: ReadinessAndFatigueInput,
 ): ReadinessAndFatigueOutput {
-  const { sleep, hrv, metrics, trainingLoad7Days } = input;
+  const { sleep, hrv, metrics, trainingLoad7Days, personalThresholds } = input;
   const reasons: ReasonCode[] = [];
 
   // --- Signal validity (per-metric quality assessment) ---
@@ -248,9 +267,14 @@ export function computeReadinessAndFatigue(
 
   // --- HRV (skip invalid signals) ---
   let hrvVal: number | null = null;
+  const calibratedHrvBaseline = personalThresholds?.hrv_baseline;
   if (hrv && validity.hrv && validity.hrv.valid) {
-    hrvVal = hrvSignal(hrv);
-    if (hrv.hrv_baseline > 0 && hrv.hrv_rmssd / hrv.hrv_baseline < HRV_SUPPRESSION_RATIO) {
+    hrvVal = hrvSignal(hrv, calibratedHrvBaseline);
+    // Use calibrated baseline for suppression check when available
+    const effectiveBaseline = (calibratedHrvBaseline != null && calibratedHrvBaseline > 0)
+      ? calibratedHrvBaseline
+      : hrv.hrv_baseline;
+    if (effectiveBaseline > 0 && hrv.hrv_rmssd / effectiveBaseline < HRV_SUPPRESSION_RATIO) {
       reasons.push("HRV_LOW");
     }
   }
@@ -259,6 +283,17 @@ export function computeReadinessAndFatigue(
   let metricsVal: number | null = null;
   if (metrics && validity.metrics && validity.metrics.valid) {
     metricsVal = metricsSignal(metrics);
+  }
+
+  // --- RHR elevation check (when calibrated resting HR available) ---
+  if (
+    metrics &&
+    metrics.resting_heart_rate > 0 &&
+    personalThresholds?.resting_hr != null &&
+    personalThresholds.resting_hr > 0 &&
+    metrics.resting_heart_rate > personalThresholds.resting_hr * RHR_ELEVATION_RATIO
+  ) {
+    reasons.push("RHR_ELEVATED");
   }
 
   // --- Fatigue from 7-day training load ---

@@ -3,6 +3,8 @@
  * No IO, no Supabase, no React dependencies.
  */
 
+import type { CalibratedWorkout } from "../templates/applyCalibratedTemplate.js";
+
 /** Schema version for forward compatibility */
 export const SchemaVersion = "v1" as const;
 export type SchemaVersion = typeof SchemaVersion;
@@ -39,7 +41,8 @@ export type ReasonCode =
   | "USER_PREFERENCE"
   | "ANOMALY_HRV_DISSOCIATION"
   | "ANOMALY_OVERTRAINING_RISK"
-  | "ANOMALY_LOW_CONFIDENCE";
+  | "ANOMALY_LOW_CONFIDENCE"
+  | "RHR_ELEVATED";
 
 /** Restriction types from anomaly detection */
 export type Restriction = "cap_intensity" | "suggest_rest" | "require_checkin";
@@ -140,6 +143,8 @@ export interface RecommendationCandidate {
   reason_codes: ReasonCode[];
   /** Caution level for this option */
   caution_level: CautionLevel;
+  /** Resolved workout template with calibrated adjustments (present for workout candidates) */
+  workout?: CalibratedWorkout | null;
 }
 
 /** Full response for today's recommendation endpoint */

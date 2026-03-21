@@ -17,6 +17,7 @@ vi.mock("../../src/lib/db/queries.js", () => ({
   getUserDataDays: vi.fn().mockResolvedValue({ data: 0, error: null }),
   getPriorChronicLoad: vi.fn().mockResolvedValue({ data: null, error: null }),
   getTrainingLoadHistory: vi.fn().mockResolvedValue({ data: [], error: null }),
+  getPersonalThresholds: vi.fn().mockResolvedValue({ data: { hrv_baseline: null, hr_max: null, resting_hr: null }, error: null }),
 }));
 
 // Mock @supabase/supabase-js to prevent real client creation

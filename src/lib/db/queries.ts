@@ -1407,3 +1407,41 @@ export async function getActiveCooldown(
 
   return { data: data as { cooldown_ends_at: string } | null, error: null };
 }
+
+/** Flat personal thresholds for the recommendation pipeline. */
+export interface PersonalThresholdsRow {
+  hrv_baseline: number | null;
+  hr_max: number | null;
+  resting_hr: number | null;
+}
+
+/**
+ * Fetch all active personal thresholds for a user in one query.
+ * Returns a flat object with hr_max, resting_hr, hrv_baseline.
+ */
+export async function getPersonalThresholds(
+  userId: string,
+): Promise<{ data: PersonalThresholdsRow; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("user_thresholds")
+    .select("threshold_type, value_numeric")
+    .eq("user_id", userId)
+    .is("effective_to", null)
+    .in("threshold_type", ["hr_max", "resting_hr", "hrv_baseline"]);
+
+  if (error) {
+    console.error("[db] Error fetching personal thresholds:", error.message);
+    return { data: { hrv_baseline: null, hr_max: null, resting_hr: null }, error: error.message };
+  }
+
+  const result: PersonalThresholdsRow = { hrv_baseline: null, hr_max: null, resting_hr: null };
+  for (const row of (data || []) as Array<{ threshold_type: string; value_numeric: number | null }>) {
+    if (row.threshold_type === "hrv_baseline") result.hrv_baseline = row.value_numeric;
+    else if (row.threshold_type === "hr_max") result.hr_max = row.value_numeric;
+    else if (row.threshold_type === "resting_hr") result.resting_hr = row.value_numeric;
+  }
+
+  return { data: result, error: null };
+}
