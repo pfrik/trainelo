@@ -117,31 +117,44 @@ class GarminClient:
 
     def _try_authenticate(self) -> bool:
         """Single authentication attempt (cached tokens → env secret → full login)."""
-        # Prefer cached tokens (refreshed by garth on each successful run)
-        # over the static GARMIN_TOKENS_BASE64 secret, which may be stale.
-        # Only use the env secret as bootstrap when no cached tokens exist.
-        if not self.token_dir.exists() or not any(self.token_dir.iterdir()):
-            self._restore_tokens_from_env()
+        has_cached = self.token_dir.exists() and any(self.token_dir.iterdir())
+        has_env_secret = bool(os.environ.get("GARMIN_TOKENS_BASE64"))
 
-        # Try token-based resume
-        if self.token_dir.exists():
+        # 1. Try cached tokens first (refreshed by garth on each successful run)
+        if has_cached:
             try:
                 self.client = Garmin()
                 self.client.login(str(self.token_dir))
-                print(f"Resumed session from cached tokens")
+                print("Resumed session from cached tokens")
                 self._save_tokens()
                 return True
             except GarminConnectAuthenticationError:
-                # Bad token + bad credentials — bubble up immediately
                 raise
             except Exception as e:
                 if self._is_rate_limit_error(e):
-                    # Don't fall through to full login — it will also 429
                     raise
-                print(f"Token resume failed ({e}), falling back to login...")
+                print(f"Cached token resume failed ({e})")
                 self.client = None
 
-        # Full login with credentials
+        # 2. Try env secret (may be fresher than stale cache)
+        if has_env_secret:
+            self._restore_tokens_from_env()
+            if self.token_dir.exists():
+                try:
+                    self.client = Garmin()
+                    self.client.login(str(self.token_dir))
+                    print("Resumed session from GARMIN_TOKENS_BASE64 secret")
+                    self._save_tokens()
+                    return True
+                except GarminConnectAuthenticationError:
+                    raise
+                except Exception as e:
+                    if self._is_rate_limit_error(e):
+                        raise
+                    print(f"Env secret token resume failed ({e})")
+                    self.client = None
+
+        # 3. Full login with credentials (last resort)
         self.client = Garmin(self.email, self.password)
         self.client.login()
         print(f"Successfully authenticated as {self.email}")
