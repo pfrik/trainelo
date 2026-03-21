@@ -29,7 +29,13 @@ import {
   detectTrainingLoadLow,
   detectStreakRisk,
   detectAdaptationPhase,
+  computeTrendStates,
 } from "./detectTrends";
+import type { TrendState } from "./detectTrends";
+import {
+  computeSignalValidityReport,
+} from "./computeSignalValidity";
+import type { SignalValidityReport } from "./computeSignalValidity";
 
 // ---------------------------------------------------------------------------
 // Input / Output types
@@ -83,6 +89,10 @@ export interface ReadinessAndFatigueOutput {
   baseline_mode?: BaselineMode;
   /** EWMA normalized result (present when dailyTssHistory provided). */
   ewma?: NormalizedEwmaResult;
+  /** Per-signal validity report (present when any signal provided). */
+  signal_validity?: SignalValidityReport;
+  /** Structured trend labels (present when trend inputs provided). */
+  trend_states?: TrendState[];
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +217,10 @@ export function computeReadinessAndFatigue(
   const { sleep, hrv, metrics, trainingLoad7Days } = input;
   const reasons: ReasonCode[] = [];
 
+  // --- Signal validity (per-metric quality assessment) ---
+  const validity = computeSignalValidityReport(sleep, hrv, metrics, trainingLoad7Days);
+  const hasAnySignal = sleep || hrv || metrics || trainingLoad7Days.length > 0;
+
   // --- Count available data sources ---
   const dataCount =
     (sleep ? 1 : 0) +
@@ -218,9 +232,9 @@ export function computeReadinessAndFatigue(
     reasons.push("INSUFFICIENT_DATA");
   }
 
-  // --- Sleep ---
+  // --- Sleep (skip invalid signals) ---
   let sleepVal: number | null = null;
-  if (sleep) {
+  if (sleep && validity.sleep && validity.sleep.valid) {
     sleepVal = sleepSignal(sleep);
     const hoursSlept = sleep.duration_seconds / 3600;
     if (
@@ -232,18 +246,18 @@ export function computeReadinessAndFatigue(
     }
   }
 
-  // --- HRV ---
+  // --- HRV (skip invalid signals) ---
   let hrvVal: number | null = null;
-  if (hrv) {
+  if (hrv && validity.hrv && validity.hrv.valid) {
     hrvVal = hrvSignal(hrv);
     if (hrv.hrv_baseline > 0 && hrv.hrv_rmssd / hrv.hrv_baseline < HRV_SUPPRESSION_RATIO) {
       reasons.push("HRV_LOW");
     }
   }
 
-  // --- Metrics ---
+  // --- Metrics (skip invalid signals) ---
   let metricsVal: number | null = null;
-  if (metrics) {
+  if (metrics && validity.metrics && validity.metrics.valid) {
     metricsVal = metricsSignal(metrics);
   }
 
@@ -377,32 +391,7 @@ export function computeReadinessAndFatigue(
     fatigue_score = clamp0100(fatigue_score + fatigueDelta);
   }
 
-  // --- Trend detection (only when optional inputs are provided) ---
-  if (input.hrvHistory) {
-    const hrvCode = detectHrvDeclining(input.hrvHistory);
-    if (hrvCode && !reasons.includes(hrvCode)) {
-      reasons.push(hrvCode);
-    }
-  }
-
-  if (input.chronicLoad28d != null || input.priorChronicLoad28d != null) {
-    const loadCode = detectTrainingLoadLow(
-      input.chronicLoad28d ?? null,
-      input.priorChronicLoad28d ?? null,
-    );
-    if (loadCode && !reasons.includes(loadCode)) {
-      reasons.push(loadCode);
-    }
-  }
-
-  if (input.consecutiveTrainingDays != null) {
-    const streakCode = detectStreakRisk(input.consecutiveTrainingDays);
-    if (streakCode && !reasons.includes(streakCode)) {
-      reasons.push(streakCode);
-    }
-  }
-
-  // --- Baseline mode detection ---
+  // --- Baseline mode detection (needed before trend states) ---
   let baseline_mode: BaselineMode | undefined;
   if (input.totalDataDays != null) {
     baseline_mode = detectBaselineMode(input.totalDataDays);
@@ -411,15 +400,79 @@ export function computeReadinessAndFatigue(
     }
   }
 
-  // --- Adaptation phase (needs baseline_mode, so runs after it) ---
-  if (input.chronicLoad28d != null && input.priorChronicLoad28d != null) {
-    const adaptCode = detectAdaptationPhase(
-      input.chronicLoad28d,
-      input.priorChronicLoad28d,
+  // --- Structured trend states + legacy trend detection ---
+  const hasTrendInputs =
+    (input.hrvHistory && input.hrvHistory.length > 0) ||
+    input.chronicLoad28d != null ||
+    input.priorChronicLoad28d != null ||
+    input.consecutiveTrainingDays != null;
+
+  let trend_states: TrendState[] | undefined;
+  if (hasTrendInputs) {
+    const hrvBaseline = hrv?.hrv_baseline ?? null;
+    trend_states = computeTrendStates(
+      input.hrvHistory ?? null,
+      hrvBaseline,
+      input.chronicLoad28d ?? null,
+      input.priorChronicLoad28d ?? null,
+      input.consecutiveTrainingDays ?? null,
       baseline_mode ?? null,
     );
-    if (adaptCode && !reasons.includes(adaptCode)) {
-      reasons.push(adaptCode);
+
+    // Extract reason codes from trend states
+    for (const ts of trend_states) {
+      if (ts.reason_code && !reasons.includes(ts.reason_code)) {
+        reasons.push(ts.reason_code);
+      }
+    }
+  }
+
+  // --- Legacy trend detection for HRV (backward compat when no trend_states) ---
+  // Use single-shot detectHrvDeclining with baseline for trivial-band gating
+  if (input.hrvHistory && !trend_states) {
+    const hrvCode = detectHrvDeclining(input.hrvHistory, hrv?.hrv_baseline ?? null);
+    if (hrvCode && !reasons.includes(hrvCode)) {
+      reasons.push(hrvCode);
+    }
+  }
+  // When trend_states is present but HRV wasn't included (< 4 entries),
+  // fall back to single-shot detection
+  if (input.hrvHistory && trend_states && !trend_states.find((s) => s.metric === "hrv")) {
+    const hrvCode = detectHrvDeclining(input.hrvHistory, hrv?.hrv_baseline ?? null);
+    if (hrvCode && !reasons.includes(hrvCode)) {
+      reasons.push(hrvCode);
+    }
+  }
+
+  // --- Legacy trend detection for load/streak (when not covered by trend_states) ---
+  if (!trend_states) {
+    if (input.chronicLoad28d != null || input.priorChronicLoad28d != null) {
+      const loadCode = detectTrainingLoadLow(
+        input.chronicLoad28d ?? null,
+        input.priorChronicLoad28d ?? null,
+      );
+      if (loadCode && !reasons.includes(loadCode)) {
+        reasons.push(loadCode);
+      }
+    }
+
+    if (input.consecutiveTrainingDays != null) {
+      const streakCode = detectStreakRisk(input.consecutiveTrainingDays);
+      if (streakCode && !reasons.includes(streakCode)) {
+        reasons.push(streakCode);
+      }
+    }
+
+    // Adaptation phase
+    if (input.chronicLoad28d != null && input.priorChronicLoad28d != null) {
+      const adaptCode = detectAdaptationPhase(
+        input.chronicLoad28d,
+        input.priorChronicLoad28d,
+        baseline_mode ?? null,
+      );
+      if (adaptCode && !reasons.includes(adaptCode)) {
+        reasons.push(adaptCode);
+      }
     }
   }
 
@@ -427,11 +480,12 @@ export function computeReadinessAndFatigue(
   let confidence: ConfidenceBreakdown | undefined;
   if (input.totalDataDays != null || input.latestDataTimestamp != null) {
     const mode = baseline_mode ?? "building";
+    // Pass quality scores (0-1) when validity is available, else boolean presence
     const dataAvailability = computeDataAvailability(
-      !!sleep,
-      !!hrv,
-      !!metrics,
-      trainingLoad7Days.length > 0,
+      validity.sleep ? validity.sleep.quality : false,
+      validity.hrv ? validity.hrv.quality : false,
+      validity.metrics ? validity.metrics.quality : false,
+      validity.load ? validity.load.quality : trainingLoad7Days.length > 0,
     );
     const signalConsistency = computeSignalConsistency(signals);
     const dataRecency = input.latestDataTimestamp
@@ -467,6 +521,10 @@ export function computeReadinessAndFatigue(
     reasons.push("RECOVERY_OPTIMAL");
   }
 
+  // --- Build signal_validity for output (only when any signal present) ---
+  const signal_validity: SignalValidityReport | undefined =
+    hasAnySignal ? validity : undefined;
+
   return {
     readiness_score,
     fatigue_score,
@@ -474,5 +532,7 @@ export function computeReadinessAndFatigue(
     ...(confidence !== undefined && { confidence }),
     ...(baseline_mode !== undefined && { baseline_mode }),
     ...(ewma !== undefined && { ewma }),
+    ...(signal_validity !== undefined && { signal_validity }),
+    ...(trend_states !== undefined && { trend_states }),
   };
 }

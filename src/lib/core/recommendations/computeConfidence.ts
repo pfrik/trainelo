@@ -29,17 +29,15 @@ export type BaselineMode = "cold_start" | "building" | "mature";
 // ---------------------------------------------------------------------------
 
 export function computeDataAvailability(
-  sleepPresent: boolean,
-  hrvPresent: boolean,
-  metricsPresent: boolean,
-  loadPresent: boolean,
+  sleepPresent: boolean | number,
+  hrvPresent: boolean | number,
+  metricsPresent: boolean | number,
+  loadPresent: boolean | number,
 ): number {
-  const count =
-    (sleepPresent ? 1 : 0) +
-    (hrvPresent ? 1 : 0) +
-    (metricsPresent ? 1 : 0) +
-    (loadPresent ? 1 : 0);
-  return count / 4;
+  const toVal = (p: boolean | number): number =>
+    typeof p === "number" ? Math.max(0, Math.min(1, p)) : p ? 1 : 0;
+  const sum = toVal(sleepPresent) + toVal(hrvPresent) + toVal(metricsPresent) + toVal(loadPresent);
+  return sum / 4;
 }
 
 // ---------------------------------------------------------------------------

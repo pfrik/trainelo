@@ -13,7 +13,7 @@ import type {
   DailyMetricsInput,
   TrainingLoadInput,
 } from "./computeDailyRecommendation";
-import type { HrvHistoryEntry } from "./detectTrends";
+import type { HrvHistoryEntry, TrendState } from "./detectTrends";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -423,7 +423,7 @@ describe("computeReadinessAndFatigue", () => {
   // ======= Boundary / edge cases ==========================================
 
   describe("boundary and edge cases", () => {
-    it("handles zero sleep_score and zero duration", () => {
+    it("handles zero sleep_score and zero duration (invalid signal, excluded)", () => {
       const result = computeReadinessAndFatigue({
         sleep: { ...goodSleep, sleep_score: 0, duration_seconds: 0 },
         hrv: goodHrv,
@@ -432,7 +432,8 @@ describe("computeReadinessAndFatigue", () => {
       });
       expect(result.readiness_score).toBeGreaterThanOrEqual(0);
       expect(result.readiness_score).toBeLessThanOrEqual(100);
-      expect(hasCode(result, "SLEEP_POOR")).toBe(true);
+      // Invalid sleep signal is now excluded — SLEEP_POOR does not fire for garbage data
+      expect(hasCode(result, "SLEEP_POOR")).toBe(false);
     });
 
     it("handles sleep_score of exactly 60 (no SLEEP_POOR)", () => {
@@ -724,7 +725,8 @@ describe("computeReadinessAndFatigue", () => {
         currentTimestamp: "2026-03-18T12:00:00Z",
       });
       expect(result.confidence).toBeDefined();
-      expect(result.confidence!.data_availability).toBe(1); // all 4 sources
+      // Quality scores: sleep=0.85, hrv=1.0, metrics=1.0, load=1.0 → avg 0.9625
+      expect(result.confidence!.data_availability).toBeCloseTo(0.9625, 4);
       expect(result.confidence!.signal_consistency).toBeGreaterThan(0.5);
       expect(result.confidence!.data_recency).toBe(1.0); // 2h old
       expect(result.confidence!.overall).toBeGreaterThan(0);
@@ -1027,6 +1029,227 @@ describe("computeReadinessAndFatigue", () => {
       // Acute fatigue should exceed fitness → negative form score
       expect(result.ewma!.form_score).toBeLessThan(-20);
       expect(hasCode(result, "FORM_NEGATIVE")).toBe(true);
+    });
+  });
+
+  // ======= Phase 5b: Signal validity, trivial bands, persistence, trends ====
+
+  describe("Phase 5b — signal validity, trivial bands, persistence, trend states", () => {
+    it("invalid sleep (score=0, duration=0) is excluded from readiness", () => {
+      const withInvalid = computeReadinessAndFatigue({
+        sleep: { ...goodSleep, sleep_score: 0, duration_seconds: 0 },
+        hrv: goodHrv,
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(200),
+      });
+      const withoutSleep = computeReadinessAndFatigue({
+        sleep: null,
+        hrv: goodHrv,
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(200),
+      });
+      // Invalid sleep should produce same readiness as absent sleep
+      expect(withInvalid.readiness_score).toBe(withoutSleep.readiness_score);
+    });
+
+    it("invalid HRV (rmssd=0) is excluded from readiness", () => {
+      const withInvalid = computeReadinessAndFatigue({
+        sleep: goodSleep,
+        hrv: { ...goodHrv, hrv_rmssd: 0 },
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(200),
+      });
+      const withoutHrv = computeReadinessAndFatigue({
+        sleep: goodSleep,
+        hrv: null,
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(200),
+      });
+      // Invalid HRV should produce same readiness as absent HRV
+      expect(withInvalid.readiness_score).toBe(withoutHrv.readiness_score);
+    });
+
+    it("invalid metrics (all zeros) excluded from readiness", () => {
+      const withInvalid = computeReadinessAndFatigue({
+        sleep: goodSleep,
+        hrv: goodHrv,
+        metrics: { ...goodMetrics, recovery_score: 0, body_battery_high: 0, resting_heart_rate: 0 },
+        trainingLoad7Days: makeLoad(200),
+      });
+      const withoutMetrics = computeReadinessAndFatigue({
+        sleep: goodSleep,
+        hrv: goodHrv,
+        metrics: null,
+        trainingLoad7Days: makeLoad(200),
+      });
+      expect(withInvalid.readiness_score).toBe(withoutMetrics.readiness_score);
+    });
+
+    it("signal_validity present when any signal provided", () => {
+      const result = computeReadinessAndFatigue({
+        sleep: goodSleep,
+        hrv: goodHrv,
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(200),
+      });
+      expect(result.signal_validity).toBeDefined();
+      expect(result.signal_validity!.sleep).not.toBeNull();
+      expect(result.signal_validity!.hrv).not.toBeNull();
+      expect(result.signal_validity!.metrics).not.toBeNull();
+      expect(result.signal_validity!.load).not.toBeNull();
+    });
+
+    it("signal_validity absent when no signals provided", () => {
+      const result = computeReadinessAndFatigue({
+        sleep: null,
+        hrv: null,
+        metrics: null,
+        trainingLoad7Days: [],
+      });
+      expect(result.signal_validity).toBeUndefined();
+    });
+
+    it("signal_validity marks invalid sleep correctly", () => {
+      const result = computeReadinessAndFatigue({
+        sleep: { ...goodSleep, sleep_score: 0, duration_seconds: 0 },
+        hrv: goodHrv,
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(200),
+      });
+      expect(result.signal_validity!.sleep!.valid).toBe(false);
+      expect(result.signal_validity!.sleep!.quality).toBe(0);
+    });
+
+    it("HRV_DECLINING suppressed for tiny change within trivial band", () => {
+      // 50→49.5→49→48.5→48 with baseline=50
+      // slope = -0.5/day, slopePct = -0.5/49*100 ≈ -1.02%. Below -2% threshold
+      // But let's use a case that passes -2% but is within trivial band:
+      // Use high baseline to inflate the band
+      const hrvHistory: HrvHistoryEntry[] = [
+        { date: "2026-03-18", hrv_rmssd: 49 },
+        { date: "2026-03-17", hrv_rmssd: 49.5 },
+        { date: "2026-03-16", hrv_rmssd: 50 },
+        { date: "2026-03-15", hrv_rmssd: 50.5 },
+        { date: "2026-03-14", hrv_rmssd: 51 },
+      ];
+      // With high baseline: band = max(200*0.05, 2) = 10ms.
+      // Total change ≈ 0.5*4 = 2ms < 10ms → suppressed
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        hrv: { ...goodHrv, hrv_baseline: 200 },
+        hrvHistory,
+      });
+      expect(hasCode(result, "HRV_DECLINING")).toBe(false);
+    });
+
+    it("HRV_DECLINING fires for real decline exceeding trivial band", () => {
+      const hrvHistory: HrvHistoryEntry[] = [
+        { date: "2026-03-18", hrv_rmssd: 32 },
+        { date: "2026-03-17", hrv_rmssd: 38 },
+        { date: "2026-03-16", hrv_rmssd: 44 },
+        { date: "2026-03-15", hrv_rmssd: 50 },
+        { date: "2026-03-14", hrv_rmssd: 55 },
+      ];
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        hrvHistory,
+      });
+      expect(hasCode(result, "HRV_DECLINING")).toBe(true);
+    });
+
+    it("trend_states present when trend inputs provided", () => {
+      const hrvHistory: HrvHistoryEntry[] = [
+        { date: "2026-03-18", hrv_rmssd: 50 },
+        { date: "2026-03-17", hrv_rmssd: 51 },
+        { date: "2026-03-16", hrv_rmssd: 49 },
+        { date: "2026-03-15", hrv_rmssd: 50 },
+        { date: "2026-03-14", hrv_rmssd: 50 },
+      ];
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        hrvHistory,
+        chronicLoad28d: 500,
+        priorChronicLoad28d: 500,
+        consecutiveTrainingDays: 3,
+        totalDataDays: 30,
+      });
+      expect(result.trend_states).toBeDefined();
+      expect(result.trend_states!.length).toBeGreaterThanOrEqual(1);
+      // Should have hrv, training_load, and streak entries
+      expect(result.trend_states!.find((s: TrendState) => s.metric === "hrv")).toBeDefined();
+      expect(result.trend_states!.find((s: TrendState) => s.metric === "training_load")).toBeDefined();
+      expect(result.trend_states!.find((s: TrendState) => s.metric === "streak")).toBeDefined();
+    });
+
+    it("trend_states absent when no trend inputs provided", () => {
+      const result = computeReadinessAndFatigue(fullHealthyInput());
+      expect(result.trend_states).toBeUndefined();
+    });
+
+    it("backward compat: fullHealthyInput() produces identical scores", () => {
+      // The key contract: existing fixtures with healthy data pass all validity
+      // checks and produce the same scores as before.
+      const result = computeReadinessAndFatigue(fullHealthyInput());
+      expect(result.readiness_score).toBeGreaterThanOrEqual(60);
+      expect(result.fatigue_score).toBeGreaterThan(0);
+      expect(result.fatigue_score).toBeLessThan(80);
+      expect(result.reason_codes).toEqual(["RECOVERY_OPTIMAL"]);
+      // No confidence or baseline_mode without those inputs
+      expect(result.confidence).toBeUndefined();
+      expect(result.baseline_mode).toBeUndefined();
+    });
+
+    it("HRV_DECLINING requires persistence with sufficient history (8 points)", () => {
+      // 8-point history with one noisy spike breaking the trend
+      // Mostly stable with one bad reading — shouldn't persist
+      const hrvHistory: HrvHistoryEntry[] = [
+        { date: "2026-03-18", hrv_rmssd: 50 },
+        { date: "2026-03-17", hrv_rmssd: 51 },
+        { date: "2026-03-16", hrv_rmssd: 30 }, // noise
+        { date: "2026-03-15", hrv_rmssd: 52 },
+        { date: "2026-03-14", hrv_rmssd: 50 },
+        { date: "2026-03-13", hrv_rmssd: 51 },
+        { date: "2026-03-12", hrv_rmssd: 49 },
+        { date: "2026-03-11", hrv_rmssd: 50 },
+      ];
+      const result = computeReadinessAndFatigue({
+        ...fullHealthyInput(),
+        hrvHistory,
+      });
+      // Trend states should exist but HRV_DECLINING should not be confirmed
+      expect(result.trend_states).toBeDefined();
+      const hrv = result.trend_states!.find((s: TrendState) => s.metric === "hrv");
+      expect(hrv).toBeDefined();
+      expect(hrv!.reason_code).toBeNull(); // not enough persistent sub-windows
+    });
+
+    it("degraded sleep (score=0, has duration) still contributes at lower quality", () => {
+      const result = computeReadinessAndFatigue({
+        sleep: { ...goodSleep, sleep_score: 0, duration_seconds: 7 * 3600 },
+        hrv: goodHrv,
+        metrics: goodMetrics,
+        trainingLoad7Days: makeLoad(200),
+      });
+      // Degraded sleep (quality=0.3) is still valid and contributes to readiness
+      expect(result.signal_validity!.sleep!.valid).toBe(true);
+      expect(result.signal_validity!.sleep!.quality).toBe(0.3);
+      // SLEEP_POOR fires because score=0 < 60
+      expect(hasCode(result, "SLEEP_POOR")).toBe(true);
+    });
+
+    it("quality scores flow through to confidence data_availability", () => {
+      const result = computeReadinessAndFatigue({
+        sleep: { ...goodSleep, sleep_score: 0, duration_seconds: 7 * 3600 }, // quality=0.3
+        hrv: goodHrv, // quality=1.0
+        metrics: goodMetrics, // quality=1.0
+        trainingLoad7Days: makeLoad(200), // quality=1.0
+        totalDataDays: 30,
+        latestDataTimestamp: "2026-03-18T10:00:00Z",
+        currentTimestamp: "2026-03-18T12:00:00Z",
+      });
+      expect(result.confidence).toBeDefined();
+      // (0.3 + 1.0 + 1.0 + 1.0) / 4 = 0.825
+      expect(result.confidence!.data_availability).toBeCloseTo(0.825, 4);
     });
   });
 });

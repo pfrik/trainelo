@@ -5,6 +5,9 @@ import {
   detectTrainingLoadLow,
   detectStreakRisk,
   detectAdaptationPhase,
+  exceedsTrivialBand,
+  detectHrvDecliningPersistent,
+  computeTrendStates,
   type HrvHistoryEntry,
 } from "./detectTrends";
 
@@ -234,5 +237,254 @@ describe("detectAdaptationPhase", () => {
 
   it("returns null when priorChronicLoad28d is negative", () => {
     expect(detectAdaptationPhase(600, -100, "mature")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// exceedsTrivialBand
+// ---------------------------------------------------------------------------
+
+describe("exceedsTrivialBand", () => {
+  it("returns false when total change is within 5% of baseline", () => {
+    // slope=-0.5, window=5, totalChange=0.5*4=2. baseline=50 → band=2.5. 2<2.5
+    expect(exceedsTrivialBand(-0.5, 50, 50, 5)).toBe(false);
+  });
+
+  it("returns true when total change exceeds 5% of baseline", () => {
+    // slope=-2, window=5, totalChange=2*4=8. baseline=50 → band=2.5. 8>2.5
+    expect(exceedsTrivialBand(-2, 50, 50, 5)).toBe(true);
+  });
+
+  it("uses absolute floor of 2ms when baseline is very low", () => {
+    // baseline=10, 5%=0.5 → floor=2. slope=-0.4, window=5, totalChange=0.4*4=1.6. 1.6<2
+    expect(exceedsTrivialBand(-0.4, 10, 10, 5)).toBe(false);
+  });
+
+  it("returns true when exceeding absolute floor", () => {
+    // baseline=10, floor=2. slope=-1, window=5, totalChange=1*4=4. 4>2
+    expect(exceedsTrivialBand(-1, 10, 10, 5)).toBe(true);
+  });
+
+  it("falls back to mean when no baseline", () => {
+    // mean=50, no baseline → reference=50. band=2.5. slope=-1, totalChange=4. 4>2.5
+    expect(exceedsTrivialBand(-1, 50, null, 5)).toBe(true);
+  });
+
+  it("falls back to mean when baseline is 0", () => {
+    expect(exceedsTrivialBand(-1, 50, 0, 5)).toBe(true);
+  });
+
+  it("returns false when reference is 0", () => {
+    expect(exceedsTrivialBand(-1, 0, null, 5)).toBe(false);
+  });
+
+  it("handles positive slopes correctly", () => {
+    // slope=+3, window=5, totalChange=12. baseline=50, band=2.5. 12>2.5
+    expect(exceedsTrivialBand(3, 50, 50, 5)).toBe(true);
+  });
+
+  it("uses baseline over mean when both available", () => {
+    // baseline=100 → band=5. slope=-1, window=5, totalChange=4. 4<5 → false
+    // If mean were used (mean=40 → band=2), it would be true
+    expect(exceedsTrivialBand(-1, 40, 100, 5)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectHrvDecliningPersistent
+// ---------------------------------------------------------------------------
+
+describe("detectHrvDecliningPersistent", () => {
+  function makeHistory(values: number[]): HrvHistoryEntry[] {
+    return values.map((v, i) => ({
+      date: `2026-03-${String(18 - i).padStart(2, "0")}`,
+      hrv_rmssd: v,
+    }));
+  }
+
+  it("returns no detection for < 4 entries", () => {
+    const result = detectHrvDecliningPersistent(makeHistory([50, 48, 45]));
+    expect(result.code).toBeNull();
+    expect(result.windows).toBe(0);
+  });
+
+  it("fires with exactly 4 entries (single window) for strong decline", () => {
+    // 32, 38, 44, 50 → reversed: 50, 44, 38, 32. slope=-6/day, mean=41
+    const result = detectHrvDecliningPersistent(makeHistory([32, 38, 44, 50]));
+    expect(result.code).toBe("HRV_DECLINING");
+    expect(result.windows).toBe(1);
+    expect(result.hits).toBe(1);
+  });
+
+  it("confirms with 3-of-5 sub-windows for consistent decline", () => {
+    // 8 data points, strong consistent decline (newest-first)
+    // Reversed oldest-first: 70, 65, 60, 55, 50, 45, 40, 35
+    const result = detectHrvDecliningPersistent(
+      makeHistory([35, 40, 45, 50, 55, 60, 65, 70]),
+    );
+    expect(result.code).toBe("HRV_DECLINING");
+    expect(result.hits).toBeGreaterThanOrEqual(3);
+  });
+
+  it("does not confirm when intermittent noise prevents persistence", () => {
+    // Mostly stable with one dip → most sub-windows shouldn't fire
+    // Reversed oldest-first: 50, 51, 49, 50, 50, 49, 51, 50
+    const result = detectHrvDecliningPersistent(
+      makeHistory([50, 51, 49, 50, 50, 49, 51, 50]),
+    );
+    expect(result.code).toBeNull();
+  });
+
+  it("caps at 10 entries", () => {
+    // 12 entries, but only 10 used → 7 sub-windows
+    const values = Array.from({ length: 12 }, (_, i) => 70 - i * 4); // newest-first decline
+    const result = detectHrvDecliningPersistent(makeHistory(values));
+    expect(result.windows).toBe(7); // 10 - 4 + 1
+  });
+
+  it("respects trivial band with baseline", () => {
+    // Very small decline: 50→49.5→49→48.5 over 4 days with high baseline=200
+    // band = max(200*0.05, 2) = 10. totalChange per window ≈ 0.5*3=1.5 < 10
+    const result = detectHrvDecliningPersistent(
+      makeHistory([48.5, 49, 49.5, 50]),
+      200, // high baseline makes band=10
+    );
+    expect(result.code).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeTrendStates
+// ---------------------------------------------------------------------------
+
+describe("computeTrendStates", () => {
+  function makeHistory(values: number[]): HrvHistoryEntry[] {
+    return values.map((v, i) => ({
+      date: `2026-03-${String(18 - i).padStart(2, "0")}`,
+      hrv_rmssd: v,
+    }));
+  }
+
+  it("returns empty array when no inputs provided", () => {
+    const states = computeTrendStates(null, null, null, null, null, null);
+    expect(states).toEqual([]);
+  });
+
+  it("includes HRV trend state for declining HRV", () => {
+    const history = makeHistory([32, 38, 44, 50, 56, 62, 68, 74]);
+    const states = computeTrendStates(history, null, null, null, null, null);
+    const hrv = states.find((s) => s.metric === "hrv");
+    expect(hrv).toBeDefined();
+    expect(hrv!.direction).toBe("declining");
+  });
+
+  it("includes HRV trend state for stable HRV", () => {
+    const history = makeHistory([50, 51, 49, 50, 50]);
+    const states = computeTrendStates(history, null, null, null, null, null);
+    const hrv = states.find((s) => s.metric === "hrv");
+    expect(hrv).toBeDefined();
+    expect(hrv!.direction).toBe("stable");
+  });
+
+  it("includes HRV trend state for rising HRV", () => {
+    // Newest-first, rising: 74, 68, 62, 56, 50 → reversed: 50, 56, 62, 68, 74
+    const history = makeHistory([74, 68, 62, 56, 50]);
+    const states = computeTrendStates(history, null, null, null, null, null);
+    const hrv = states.find((s) => s.metric === "hrv");
+    expect(hrv).toBeDefined();
+    expect(hrv!.direction).toBe("rising");
+  });
+
+  it("skips HRV trend with < 4 entries", () => {
+    const history = makeHistory([50, 48, 45]);
+    const states = computeTrendStates(history, null, null, null, null, null);
+    expect(states.find((s) => s.metric === "hrv")).toBeUndefined();
+  });
+
+  it("includes training_load trend — declining", () => {
+    const states = computeTrendStates(null, null, 200, 500, null, "mature");
+    const load = states.find((s) => s.metric === "training_load");
+    expect(load).toBeDefined();
+    expect(load!.direction).toBe("declining");
+    expect(load!.confirmation).toBe("confirmed");
+    expect(load!.reason_code).toBe("TRAINING_LOAD_LOW");
+  });
+
+  it("includes training_load trend — rising with adaptation", () => {
+    const states = computeTrendStates(null, null, 600, 400, null, "mature");
+    const load = states.find((s) => s.metric === "training_load");
+    expect(load).toBeDefined();
+    expect(load!.direction).toBe("rising");
+    expect(load!.reason_code).toBe("ADAPTATION_PHASE");
+  });
+
+  it("training_load rising without adaptation in cold_start", () => {
+    const states = computeTrendStates(null, null, 600, 400, null, "cold_start");
+    const load = states.find((s) => s.metric === "training_load");
+    expect(load).toBeDefined();
+    expect(load!.direction).toBe("rising");
+    expect(load!.reason_code).toBeNull();
+  });
+
+  it("includes training_load trend — stable", () => {
+    const states = computeTrendStates(null, null, 500, 500, null, "mature");
+    const load = states.find((s) => s.metric === "training_load");
+    expect(load).toBeDefined();
+    expect(load!.direction).toBe("stable");
+    expect(load!.reason_code).toBeNull();
+  });
+
+  it("includes streak trend — rising at 5 days", () => {
+    const states = computeTrendStates(null, null, null, null, 5, null);
+    const streak = states.find((s) => s.metric === "streak");
+    expect(streak).toBeDefined();
+    expect(streak!.direction).toBe("rising");
+    expect(streak!.reason_code).toBe("STREAK_RISK");
+  });
+
+  it("includes streak trend — stable at 3 days", () => {
+    const states = computeTrendStates(null, null, null, null, 3, null);
+    const streak = states.find((s) => s.metric === "streak");
+    expect(streak).toBeDefined();
+    expect(streak!.direction).toBe("stable");
+    expect(streak!.reason_code).toBeNull();
+  });
+
+  it("HRV confirmed when persistent detection fires", () => {
+    // Strong consistent decline over 8 entries
+    const history = makeHistory([35, 40, 45, 50, 55, 60, 65, 70]);
+    const states = computeTrendStates(history, null, null, null, null, null);
+    const hrv = states.find((s) => s.metric === "hrv");
+    expect(hrv!.confirmation).toBe("confirmed");
+    expect(hrv!.reason_code).toBe("HRV_DECLINING");
+  });
+
+  it("HRV tentative when persistent detection does not fire", () => {
+    // Mild decline — direction=declining but persistence doesn't confirm
+    // slope ~-1.2%/day (above -1% for declining direction, but below -2% for persistence)
+    const history = makeHistory([47, 47.5, 48, 49, 50]);
+    const states = computeTrendStates(history, null, null, null, null, null);
+    const hrv = states.find((s) => s.metric === "hrv");
+    expect(hrv!.confirmation).toBe("tentative");
+    expect(hrv!.reason_code).toBeNull();
+  });
+
+  it("persistence_detail shows hits_of_windows for HRV", () => {
+    const history = makeHistory([35, 40, 45, 50, 55, 60, 65, 70]);
+    const states = computeTrendStates(history, null, null, null, null, null);
+    const hrv = states.find((s) => s.metric === "hrv");
+    expect(hrv!.persistence_detail).toMatch(/^\d+_of_\d+$/);
+  });
+
+  it("persistence_detail shows 28d_aggregate for training_load", () => {
+    const states = computeTrendStates(null, null, 500, 500, null, "mature");
+    const load = states.find((s) => s.metric === "training_load");
+    expect(load!.persistence_detail).toBe("28d_aggregate");
+  });
+
+  it("persistence_detail shows consecutive days for streak", () => {
+    const states = computeTrendStates(null, null, null, null, 6, null);
+    const streak = states.find((s) => s.metric === "streak");
+    expect(streak!.persistence_detail).toBe("6d_consecutive");
   });
 });

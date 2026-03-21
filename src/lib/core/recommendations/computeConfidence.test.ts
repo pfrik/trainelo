@@ -38,6 +38,29 @@ describe("computeDataAvailability", () => {
     expect(computeDataAvailability(false, false, true, true)).toBe(0.5);
     expect(computeDataAvailability(false, true, false, true)).toBe(0.5);
   });
+
+  it("accepts number quality scores (0-1)", () => {
+    // 0.4 + 1.0 + 0.3 + 0 = 1.7, /4 = 0.425
+    expect(computeDataAvailability(0.4, 1.0, 0.3, 0)).toBeCloseTo(0.425, 10);
+  });
+
+  it("treats number 0 same as false", () => {
+    expect(computeDataAvailability(0, 0, 0, 0)).toBe(0);
+  });
+
+  it("treats number 1 same as true", () => {
+    expect(computeDataAvailability(1, 1, 1, 1)).toBe(1);
+  });
+
+  it("clamps numbers to 0-1 range", () => {
+    // 1.0 (clamped from 1.5) + 0 (clamped from -0.5) = 1.0, /4 = 0.25
+    expect(computeDataAvailability(1.5, -0.5, false, false)).toBeCloseTo(0.25, 10);
+  });
+
+  it("mixes boolean and number inputs", () => {
+    // true(1) + 0.5 + false(0) + 0.8 = 2.3, /4 = 0.575
+    expect(computeDataAvailability(true, 0.5, false, 0.8)).toBeCloseTo(0.575, 10);
+  });
 });
 
 // ---------------------------------------------------------------------------
