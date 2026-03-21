@@ -1238,3 +1238,172 @@ export async function restoreThresholdValue(
 
   return { data: restored as { id: string }, error: null };
 }
+
+// ============================================================================
+// Passive Calibration Queries
+// ============================================================================
+
+/** Row shape for workout max HR samples. */
+export interface WorkoutMaxHRRow {
+  started_at: string;
+  max_heart_rate: number;
+  duration_seconds: number;
+}
+
+/**
+ * Fetch recent workout max HR data for HR Max detection.
+ * Returns workouts from the last N days with non-null max_heart_rate.
+ */
+export async function getRecentWorkoutHR(
+  userId: string,
+  date: string,
+  days: number = 90,
+): Promise<{ data: WorkoutMaxHRRow[]; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const startDate = new Date(date + "T00:00:00Z");
+  startDate.setUTCDate(startDate.getUTCDate() - days);
+  const startDateStr = startDate.toISOString().slice(0, 10);
+
+  const { data, error } = await client
+    .from("workouts")
+    .select("started_at, max_heart_rate, duration_seconds")
+    .eq("user_id", userId)
+    .gte("started_at", startDateStr)
+    .lte("started_at", date + "T23:59:59Z")
+    .not("max_heart_rate", "is", null)
+    .not("duration_seconds", "is", null)
+    .order("started_at", { ascending: false });
+
+  if (error) {
+    console.error("[db] Error fetching workout HR:", error.message);
+    return { data: [], error: error.message };
+  }
+
+  return { data: (data as WorkoutMaxHRRow[]) || [], error: null };
+}
+
+/**
+ * Fetch the active (non-closed) threshold for a user and type.
+ * Active = effective_to IS NULL.
+ */
+export async function getActiveThreshold(
+  userId: string,
+  thresholdType: string,
+): Promise<{ data: UserThresholdRow | null; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("user_thresholds")
+    .select("id, user_id, threshold_type, value_numeric, value_min, value_max, value_json, effective_from, effective_to, confidence_level, is_locked, locked_at, locked_reason, lock_expires_at, created_at")
+    .eq("user_id", userId)
+    .eq("threshold_type", thresholdType)
+    .is("effective_to", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching active threshold:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as UserThresholdRow | null, error: null };
+}
+
+/**
+ * Insert a new user threshold row. Returns the inserted row ID.
+ */
+export async function insertUserThreshold(
+  params: {
+    user_id: string;
+    threshold_type: string;
+    value_numeric: number;
+    value_unit: string;
+    effective_from: string;
+    source: string;
+    confidence_level: string;
+    calibration_method: string;
+    last_calibrated_at: string;
+  },
+): Promise<{ data: { id: string } | null; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("user_thresholds")
+    .insert({
+      user_id: params.user_id,
+      threshold_type: params.threshold_type,
+      value_numeric: params.value_numeric,
+      value_unit: params.value_unit,
+      effective_from: params.effective_from,
+      source: params.source,
+      confidence_level: params.confidence_level,
+      calibration_method: params.calibration_method,
+      last_calibrated_at: params.last_calibrated_at,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("[db] Error inserting user_threshold:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as { id: string }, error: null };
+}
+
+/**
+ * Close an existing threshold by setting effective_to.
+ */
+export async function closeUserThreshold(
+  thresholdId: string,
+  effectiveTo: string,
+): Promise<{ error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { error } = await client
+    .from("user_thresholds")
+    .update({
+      effective_to: effectiveTo,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", thresholdId);
+
+  if (error) {
+    console.error("[db] Error closing user_threshold:", error.message);
+    return { error: error.message };
+  }
+
+  return { error: null };
+}
+
+/**
+ * Check for an active cooldown on a threshold type for a user.
+ * Looks for calibration_events with cooldown_ends_at > now.
+ */
+export async function getActiveCooldown(
+  userId: string,
+  thresholdType: string,
+  now: string,
+): Promise<{ data: { cooldown_ends_at: string } | null; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("calibration_events")
+    .select("cooldown_ends_at")
+    .eq("user_id", userId)
+    .eq("threshold_type", thresholdType)
+    .gt("cooldown_ends_at", now)
+    .eq("was_undone", false)
+    .order("cooldown_ends_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching active cooldown:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as { cooldown_ends_at: string } | null, error: null };
+}

@@ -73,6 +73,7 @@ import {
   type ReasonBucket,
 } from "../../src/lib/core/checkin/calibrator.js";
 import { applyCandidateCalibration } from "../../src/lib/core/checkin/applyCandidateCalibration.js";
+import { runPassiveCalibration } from "../../src/lib/core/calibration/index.js";
 
 // ============================================================================
 // Configuration
@@ -644,6 +645,23 @@ async function processBatch(
         upsertOk,
         error,
       });
+
+      // Run passive calibration (non-fatal)
+      if (!dryRun) {
+        try {
+          const calibResult = await runPassiveCalibration(userId, targetDate, log);
+          log.info("calibration complete", {
+            user_id: userId,
+            applied: calibResult.applied,
+            skipped: calibResult.skipped,
+          });
+        } catch (err) {
+          log.warn("calibration error (non-fatal)", {
+            user_id: userId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
 
       log.info("user processed", {
         user_id: userId,
