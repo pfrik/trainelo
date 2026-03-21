@@ -81,7 +81,7 @@ export default function Auth() {
         <img
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGlCSMxK8Mo5woOkwjsrfTGp2UuZI5FwXCsxcfWMrZp13KDhrEHrnbRlXuydH5AO86Uag3bP0lGB0PL476SFHvY2uZo1qunmrw_ZKH95RFp_14Clm5sQaFTk5F-X2holZJq8GkWkjBxo8gE4TVYJQXZEy1K-UL4_6i_mTwpk4aSiAUA_ugvr2qzDVdtw7FoOOZ5f0nfloQ5L3KVmW-InGAWv4Vg57Hv3bzJmod_jwzvvR1JwhBgRM7wKazUbRIdAohLteuvpC3q70"
+          src="/login-bg.jpg"
         />
         <div className="absolute inset-0 bg-[#0B0E11]/80 backdrop-blur-[6px]"></div>
       </div>
