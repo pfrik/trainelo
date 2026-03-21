@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
+import { useWeekSchedule, type WeekDay } from '@/hooks/useWeekSchedule';
 import { useAuth } from '@/contexts/AuthContext';
 import { MorningCheckinFlow, type CheckinPayload } from '@/components/checkin/MorningCheckinFlow';
 import { GarminSyncCard } from '@/components/garmin/GarminSyncCard';
@@ -28,13 +29,7 @@ const NavItem = ({ icon, text, active = false }: NavItemProps) => (
   </a>
 );
 
-interface WeekDay {
-  day: string;
-  date: string;
-  type: string;
-  detail: string;
-  status: 'completed' | 'today' | 'rest' | 'upcoming';
-}
+// WeekDay type imported from useWeekSchedule
 
 /** Get caution level color classes */
 function getCautionStyles(level: CautionLevel): { bg: string; text: string; border: string } {
@@ -404,50 +399,8 @@ export default function Dashboard() {
     recRefetch();
   }, [session?.access_token, recRefetch]);
 
-  // Generate dynamic week schedule based on current date
-  const getWeekSchedule = (): WeekDay[] => {
-    const today = new Date();
-    const currentDay = today.getDay();
-    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
-
-    const workouts = [
-      { type: "Recovery Run", detail: "5km" },
-      { type: "Tempo", detail: "13km" },
-      { type: "Rest", detail: "Rest" },
-      { type: "Intervals", detail: "8x400m" },
-      { type: "Strength", detail: "Legs" },
-      { type: "Long Run", detail: "22km" },
-      { type: "Rest", detail: "Rest" },
-    ];
-
-    const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-    return dayNames.map((day, index) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
-      const isToday = date.toDateString() === today.toDateString();
-      const isPast = date < new Date(today.toDateString());
-      const isRest = workouts[index].type === "Rest";
-
-      let status: WeekDay['status'];
-      if (isToday) status = 'today';
-      else if (isRest) status = 'rest';
-      else if (isPast) status = 'completed';
-      else status = 'upcoming';
-
-      return {
-        day,
-        date: date.getDate().toString(),
-        type: workouts[index].type,
-        detail: workouts[index].detail,
-        status,
-      };
-    });
-  };
-
-  const weekSchedule = getWeekSchedule();
+  // Week schedule from real data (recommendations + completed workouts)
+  const { days: weekSchedule } = useWeekSchedule();
 
   // Derive top prescribed candidate
   const topCandidate = recommendation?.candidates?.[0] ?? null;
@@ -864,7 +817,7 @@ export default function Dashboard() {
                           <div className="text-xs text-primary font-bold text-center uppercase">{day.day}</div>
                           <div className="w-full bg-primary/10 border border-primary rounded-lg p-2 min-h-[90px] flex flex-col justify-between relative overflow-hidden shadow-sm">
                             <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-                            <span className="text-xs font-bold text-slate-900 dark:text-white pl-2">{day.date}</span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white pl-2">{day.dateNum}</span>
                             <div className="flex flex-col gap-1 pl-2">
                               <span className="text-[11px] leading-tight font-bold text-primary-hover dark:text-primary">{day.type}</span>
                               <span className="text-[10px] leading-tight text-slate-600 dark:text-slate-300 font-medium">{day.detail}</span>
@@ -878,7 +831,7 @@ export default function Dashboard() {
                         <div key={index} className="flex flex-col gap-2 group cursor-pointer">
                           <div className="text-xs text-slate-500 font-medium text-center uppercase">{day.day}</div>
                           <div className="w-full bg-slate-50 dark:bg-dark-surface-lighter rounded-lg p-2 min-h-[90px] flex flex-col justify-between border border-dashed border-slate-300 dark:border-slate-600">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500">{day.date}</span>
+                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500">{day.dateNum}</span>
                             <div className="flex items-center justify-center h-full">
                               <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-medium">Rest</span>
                             </div>
@@ -887,17 +840,24 @@ export default function Dashboard() {
                       );
                     }
                     return (
-                      <div key={index} className={`flex flex-col gap-2 group cursor-pointer ${day.status === 'completed' ? 'opacity-60' : ''}`}>
+                      <div key={index} className={`flex flex-col gap-2 group cursor-pointer ${day.status === 'completed' || day.status === 'missed' ? 'opacity-60' : ''}`}>
                         <div className="text-xs text-slate-500 font-medium text-center uppercase">{day.day}</div>
-                        <div className="w-full bg-slate-50 dark:bg-dark-surface-lighter border border-slate-200 dark:border-slate-700 rounded-lg p-2 min-h-[90px] flex flex-col justify-between hover:border-slate-400 transition-colors relative">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{day.date}</span>
+                        <div className={`w-full bg-slate-50 dark:bg-dark-surface-lighter border rounded-lg p-2 min-h-[90px] flex flex-col justify-between hover:border-slate-400 transition-colors relative ${
+                          day.status === 'missed' ? 'border-red-500/30' : 'border-slate-200 dark:border-slate-700'
+                        }`}>
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{day.dateNum}</span>
                           <div className="flex flex-col gap-1">
                             <span className="text-[11px] leading-tight font-semibold text-slate-700 dark:text-slate-300">{day.type}</span>
                             <span className="text-[10px] leading-tight text-slate-500">{day.detail}</span>
                           </div>
                           {day.status === 'completed' && (
-                            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute top-1 right-1">
                               <span className="material-symbols-outlined text-green-500 text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+                            </div>
+                          )}
+                          {day.status === 'missed' && (
+                            <div className="absolute top-1 right-1">
+                              <span className="material-symbols-outlined text-red-400 text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>cancel</span>
                             </div>
                           )}
                         </div>
