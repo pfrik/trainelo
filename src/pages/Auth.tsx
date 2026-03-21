@@ -77,7 +77,7 @@ export default function Auth() {
     "text-slate-400 text-[11px] font-bold uppercase tracking-wider";
 
   return (
-    <div className="font-sans bg-[#0B0E11] text-white min-h-screen flex items-center justify-center p-4 relative overflow-hidden selection:bg-[#22C55E] selection:text-[#0B0E11]">
+    <div className="font-sans bg-[#0B0E11] text-white min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden selection:bg-[#22C55E] selection:text-[#0B0E11]">
       {/* Background */}
       <div className="fixed inset-0 z-0">
         <img
