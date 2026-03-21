@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { useWeekSchedule, type WeekDay } from '@/hooks/useWeekSchedule';
 import { useProfile } from '@/hooks/useProfile';
+import { useLocation } from '@/hooks/useLocation';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { MorningCheckinFlow, type CheckinPayload } from '@/components/checkin/MorningCheckinFlow';
@@ -362,6 +363,7 @@ function CalibrationBlock({ evidence }: { evidence: EvidenceSummary }) {
 
 export default function Dashboard() {
   const { displayName, loading: profileLoading } = useProfile();
+  const locationCity = useLocation();
   const navigate = useNavigate();
   const {
     data: recommendation,
@@ -487,6 +489,12 @@ export default function Dashboard() {
               <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-1">Welcome back, {userName}</h1>
               <div className="flex items-center text-sm text-slate-500 dark:text-slate-400 space-x-2">
                 <span>{dateString}</span>
+                {locationCity && (
+                  <>
+                    <span className="w-1 h-1 rounded-full bg-slate-400"></span>
+                    <span>{locationCity}</span>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex items-center space-x-4">

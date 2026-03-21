@@ -2,20 +2,35 @@ import { useState, useEffect } from "react";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const inputClass =
+  "w-full bg-dark-surface-lighter border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors";
+const labelClass =
+  "block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2";
 
 export default function Settings() {
   const { profile, loading, updateProfile } = useProfile();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
+  // Profile form
   const [name, setName] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("");
   const [weeklyHours, setWeeklyHours] = useState("");
   const [injuryNotes, setInjuryNotes] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
-  // Populate form when profile loads
+  // Email change
+  const [newEmail, setNewEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  // Password change
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+
   useEffect(() => {
     if (profile) {
       setName(profile.name ?? "");
@@ -25,20 +40,50 @@ export default function Settings() {
     }
   }, [profile]);
 
-  const handleSave = async () => {
-    setSaving(true);
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
     const success = await updateProfile({
       name: name.trim() || null,
       experience_level: experienceLevel || null,
       weekly_hours_available: weeklyHours ? Number(weeklyHours) : null,
       injury_notes: injuryNotes.trim() || null,
     });
-    setSaving(false);
+    setSavingProfile(false);
+    if (success) toast.success("Profile saved");
+    else toast.error("Failed to save profile");
+  };
 
-    if (success) {
-      toast.success("Settings saved");
+  const handleChangeEmail = async () => {
+    if (!newEmail.trim()) return;
+    setSavingEmail(true);
+    const { error } = await supabase.auth.updateUser({ email: newEmail.trim() });
+    setSavingEmail(false);
+    if (error) {
+      toast.error(error.message);
     } else {
-      toast.error("Failed to save settings");
+      toast.success("Confirmation email sent to your new address");
+      setNewEmail("");
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setSavingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSavingPassword(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Password updated");
+      setNewPassword("");
+      setConfirmPassword("");
     }
   };
 
@@ -81,30 +126,14 @@ export default function Settings() {
           </h2>
 
           <div className="space-y-5">
-            {/* Name */}
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                Display Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                className="w-full bg-dark-surface-lighter border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
-              />
+              <label className={labelClass}>Display Name</label>
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className={inputClass} />
             </div>
 
-            {/* Experience Level */}
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                Experience Level
-              </label>
-              <select
-                value={experienceLevel}
-                onChange={(e) => setExperienceLevel(e.target.value)}
-                className="w-full bg-dark-surface-lighter border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors appearance-none"
-              >
+              <label className={labelClass}>Experience Level</label>
+              <select value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)} className={`${inputClass} appearance-none`}>
                 <option value="">Select level</option>
                 <option value="beginner">Beginner (0-1 years)</option>
                 <option value="intermediate">Intermediate (1-3 years)</option>
@@ -113,89 +142,109 @@ export default function Settings() {
               </select>
             </div>
 
-            {/* Weekly Hours */}
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                Weekly Training Hours Available
-              </label>
-              <input
-                type="number"
-                value={weeklyHours}
-                onChange={(e) => setWeeklyHours(e.target.value)}
-                placeholder="e.g. 8"
-                min="0"
-                max="40"
-                className="w-full bg-dark-surface-lighter border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
-              />
+              <label className={labelClass}>Weekly Training Hours Available</label>
+              <input type="number" value={weeklyHours} onChange={(e) => setWeeklyHours(e.target.value)} placeholder="e.g. 8" min="0" max="40" className={inputClass} />
             </div>
 
-            {/* Injury Notes */}
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                Injury Notes
-              </label>
-              <textarea
-                value={injuryNotes}
-                onChange={(e) => setInjuryNotes(e.target.value)}
-                placeholder="Any current injuries or limitations..."
-                rows={3}
-                className="w-full bg-dark-surface-lighter border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors resize-none"
-              />
+              <label className={labelClass}>Injury Notes</label>
+              <textarea value={injuryNotes} onChange={(e) => setInjuryNotes(e.target.value)} placeholder="Any current injuries or limitations..." rows={3} className={`${inputClass} resize-none`} />
             </div>
           </div>
 
-          {/* Save */}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className={`mt-6 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
-              saving
-                ? "bg-primary/50 text-slate-900 cursor-not-allowed"
-                : "bg-primary hover:bg-primary-hover text-slate-900"
-            }`}
-          >
-            {saving ? (
-              <>
-                <span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>
-                Saving...
-              </>
+          <button onClick={handleSaveProfile} disabled={savingProfile} className={`mt-6 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${savingProfile ? "bg-primary/50 text-slate-900 cursor-not-allowed" : "bg-primary hover:bg-primary-hover text-slate-900"}`}>
+            {savingProfile ? (
+              <><span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>Saving...</>
             ) : (
-              <>
-                <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check</span>
-                Save Changes
-              </>
+              <><span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>check</span>Save Changes</>
             )}
           </button>
         </section>
 
         {/* Account Section */}
-        <section className="bg-dark-surface rounded-2xl border border-slate-700/50 p-6">
+        <section className="bg-dark-surface rounded-2xl border border-slate-700/50 p-6 mb-6">
           <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
             <span className="material-symbols-outlined text-slate-400" style={{ fontVariationSettings: '"FILL" 1' }}>manage_accounts</span>
             Account
           </h2>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-3 border-b border-slate-700/50">
-              <div>
-                <div className="text-sm font-medium text-white">Email</div>
-                <div className="text-xs text-slate-400">{user?.email}</div>
+          <div className="space-y-6">
+            {/* Change Email */}
+            <div>
+              <label className={labelClass}>Change Email</label>
+              <p className="text-xs text-slate-500 mb-2">Current: {user?.email}</p>
+              <div className="flex gap-3">
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="New email address"
+                  className={`${inputClass} flex-1`}
+                />
+                <button
+                  onClick={handleChangeEmail}
+                  disabled={savingEmail || !newEmail.trim()}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm transition-all flex-shrink-0 ${
+                    savingEmail || !newEmail.trim()
+                      ? "bg-slate-700 text-slate-500 cursor-not-allowed"
+                      : "bg-slate-700 hover:bg-slate-600 text-white"
+                  }`}
+                >
+                  {savingEmail ? "Sending..." : "Update"}
+                </button>
               </div>
+              <p className="text-xs text-slate-500 mt-1.5">A confirmation link will be sent to your new email.</p>
             </div>
 
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <div className="text-sm font-medium text-white">Sign Out</div>
-                <div className="text-xs text-slate-400">Sign out of your account</div>
+            {/* Change Password */}
+            <div className="border-t border-slate-700/50 pt-6">
+              <label className={labelClass}>Change Password</label>
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password (min. 6 characters)"
+                  className={inputClass}
+                />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className={inputClass}
+                />
+                <button
+                  onClick={handleChangePassword}
+                  disabled={savingPassword || !newPassword}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm transition-all ${
+                    savingPassword || !newPassword
+                      ? "bg-slate-700 text-slate-500 cursor-not-allowed"
+                      : "bg-slate-700 hover:bg-slate-600 text-white"
+                  }`}
+                >
+                  {savingPassword ? "Updating..." : "Update Password"}
+                </button>
               </div>
-              <button
-                onClick={handleSignOut}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium"
-              >
-                <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>logout</span>
-                Sign Out
-              </button>
             </div>
+          </div>
+        </section>
+
+        {/* Sign Out */}
+        <section className="bg-dark-surface rounded-2xl border border-slate-700/50 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-white">Sign Out</div>
+              <div className="text-xs text-slate-400">Sign out of your account</div>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium"
+            >
+              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>logout</span>
+              Sign Out
+            </button>
           </div>
         </section>
       </div>
