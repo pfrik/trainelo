@@ -94,6 +94,36 @@ export const EvidenceSummarySchema = z.object({
   anomaly_question_key: z.string().nullable().optional(),
 });
 
+/** Workout set schema */
+const WorkoutSetSchema = z.object({
+  duration_display: z.string(),
+  intensity_label: z.string(),
+  description: z.string(),
+});
+
+/** Calibrated segment schema */
+const CalibratedSegmentSchema = z.object({
+  type: z.enum(["warmup", "main", "cooldown"]),
+  duration_minutes: z.number(),
+  description: z.string(),
+  target_intensity: z.number().nullable(),
+  sets: z.array(WorkoutSetSchema),
+});
+
+/** Calibrated workout schema */
+const CalibratedWorkoutSchema = z.object({
+  template_ref: z.string(),
+  label: z.string(),
+  type: z.enum(["easy", "recovery", "tempo", "long", "interval", "strength", "mobility"]),
+  total_duration_minutes: z.number(),
+  segments: z.array(CalibratedSegmentSchema),
+  target_km: z.number().nullable(),
+  description: z.string(),
+  rpe_target: z.number(),
+  intensity_multiplier: z.number(),
+  duration_multiplier: z.number(),
+});
+
 /** Recommendation candidate schema */
 export const RecommendationCandidateSchema = z.object({
   candidate_id: CandidateIdSchema,
@@ -102,6 +132,7 @@ export const RecommendationCandidateSchema = z.object({
   rationale: z.string().min(1),
   reason_codes: z.array(ReasonCodeSchema).min(1),
   caution_level: CautionLevelSchema,
+  workout: CalibratedWorkoutSchema.nullable().optional(),
 });
 
 /** Full response schema */

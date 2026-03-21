@@ -239,6 +239,79 @@ function EvidencePanel({ evidence, generatedAt, lastGarminSync, expanded, onTogg
   );
 }
 
+/** Workout detail component — renders resolved template segments */
+function WorkoutDetail({ workout }: { workout: Record<string, any> }) {
+  if (!workout) return null;
+
+  const w = workout;
+
+  return (
+    <div className="mt-4 space-y-3">
+      {/* Header: duration + target km + RPE */}
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="bg-slate-700/50 text-slate-300 px-2 py-1 rounded flex items-center gap-1">
+          <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: '"FILL" 1' }}>timer</span>
+          {w.total_duration_minutes} min
+        </span>
+        {w.target_km != null && (
+          <span className="bg-slate-700/50 text-slate-300 px-2 py-1 rounded flex items-center gap-1">
+            <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: '"FILL" 1' }}>route</span>
+            {w.target_km} km
+          </span>
+        )}
+        <span className="bg-slate-700/50 text-slate-300 px-2 py-1 rounded flex items-center gap-1">
+          <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: '"FILL" 1' }}>speed</span>
+          RPE {w.rpe_target}/10
+        </span>
+        {w.intensity_multiplier !== 1.0 && (
+          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs">
+            Intensity {Math.round(w.intensity_multiplier * 100)}%
+          </span>
+        )}
+        {w.duration_multiplier !== 1.0 && (
+          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs">
+            Duration {Math.round(w.duration_multiplier * 100)}%
+          </span>
+        )}
+      </div>
+
+      {/* Segments */}
+      <div className="space-y-2">
+        {w.segments.map((seg: any, i: number) => (
+          <div key={i} className="flex gap-3 items-start">
+            <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${
+              seg.type === "warmup" ? "bg-blue-400/60" :
+              seg.type === "cooldown" ? "bg-indigo-400/60" :
+              "bg-primary/60"
+            }`} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-xs font-semibold text-slate-400 uppercase">{seg.type}</span>
+                <span className="text-xs text-slate-500">{seg.duration_minutes} min</span>
+              </div>
+              <p className="text-xs text-slate-300">{seg.description}</p>
+              {seg.sets.length > 0 && (
+                <div className="mt-1 space-y-1">
+                  {seg.sets.map((set: any, j: number) => (
+                    <div key={j} className="flex items-center gap-2 text-xs">
+                      <span className="text-primary font-semibold">{set.duration_display}</span>
+                      <span className="text-slate-500">@</span>
+                      <span className="text-slate-300">{set.intensity_label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Description */}
+      <p className="text-xs text-slate-500 italic">{w.description}</p>
+    </div>
+  );
+}
+
 /** Calibration explainability block */
 function CalibrationBlock({ evidence }: { evidence: EvidenceSummary }) {
   const level = evidence.calibration_level;
@@ -469,12 +542,6 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full flex items-center gap-2">
-                <span className="text-xs font-bold text-blue-400 uppercase tracking-wide">Goal Context</span>
-                <span className="text-xs text-blue-100">
-                  {data.currentGoal.name} - {data.currentGoal.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ({data.currentGoal.daysRemaining} days remaining)
-                </span>
-              </div>
               <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface rounded-full transition-colors relative">
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>notifications</span>
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-light-base dark:border-dark-base"></span>
@@ -635,6 +702,9 @@ export default function Dashboard() {
 
                         {/* Calibration explainability */}
                         {evidence && <CalibrationBlock evidence={evidence} />}
+
+                        {/* Workout segments */}
+                        {topCandidate.workout && <WorkoutDetail workout={topCandidate.workout} />}
 
                         {/* Actions */}
                         <div className="flex items-center gap-3 mt-5">
@@ -844,59 +914,111 @@ export default function Dashboard() {
               {/* Garmin Sync Status */}
               <GarminSyncCard />
 
-              {/* Recovery Score */}
-              <div className="bg-light-surface dark:bg-dark-surface rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700/50 relative overflow-hidden">
-                <div className="flex justify-between items-start mb-6 relative z-10">
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">Recovery Score</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Primed to perform</p>
-                  </div>
-                  <span className="bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-bold px-2 py-1 rounded flex items-center">
-                    <span className="material-symbols-outlined text-sm mr-0.5">trending_up</span> +5%
-                  </span>
-                </div>
+              {/* Recovery Score — driven by real API evidence */}
+              {(() => {
+                const readiness = evidence
+                  ? Math.round(100 - (evidence.fatigue_score ?? 50))
+                  : null;
+                const confidence = evidence ? Math.round(evidence.confidence * 100) : null;
+                const circumference = 2 * Math.PI * 80; // ~502
+                const offset = readiness != null
+                  ? circumference * (1 - readiness / 100)
+                  : circumference * 0.5;
+                const readinessColor = readiness == null ? "text-slate-500"
+                  : readiness >= 70 ? "text-primary"
+                  : readiness >= 40 ? "text-amber-400"
+                  : "text-red-400";
 
-                {/* Circular Chart */}
-                <div className="relative w-48 h-48 mx-auto mb-8">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      className="text-slate-100 dark:text-dark-surface-lighter"
-                      cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" strokeWidth="12"
-                    ></circle>
-                    <circle
-                      className="text-primary transition-[stroke-dashoffset] duration-350 ease-in-out"
-                      cx="96" cy="96" fill="transparent" r="80" stroke="currentColor"
-                      strokeDasharray="502"
-                      strokeDashoffset="75"
-                      strokeLinecap="round"
-                      strokeWidth="12"
-                    ></circle>
-                  </svg>
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                    <span className="block text-4xl font-black text-slate-900 dark:text-white">85%</span>
-                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">Ready</span>
-                  </div>
-                </div>
+                return (
+                  <div className="bg-light-surface dark:bg-dark-surface rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700/50 relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-6 relative z-10">
+                      <div>
+                        <h3 className="font-bold text-lg text-slate-900 dark:text-white">Recovery Score</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {readiness == null ? "Waiting for data" : readiness >= 70 ? "Primed to perform" : readiness >= 40 ? "Moderate recovery" : "Recovery needed"}
+                        </p>
+                      </div>
+                      {confidence != null && (
+                        <span className="bg-slate-100 dark:bg-dark-surface-lighter text-slate-500 dark:text-slate-400 text-xs font-bold px-2 py-1 rounded">
+                          {confidence}% conf
+                        </span>
+                      )}
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
-                    <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined text-sm text-rose-500" style={{ fontVariationSettings: '"FILL" 1' }}>favorite</span>
-                      <span className="text-xs font-bold uppercase">HRV</span>
+                    {/* Circular Chart */}
+                    <div className="relative w-48 h-48 mx-auto mb-8">
+                      <svg className="w-full h-full transform -rotate-90">
+                        <circle
+                          className="text-slate-100 dark:text-dark-surface-lighter"
+                          cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" strokeWidth="12"
+                        ></circle>
+                        <circle
+                          className={`${readinessColor} transition-[stroke-dashoffset] duration-350 ease-in-out`}
+                          cx="96" cy="96" fill="transparent" r="80" stroke="currentColor"
+                          strokeDasharray={String(circumference)}
+                          strokeDashoffset={String(offset)}
+                          strokeLinecap="round"
+                          strokeWidth="12"
+                        ></circle>
+                      </svg>
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                        <span className="block text-4xl font-black text-slate-900 dark:text-white">
+                          {readiness != null ? `${readiness}%` : "--"}
+                        </span>
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">Ready</span>
+                      </div>
                     </div>
-                    <p className="text-xl font-bold text-slate-900 dark:text-white">{data.todayStats.hrv.value} <span className="text-sm font-normal text-slate-500">ms</span></p>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
-                    <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
-                      <span className="material-symbols-outlined text-sm text-indigo-400" style={{ fontVariationSettings: '"FILL" 1' }}>dark_mode</span>
-                      <span className="text-xs font-bold uppercase">Sleep</span>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
+                        <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
+                          <span className="material-symbols-outlined text-sm text-rose-500" style={{ fontVariationSettings: '"FILL" 1' }}>favorite</span>
+                          <span className="text-xs font-bold uppercase">Fatigue</span>
+                        </div>
+                        <p className="text-xl font-bold text-slate-900 dark:text-white">
+                          {evidence?.fatigue_score != null ? evidence.fatigue_score : "--"}
+                          <span className="text-sm font-normal text-slate-500">/100</span>
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
+                        <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
+                          <span className="material-symbols-outlined text-sm text-indigo-400" style={{ fontVariationSettings: '"FILL" 1' }}>dark_mode</span>
+                          <span className="text-xs font-bold uppercase">Sleep</span>
+                        </div>
+                        <p className="text-xl font-bold text-slate-900 dark:text-white">
+                          {evidence?.sleep_quality != null ? evidence.sleep_quality : "--"}
+                          <span className="text-sm font-normal text-slate-500">/100</span>
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xl font-bold text-slate-900 dark:text-white">
-                      {Math.floor(data.todayStats.sleep.duration)}h {Math.round((data.todayStats.sleep.duration % 1) * 60)}m
-                    </p>
+
+                    {/* EWMA fitness/form if available */}
+                    {evidence?.ewma_fitness_score != null && (
+                      <div className="grid grid-cols-2 gap-4 mt-4">
+                        <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
+                          <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
+                            <span className="material-symbols-outlined text-sm text-green-500" style={{ fontVariationSettings: '"FILL" 1' }}>fitness_center</span>
+                            <span className="text-xs font-bold uppercase">Fitness</span>
+                          </div>
+                          <p className="text-xl font-bold text-slate-900 dark:text-white">
+                            {evidence.ewma_fitness_score}
+                            <span className="text-sm font-normal text-slate-500">/100</span>
+                          </p>
+                        </div>
+                        <div className="bg-slate-50 dark:bg-dark-surface-lighter p-4 rounded-xl">
+                          <div className="flex items-center space-x-2 mb-2 text-slate-500 dark:text-slate-400">
+                            <span className="material-symbols-outlined text-sm text-blue-400" style={{ fontVariationSettings: '"FILL" 1' }}>balance</span>
+                            <span className="text-xs font-bold uppercase">Form</span>
+                          </div>
+                          <p className="text-xl font-bold text-slate-900 dark:text-white">
+                            {evidence.ewma_form_score != null ? (evidence.ewma_form_score > 0 ? "+" : "") + evidence.ewma_form_score : "--"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Action List */}
               <div className="bg-light-surface dark:bg-dark-surface rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700/50">
