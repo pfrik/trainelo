@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Calendar from "./pages/Calendar";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,14 @@ const AppRoutes = () => (
     >
       <Route path="/calendar" element={<Calendar />} />
     </Route>
+    <Route
+      path="/settings"
+      element={
+        <ProtectedRoute>
+          <Settings />
+        </ProtectedRoute>
+      }
+    />
     <Route path="*" element={<Navigate to="/dashboard" replace />} />
   </Routes>
 );

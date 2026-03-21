@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
-import { useDashboardData } from '@/hooks/useDashboardData';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { useWeekSchedule, type WeekDay } from '@/hooks/useWeekSchedule';
+import { useProfile } from '@/hooks/useProfile';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { MorningCheckinFlow, type CheckinPayload } from '@/components/checkin/MorningCheckinFlow';
 import { GarminSyncCard } from '@/components/garmin/GarminSyncCard';
@@ -360,7 +361,8 @@ function CalibrationBlock({ evidence }: { evidence: EvidenceSummary }) {
 }
 
 export default function Dashboard() {
-  const { data, loading } = useDashboardData();
+  const { displayName, loading: profileLoading } = useProfile();
+  const navigate = useNavigate();
   const {
     data: recommendation,
     loading: recLoading,
@@ -416,7 +418,7 @@ export default function Dashboard() {
     return "green" as const;
   })();
 
-  if (loading || !data) {
+  if (profileLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-dark-base">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -424,7 +426,7 @@ export default function Dashboard() {
     );
   }
 
-  const userName = data.user.name;
+  const userName = displayName;
   const today = new Date();
   const dateString = today.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -468,10 +470,10 @@ export default function Dashboard() {
         </div>
 
         <div className="p-6 border-t border-slate-200 dark:border-slate-800">
-          <a className="flex items-center space-x-3 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors" href="#">
+          <button onClick={() => navigate("/settings")} className="flex items-center space-x-3 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors w-full">
             <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>settings</span>
             <span className="font-medium">Settings</span>
-          </a>
+          </button>
         </div>
       </aside>
 
@@ -485,13 +487,6 @@ export default function Dashboard() {
               <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-1">Welcome back, {userName}</h1>
               <div className="flex items-center text-sm text-slate-500 dark:text-slate-400 space-x-2">
                 <span>{dateString}</span>
-                <span className="w-1 h-1 rounded-full bg-slate-400"></span>
-                <span>London</span>
-                <span className="w-1 h-1 rounded-full bg-slate-400"></span>
-                <div className="flex items-center">
-                  <span className="material-symbols-outlined text-yellow-500 text-base mr-1">wb_sunny</span>
-                  <span>18&deg;C</span>
-                </div>
               </div>
             </div>
             <div className="flex items-center space-x-4">
