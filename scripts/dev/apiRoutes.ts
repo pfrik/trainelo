@@ -69,6 +69,28 @@ export const API_ROUTES: ApiRoute[] = [
     description: "Trigger Garmin sync via GitHub Actions",
   },
 
+  // Calibration endpoints
+  {
+    method: "post",
+    path: "/api/calibration/undo",
+    handler: "../api/calibration/undo.js",
+    description: "Undo a calibration change",
+  },
+  {
+    method: "post",
+    path: "/api/calibration/lock",
+    handler: "../api/calibration/lock.js",
+    description: "Lock or unlock a user threshold",
+  },
+
+  // Debug endpoints
+  {
+    method: "get",
+    path: "/api/debug/recommendation",
+    handler: "../api/debug/recommendation.js",
+    description: "Debug: full recommendation pipeline state with timing",
+  },
+
   // Add new routes above this line
 ];
 

@@ -979,3 +979,262 @@ export async function upsertDailyCheckin(
 
   return { success: true, error: null };
 }
+
+// ============================================================================
+// Calibration Event Queries
+// ============================================================================
+
+/** Row shape returned by calibration_events queries. */
+export interface CalibrationEventRow {
+  id: string;
+  user_id: string;
+  event_type: string;
+  threshold_id: string | null;
+  threshold_type: string;
+  previous_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  change_reason: string | null;
+  is_undoable: boolean;
+  undo_deadline: string | null;
+  was_undone: boolean;
+  undone_at: string | null;
+  undo_event_id: string | null;
+  cooldown_ends_at: string | null;
+  cooldown_reason: string | null;
+  actor_type: string | null;
+  actor_id: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+/** Fetch a single calibration event by ID, scoped to user. */
+export async function getCalibrationEvent(
+  userId: string,
+  eventId: string,
+): Promise<{ data: CalibrationEventRow | null; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("calibration_events")
+    .select("id, user_id, event_type, threshold_id, threshold_type, previous_value, new_value, change_reason, is_undoable, undo_deadline, was_undone, undone_at, undo_event_id, cooldown_ends_at, cooldown_reason, actor_type, actor_id, notes, created_at")
+    .eq("id", eventId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching calibration_event:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as CalibrationEventRow | null, error: null };
+}
+
+/** Insert a calibration event (append-only). Returns the inserted row ID. */
+export async function insertCalibrationEvent(
+  params: {
+    user_id: string;
+    event_type: string;
+    threshold_id?: string | null;
+    threshold_type: string;
+    previous_value?: Record<string, unknown> | null;
+    new_value?: Record<string, unknown> | null;
+    change_reason?: string | null;
+    change_trigger?: string | null;
+    is_undoable?: boolean;
+    undo_deadline?: string | null;
+    undo_event_id?: string | null;
+    cooldown_ends_at?: string | null;
+    cooldown_reason?: string | null;
+    actor_type: string;
+    actor_id: string;
+    notes?: string | null;
+  },
+): Promise<{ data: { id: string } | null; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("calibration_events")
+    .insert({
+      user_id: params.user_id,
+      event_type: params.event_type,
+      threshold_id: params.threshold_id ?? null,
+      threshold_type: params.threshold_type,
+      previous_value: params.previous_value ?? null,
+      new_value: params.new_value ?? null,
+      change_reason: params.change_reason ?? null,
+      change_trigger: params.change_trigger ?? null,
+      is_undoable: params.is_undoable ?? false,
+      undo_deadline: params.undo_deadline ?? null,
+      undo_event_id: params.undo_event_id ?? null,
+      cooldown_ends_at: params.cooldown_ends_at ?? null,
+      cooldown_reason: params.cooldown_reason ?? null,
+      actor_type: params.actor_type,
+      actor_id: params.actor_id,
+      notes: params.notes ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("[db] Error inserting calibration_event:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as { id: string }, error: null };
+}
+
+/** Mark an existing calibration event as undone. */
+export async function markCalibrationEventUndone(
+  eventId: string,
+  undoneAt: string,
+): Promise<{ error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { error } = await client
+    .from("calibration_events")
+    .update({ was_undone: true, undone_at: undoneAt, updated_at: undoneAt })
+    .eq("id", eventId);
+
+  if (error) {
+    console.error("[db] Error marking calibration_event undone:", error.message);
+    return { error: error.message };
+  }
+
+  return { error: null };
+}
+
+// ============================================================================
+// User Threshold Queries
+// ============================================================================
+
+/** Row shape returned by user_thresholds queries. */
+export interface UserThresholdRow {
+  id: string;
+  user_id: string;
+  threshold_type: string;
+  value_numeric: number | null;
+  value_min: number | null;
+  value_max: number | null;
+  value_json: Record<string, unknown> | null;
+  effective_from: string;
+  effective_to: string | null;
+  confidence_level: string | null;
+  is_locked: boolean;
+  locked_at: string | null;
+  locked_reason: string | null;
+  lock_expires_at: string | null;
+  created_at: string;
+}
+
+/** Fetch a single active threshold by ID, scoped to user. */
+export async function getUserThreshold(
+  userId: string,
+  thresholdId: string,
+): Promise<{ data: UserThresholdRow | null; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { data, error } = await client
+    .from("user_thresholds")
+    .select("id, user_id, threshold_type, value_numeric, value_min, value_max, value_json, effective_from, effective_to, confidence_level, is_locked, locked_at, locked_reason, lock_expires_at, created_at")
+    .eq("id", thresholdId)
+    .eq("user_id", userId)
+    .is("effective_to", null)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[db] Error fetching user_threshold:", error.message);
+    return { data: null, error: error.message };
+  }
+
+  return { data: data as UserThresholdRow | null, error: null };
+}
+
+/** Update lock fields on a user threshold. */
+export async function updateUserThresholdLock(
+  thresholdId: string,
+  updates: {
+    is_locked: boolean;
+    locked_at: string | null;
+    locked_reason: string | null;
+    lock_expires_at: string | null;
+  },
+): Promise<{ error: string | null }> {
+  const client = getServiceRoleClient();
+
+  const { error } = await client
+    .from("user_thresholds")
+    .update({
+      is_locked: updates.is_locked,
+      locked_at: updates.locked_at,
+      locked_reason: updates.locked_reason,
+      lock_expires_at: updates.lock_expires_at,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", thresholdId);
+
+  if (error) {
+    console.error("[db] Error updating user_threshold lock:", error.message);
+    return { error: error.message };
+  }
+
+  return { error: null };
+}
+
+/** Restore a threshold's previous value (for undo). Sets effective_to on current, inserts restored row. */
+export async function restoreThresholdValue(
+  userId: string,
+  thresholdId: string,
+  previousValue: Record<string, unknown>,
+  now: string,
+): Promise<{ data: { id: string } | null; error: string | null }> {
+  const client = getServiceRoleClient();
+
+  // Close current threshold
+  const { error: closeError } = await client
+    .from("user_thresholds")
+    .update({ effective_to: now.slice(0, 10), updated_at: now })
+    .eq("id", thresholdId);
+
+  if (closeError) {
+    console.error("[db] Error closing threshold for undo:", closeError.message);
+    return { data: null, error: closeError.message };
+  }
+
+  // Fetch the current row to get the threshold_type and other metadata
+  const { data: current, error: fetchError } = await client
+    .from("user_thresholds")
+    .select("threshold_type, value_unit, source, confidence_level, calibration_method")
+    .eq("id", thresholdId)
+    .single();
+
+  if (fetchError || !current) {
+    console.error("[db] Error fetching threshold for restore:", fetchError?.message);
+    return { data: null, error: fetchError?.message ?? "threshold not found" };
+  }
+
+  // Insert restored row with previous values
+  const { data: restored, error: insertError } = await client
+    .from("user_thresholds")
+    .insert({
+      user_id: userId,
+      threshold_type: (current as Record<string, unknown>).threshold_type as string,
+      value_numeric: (previousValue.value_numeric as number) ?? null,
+      value_min: (previousValue.value_min as number) ?? null,
+      value_max: (previousValue.value_max as number) ?? null,
+      value_json: (previousValue.value_json as Record<string, unknown>) ?? null,
+      value_unit: (current as Record<string, unknown>).value_unit ?? null,
+      effective_from: now.slice(0, 10),
+      source: "undo",
+      confidence_level: (current as Record<string, unknown>).confidence_level ?? null,
+      calibration_method: "undo_restore",
+    })
+    .select("id")
+    .single();
+
+  if (insertError) {
+    console.error("[db] Error inserting restored threshold:", insertError.message);
+    return { data: null, error: insertError.message };
+  }
+
+  return { data: restored as { id: string }, error: null };
+}

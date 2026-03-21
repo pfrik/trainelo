@@ -45,7 +45,12 @@ import {
   SchemaVersion,
   type TodayRecommendationResponse,
   type EvidenceSummary,
+  type Restriction,
 } from "../../src/lib/core/contracts/recommendation.js";
+import {
+  detectAnomalies,
+  type AnomalyResult,
+} from "../../src/lib/core/safety/anomaly.js";
 import { buildDeterministicTodayResponse } from "../../src/lib/core/recommendation/todayResponseBuilder.js";
 import {
   calibrateSession,
@@ -58,6 +63,7 @@ import {
   type ReasonBucket,
 } from "../../src/lib/core/checkin/calibrator.js";
 import { applyCandidateCalibration } from "../../src/lib/core/checkin/applyCandidateCalibration.js";
+import { createLogger, timer } from "../../src/lib/core/observability/log.js";
 
 // ============================================================================
 // Configuration
@@ -419,6 +425,7 @@ function buildEvidence(
   rfOutput: ReadinessAndFatigueOutput,
   checkin: DailyCheckinRow | null,
   calibration: CalibrationResult | null,
+  anomaly: AnomalyResult | null,
 ): EvidenceSummary {
   const impact = checkin ? computeCheckinImpact(checkin) : null;
 
@@ -459,6 +466,9 @@ function buildEvidence(
     ewma_fatigue_raw: rfOutput.ewma?.fatigue_raw ?? null,
     ewma_cold_start_fatigue: rfOutput.ewma?.cold_start_fatigue ?? null,
     ewma_cold_start_fitness: rfOutput.ewma?.cold_start_fitness ?? null,
+    anomaly_caution_level: anomaly?.caution_level ?? null,
+    anomaly_restrictions: anomaly?.restrictions.length ? anomaly.restrictions : null,
+    anomaly_question_key: anomaly?.question_key ?? null,
   };
 }
 
@@ -574,6 +584,9 @@ export default async function handler(
     return;
   }
 
+  const log = createLogger("today");
+  const total = timer();
+
   const now = new Date();
   const date = now.toISOString().split("T")[0];
   const generatedAt = now.toISOString();
@@ -584,7 +597,7 @@ export default async function handler(
   if (authHeader) {
     userId = await resolveUserIdFromAuthHeader(authHeader);
     if (!userId) {
-      console.warn("Invalid or expired auth token.");
+      log.warn("invalid or expired auth token");
       res.status(200).json(coldStart("anonymous", date, generatedAt));
       return;
     }
@@ -593,14 +606,14 @@ export default async function handler(
   }
 
   if (!userId) {
-    console.log("No user ID available, returning cold-start response");
+    log.info("no user ID, returning cold-start");
     res.status(200).json(coldStart("anonymous", date, generatedAt));
     return;
   }
 
   try {
     // 1. Fetch from DB views in parallel
-    console.log(`[today] Fetching data for user ${userId}...`);
+    const dbTimer = timer();
     const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes] = await Promise.all([
       getDailyUserState(userId, date),
       getTrainingLoad7Days(userId, date),
@@ -611,25 +624,19 @@ export default async function handler(
       getTrainingLoadHistory(userId, date, 63).catch(() => ({ data: [], error: "fetch_failed" as string | null })),
     ]);
 
+    const dbMs = dbTimer.elapsed();
+
     if (stateRes.error || loadRes.error) {
-      console.warn(
-        `[today] Query error — state: ${stateRes.error ?? "ok"}, load: ${loadRes.error ?? "ok"}`
-      );
+      log.warn("db query error", { state_error: stateRes.error, load_error: loadRes.error });
       res.status(200).json(coldStart(userId, date, generatedAt));
       return;
     }
-    // Check-in fetch failure is non-fatal — pipeline continues without it
     if (checkinRes.error) {
-      console.warn(`[today] Check-in fetch error (non-fatal): ${checkinRes.error}`);
+      log.warn("checkin fetch error (non-fatal)", { error: checkinRes.error });
     }
 
     const row = stateRes.data;
     const loadRows = loadRes.data;
-
-    console.log(
-      `[today] daily_user_state: ${row ? "found" : "none"}, ` +
-        `training_load rows: ${loadRows.length}`
-    );
 
     // 2. Map DB rows → core input types
     const sleep = row ? mapSleep(row, date) : null;
@@ -638,6 +645,7 @@ export default async function handler(
     const trainingLoad7Days = mapTrainingLoad(loadRows);
 
     // 3. Compute readiness & fatigue
+    const rfTimer = timer();
     const dailyCheckin = mapCheckin(checkinRes.data);
     const dailyTssHistory = loadHistRes.error ? null : aggregateDailyTss(loadHistRes.data);
     const rfInput: ReadinessAndFatigueInput = {
@@ -657,17 +665,28 @@ export default async function handler(
       targetDate: date,
     };
     const rfOutput = computeReadinessAndFatigue(rfInput);
+    const rfMs = rfTimer.elapsed();
 
-    console.log(
-      `[today] readiness=${rfOutput.readiness_score}, fatigue=${rfOutput.fatigue_score}, ` +
-        `reasons=[${rfOutput.reason_codes.join(",")}]`
-    );
+    // 3a. Anomaly detection (between R&F and candidate generation)
+    const anomalyTimer = timer();
+    const anomalyResult = detectAnomalies(rfOutput);
+    const anomalyMs = anomalyTimer.elapsed();
 
     // 4. Build inputs for candidate generation
+    // Merge anomaly reason codes; cap readiness on "high" caution
+    const mergedReasonCodes = [
+      ...rfOutput.reason_codes,
+      ...anomalyResult.reason_codes,
+    ];
+    const effectiveReadiness =
+      anomalyResult.caution_level === "high"
+        ? Math.min(rfOutput.readiness_score, 55)
+        : rfOutput.readiness_score;
+
     const state: DailyState = {
-      readiness_score: rfOutput.readiness_score,
+      readiness_score: effectiveReadiness,
       fatigue_score: rfOutput.fatigue_score,
-      reason_codes: rfOutput.reason_codes,
+      reason_codes: mergedReasonCodes,
       ewma_form_score: rfOutput.ewma?.form_score ?? null,
     };
 
@@ -681,9 +700,12 @@ export default async function handler(
     };
 
     // 5. Generate ordered candidates
+    const candidateTimer = timer();
     const candidates = generateDailyRecommendation(state, history, constraints);
+    const candidateMs = candidateTimer.elapsed();
 
     // 6. Run calibrator (non-fatal on error)
+    const calTimer = timer();
     const calibration = runCalibrator(checkinRes.data, rfOutput, candidates[0]);
 
     // 6a. Apply calibration: re-order candidates, adjust caution, update rationale
@@ -694,9 +716,20 @@ export default async function handler(
       ? rawRecovery
       : null;
     const calibratedCandidates = applyCandidateCalibration(candidates, calibration, { recovery_type: recoveryType });
+    const calMs = calTimer.elapsed();
 
     // 7. Build evidence summary
-    const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration);
+    const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration, anomalyResult);
+
+    log.info("pipeline complete", {
+      user_id: userId,
+      readiness: rfOutput.readiness_score,
+      fatigue: rfOutput.fatigue_score,
+      confidence: rfOutput.confidence?.overall,
+      anomaly_caution: anomalyResult.caution_level,
+      candidates: calibratedCandidates.length,
+      timing_ms: { total: total.elapsed(), db: dbMs, rf: rfMs, anomaly: anomalyMs, candidates: candidateMs, calibration: calMs },
+    });
 
     // 8. Assemble response
     const response: TodayRecommendationResponse = {
@@ -712,7 +745,7 @@ export default async function handler(
 
     res.status(200).json(response);
   } catch (error) {
-    console.error("[today] Error building recommendation:", error);
+    log.error("pipeline error", { error: error instanceof Error ? error.message : String(error) });
     res.status(200).json(coldStart(userId, date, generatedAt));
   }
 }

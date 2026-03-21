@@ -8,6 +8,7 @@ export {
   type CandidateId,
   type CautionLevel,
   type ReasonCode,
+  type Restriction,
   type EvidenceSummary,
   type RecommendationCandidate,
   type TodayRecommendationResponse,

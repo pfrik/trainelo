@@ -45,6 +45,9 @@ export const ReasonCodeSchema = z.enum([
   "FORM_NEGATIVE",
   "LLM_UNAVAILABLE",
   "USER_PREFERENCE",
+  "ANOMALY_HRV_DISSOCIATION",
+  "ANOMALY_OVERTRAINING_RISK",
+  "ANOMALY_LOW_CONFIDENCE",
 ]);
 
 /** Evidence summary schema */
@@ -85,6 +88,9 @@ export const EvidenceSummarySchema = z.object({
   ewma_fatigue_raw: z.number().nullable().optional(),
   ewma_cold_start_fatigue: z.boolean().nullable().optional(),
   ewma_cold_start_fitness: z.boolean().nullable().optional(),
+  anomaly_caution_level: z.enum(["none", "low", "moderate", "high"]).nullable().optional(),
+  anomaly_restrictions: z.array(z.enum(["cap_intensity", "suggest_rest", "require_checkin"])).nullable().optional(),
+  anomaly_question_key: z.string().nullable().optional(),
 });
 
 /** Recommendation candidate schema */

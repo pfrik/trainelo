@@ -36,7 +36,13 @@ export type ReasonCode =
   | "FORM_POSITIVE"
   | "FORM_NEGATIVE"
   | "LLM_UNAVAILABLE"
-  | "USER_PREFERENCE";
+  | "USER_PREFERENCE"
+  | "ANOMALY_HRV_DISSOCIATION"
+  | "ANOMALY_OVERTRAINING_RISK"
+  | "ANOMALY_LOW_CONFIDENCE";
+
+/** Restriction types from anomaly detection */
+export type Restriction = "cap_intensity" | "suggest_rest" | "require_checkin";
 
 /** Evidence summary - data points supporting the recommendation */
 export interface EvidenceSummary {
@@ -112,6 +118,12 @@ export interface EvidenceSummary {
   ewma_cold_start_fatigue?: boolean | null;
   /** EWMA cold start: fitness unreliable (<14 days data) */
   ewma_cold_start_fitness?: boolean | null;
+  /** Anomaly detector: highest caution level triggered */
+  anomaly_caution_level?: CautionLevel | null;
+  /** Anomaly detector: active restrictions */
+  anomaly_restrictions?: Restriction[] | null;
+  /** Anomaly detector: follow-up question key */
+  anomaly_question_key?: string | null;
 }
 
 /** A single recommendation candidate */
