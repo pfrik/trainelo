@@ -365,7 +365,7 @@ export default function Auth() {
       </main>
 
       {/* Copyright */}
-      <div className="fixed bottom-6 left-0 w-full text-center pointer-events-none z-20">
+      <div className="relative z-10 mt-8 text-center">
         <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-medium">
           &copy; 2026 TRAINELO. ALL RIGHTS RESERVED.
         </p>
