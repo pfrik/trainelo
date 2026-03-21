@@ -84,6 +84,9 @@ const REASON_CODE_LABELS: Record<ReasonCode, string> = {
   FORM_NEGATIVE: "Overreaching",
   LLM_UNAVAILABLE: "AI unavailable",
   USER_PREFERENCE: "Your preference",
+  ANOMALY_HRV_DISSOCIATION: "HRV dissociation",
+  ANOMALY_OVERTRAINING_RISK: "Overtraining risk",
+  ANOMALY_LOW_CONFIDENCE: "Low confidence",
 };
 
 /** Format reason code for display using label map */
@@ -300,7 +303,11 @@ export default function Dashboard() {
   } = useTodayRecommendation();
   const { session } = useAuth();
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
-  const [choiceState, setChoiceState] = useState<"idle" | "accepted" | "rejected">("idle");
+  const [choiceState, setChoiceState] = useState<{
+    status: "idle" | "submitted";
+    candidateId?: string;
+    action?: "accept" | "reject";
+  }>({ status: "idle" });
 
   // Check-in submission handler — posts to /api/user-flags, then refetches recommendation
   const handleCheckinSubmit = useCallback(async (payload: CheckinPayload) => {
@@ -544,7 +551,7 @@ export default function Dashboard() {
                   {/* Single Prescribed Session */}
                   {!recLoading && !recError && topCandidate && recommendation && (
                     <div className="space-y-4">
-                      <div className={`rounded-xl p-5 bg-gradient-to-r from-slate-800 to-slate-800/50 border border-primary/30 ${choiceState !== "idle" ? "ring-2 ring-primary" : ""}`}>
+                      <div className={`rounded-xl p-5 bg-gradient-to-r from-slate-800 to-slate-800/50 border border-primary/30 ${choiceState.status === "submitted" && choiceState.candidateId === topCandidate.candidate_id ? "ring-2 ring-primary" : ""}`}>
                         {/* Labels & caution */}
                         <div className="flex items-center gap-2 mb-2">
                           <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded uppercase">Prescribed</span>
@@ -579,13 +586,13 @@ export default function Dashboard() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-3 mt-5">
-                          {choiceState === "idle" ? (
+                          {choiceState.status === "idle" ? (
                             <>
                               {/* Primary: Confirm session */}
                               <button
                                 onClick={async () => {
                                   const success = await submitChoice(topCandidate.candidate_id, "accept");
-                                  if (success) setChoiceState("accepted");
+                                  if (success) setChoiceState({ status: "submitted", candidateId: topCandidate.candidate_id, action: "accept" });
                                 }}
                                 disabled={isSubmitting}
                                 className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold transition-all bg-primary hover:bg-primary-hover text-slate-900 ${
@@ -609,14 +616,14 @@ export default function Dashboard() {
                               <button
                                 onClick={async () => {
                                   const success = await submitChoice(topCandidate.candidate_id, "reject");
-                                  if (success) setChoiceState("rejected");
+                                  if (success) setChoiceState({ status: "submitted", candidateId: topCandidate.candidate_id, action: "reject" });
                                 }}
                                 disabled={isSubmitting}
                                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-all bg-slate-700 hover:bg-slate-600 text-slate-300 ${
                                   isSubmitting ? "opacity-50 cursor-not-allowed" : ""
                                 }`}
                               >
-                                {submittingCandidateId === topCandidate.candidate_id && choiceState === "idle" ? null : (
+                                {submittingCandidateId === topCandidate.candidate_id && choiceState.status === "idle" ? null : (
                                   <>
                                     <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>close</span>
                                     <span>Can't do this</span>
@@ -624,18 +631,81 @@ export default function Dashboard() {
                                 )}
                               </button>
                             </>
-                          ) : (
+                          ) : choiceState.candidateId === topCandidate.candidate_id ? (
                             <div className="flex items-center gap-2">
                               <span className="material-symbols-outlined text-lg text-green-400" style={{ fontVariationSettings: '"FILL" 1' }}>
-                                {choiceState === "accepted" ? "check_circle" : "info"}
+                                {choiceState.action === "accept" ? "check_circle" : "info"}
                               </span>
-                              <span className={`text-sm font-medium ${choiceState === "accepted" ? "text-green-400" : "text-slate-400"}`}>
-                                {choiceState === "accepted" ? "Session confirmed" : "Noted — take care today"}
+                              <span className={`text-sm font-medium ${choiceState.action === "accept" ? "text-green-400" : "text-slate-400"}`}>
+                                {choiceState.action === "accept" ? "Session confirmed" : "Noted — take care today"}
                               </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 opacity-50">
+                              <span className="material-symbols-outlined text-lg text-slate-500" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+                              <span className="text-sm font-medium text-slate-500">Confirm session</span>
                             </div>
                           )}
                         </div>
                       </div>
+
+                      {/* Alternative Candidates */}
+                      {recommendation.candidates.length > 1 && (
+                        <div className="mt-4">
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Other options</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {recommendation.candidates.slice(1).map((alt) => {
+                              const isChosen = choiceState.status === "submitted" && choiceState.candidateId === alt.candidate_id;
+                              return (
+                                <div
+                                  key={alt.candidate_id}
+                                  className={`bg-slate-800/50 rounded-lg p-4 border transition-all ${
+                                    isChosen ? "border-primary ring-2 ring-primary" : "border-slate-700/50"
+                                  }`}
+                                >
+                                  {/* Caution badge */}
+                                  {alt.caution_level !== "none" && (() => {
+                                    const s = getCautionStyles(alt.caution_level);
+                                    return (
+                                      <span className={`${s.bg} ${s.text} ${s.border} border text-xs font-bold px-2 py-0.5 rounded uppercase inline-block mb-2`}>
+                                        {alt.caution_level}
+                                      </span>
+                                    );
+                                  })()}
+
+                                  {/* Label */}
+                                  <h5 className="text-sm font-bold text-white mb-1">{alt.label}</h5>
+
+                                  {/* Rationale (2-line clamp) */}
+                                  <p className="text-xs text-slate-400 leading-relaxed mb-3 line-clamp-2">{sanitizeRationale(alt.rationale)}</p>
+
+                                  {/* Action / confirmation */}
+                                  {isChosen ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="material-symbols-outlined text-green-400 text-base" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+                                      <span className="text-xs font-medium text-green-400">Selected</span>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={async () => {
+                                        const success = await submitChoice(alt.candidate_id, "accept");
+                                        if (success) setChoiceState({ status: "submitted", candidateId: alt.candidate_id, action: "accept" });
+                                      }}
+                                      disabled={choiceState.status === "submitted" || isSubmitting}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all bg-slate-700 hover:bg-slate-600 text-slate-300 ${
+                                        choiceState.status === "submitted" || isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                                      }`}
+                                    >
+                                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>swap_horiz</span>
+                                      <span>Choose this</span>
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Choice error */}
                       {choiceError && (
