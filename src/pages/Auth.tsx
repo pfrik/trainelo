@@ -1,189 +1,337 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Trophy } from "lucide-react";
+
+type Mode = "login" | "signup" | "forgot";
 
 export default function Auth() {
   const navigate = useNavigate();
   const { signIn, signUp } = useAuth();
+  const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState(false);
-  
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  
-  // Signup form state
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [signupName, setSignupName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!loginEmail || !loginPassword) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-    
+    if (!email || !password) { toast.error("Please fill in all fields"); return; }
     setLoading(true);
-    const { error } = await signIn(loginEmail, loginPassword);
+    const { error } = await signIn(email, password);
     setLoading(false);
-    
     if (error) {
-      if (error.message.includes("Invalid login credentials")) {
-        toast.error("Invalid email or password");
-      } else {
-        toast.error(error.message);
-      }
+      toast.error(error.message.includes("Invalid login") ? "Invalid email or password" : error.message);
     } else {
-      toast.success("Welcome back!");
       navigate("/dashboard");
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!signupEmail || !signupPassword) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-    
-    if (signupPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    
+    if (!email || !password) { toast.error("Please fill in all fields"); return; }
+    if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     setLoading(true);
-    const { error } = await signUp(signupEmail, signupPassword, signupName);
+    const { error } = await signUp(email, password, name || undefined);
     setLoading(false);
-    
     if (error) {
-      if (error.message.includes("already registered")) {
-        toast.error("This email is already registered. Please sign in instead.");
-      } else {
-        toast.error(error.message);
-      }
+      toast.error(error.message.includes("already registered") ? "This email is already registered" : error.message);
     } else {
-      toast.success("Account created successfully!");
+      toast.success("Account created!");
       navigate("/dashboard");
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) { toast.error("Enter your email address"); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+    setLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Password reset email sent");
+      setMode("login");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/dashboard` },
+    });
+    if (error) toast.error(error.message);
+  };
+
+  const inputClass =
+    "w-full bg-[#0f172a] border border-[#334155] rounded-lg px-4 py-3.5 text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E] transition-all duration-300";
+  const labelClass =
+    "text-slate-400 text-[11px] font-bold uppercase tracking-wider";
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <div className="p-3 rounded-full bg-primary/10">
-              <Trophy className="h-8 w-8 text-primary" />
-            </div>
+    <div className="font-sans bg-[#0B0E11] text-white min-h-screen flex items-center justify-center p-4 relative overflow-hidden selection:bg-[#22C55E] selection:text-[#0B0E11]">
+      {/* Background */}
+      <div className="fixed inset-0 z-0">
+        <img
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGlCSMxK8Mo5woOkwjsrfTGp2UuZI5FwXCsxcfWMrZp13KDhrEHrnbRlXuydH5AO86Uag3bP0lGB0PL476SFHvY2uZo1qunmrw_ZKH95RFp_14Clm5sQaFTk5F-X2holZJq8GkWkjBxo8gE4TVYJQXZEy1K-UL4_6i_mTwpk4aSiAUA_ugvr2qzDVdtw7FoOOZ5f0nfloQ5L3KVmW-InGAWv4Vg57Hv3bzJmod_jwzvvR1JwhBgRM7wKazUbRIdAohLteuvpC3q70"
+        />
+        <div className="absolute inset-0 bg-[#0B0E11]/80 backdrop-blur-[6px]"></div>
+      </div>
+
+      {/* Card */}
+      <main className="relative z-10 w-full max-w-[420px] bg-[#1E293B] rounded-xl shadow-2xl overflow-hidden border border-white/10" style={{ boxShadow: "0 25px 50px -12px rgba(0,0,0,0.7)" }}>
+        <div className="p-10 pb-8">
+          {/* Logo */}
+          <div className="text-center mb-10">
+            <h1 className="text-4xl font-bold tracking-tight text-white mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Trainelo
+            </h1>
+            <p className="text-slate-400 text-sm tracking-wide">
+              {mode === "login" && "Welcome back. Continue your journey."}
+              {mode === "signup" && "Start your training journey."}
+              {mode === "forgot" && "Reset your password."}
+            </p>
           </div>
-          <CardTitle className="text-2xl">Trainelo</CardTitle>
-          <CardDescription>
-            Train with the tools you love. Race with confidence.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    disabled={loading}
-                  />
+
+          {/* Login Form */}
+          {mode === "login" && (
+            <form onSubmit={handleLogin} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <label className={labelClass} htmlFor="email">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <label className={labelClass} htmlFor="password">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => setMode("forgot")}
+                    className="text-xs font-medium text-[#22C55E] hover:text-[#16A34A] transition-colors"
+                  >
+                    Forgot password?
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     disabled={loading}
+                    className={`${inputClass} pr-10`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </span>
+                  </button>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    "Sign In"
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Name (optional)</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="Your name"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-4 w-full h-12 flex items-center justify-center rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#0B0E11] text-base font-bold transition-all active:scale-[0.98] shadow-lg shadow-[#22C55E]/20 disabled:opacity-50"
+                style={{ boxShadow: "0 0 15px rgba(34,197,94,0.4)" }}
+              >
+                {loading ? (
+                  <span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>
+                ) : (
+                  "Log In"
+                )}
+              </button>
+
+              {/* Divider */}
+              <div className="relative flex items-center py-2 mt-2">
+                <div className="flex-grow border-t border-[#334155]"></div>
+                <span className="flex-shrink-0 mx-4 text-[10px] text-gray-500 font-semibold uppercase tracking-widest">Or</span>
+                <div className="flex-grow border-t border-[#334155]"></div>
+              </div>
+
+              {/* Google */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 h-11 rounded-lg border border-[#334155] bg-[#334155]/50 hover:bg-[#334155] hover:border-gray-500 transition-all duration-300"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
+                <span className="text-sm font-semibold text-white">Sign in with Google</span>
+              </button>
+            </form>
+          )}
+
+          {/* Signup Form */}
+          {mode === "signup" && (
+            <form onSubmit={handleSignup} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <label className={labelClass} htmlFor="signup-name">Name</label>
+                <input
+                  id="signup-name"
+                  type="text"
+                  placeholder="Your name (optional)"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={loading}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className={labelClass} htmlFor="signup-email">Email</label>
+                <input
+                  id="signup-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className={labelClass} htmlFor="signup-password">Password</label>
+                <div className="relative">
+                  <input
                     id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="Min. 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     disabled={loading}
+                    className={`${inputClass} pr-10`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </span>
+                  </button>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    "Create Account"
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-4 w-full h-12 flex items-center justify-center rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#0B0E11] text-base font-bold transition-all active:scale-[0.98] shadow-lg shadow-[#22C55E]/20 disabled:opacity-50"
+                style={{ boxShadow: "0 0 15px rgba(34,197,94,0.4)" }}
+              >
+                {loading ? (
+                  <span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>
+                ) : (
+                  "Create Account"
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* Forgot Password Form */}
+          {mode === "forgot" && (
+            <form onSubmit={handleForgotPassword} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <label className={labelClass} htmlFor="reset-email">Email</label>
+                <input
+                  id="reset-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  className={inputClass}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-4 w-full h-12 flex items-center justify-center rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-[#0B0E11] text-base font-bold transition-all active:scale-[0.98] shadow-lg shadow-[#22C55E]/20 disabled:opacity-50"
+                style={{ boxShadow: "0 0 15px rgba(34,197,94,0.4)" }}
+              >
+                {loading ? (
+                  <span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>
+                ) : (
+                  "Send Reset Link"
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                className="text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                Back to login
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="bg-[#16202e] p-5 text-center border-t border-[#334155]">
+          {mode === "login" ? (
+            <>
+              <span className="text-slate-400 text-sm">Don't have an account? </span>
+              <button
+                onClick={() => { setMode("signup"); setPassword(""); }}
+                className="text-[#22C55E] font-bold text-sm hover:text-[#16A34A] hover:underline transition-colors ml-1"
+              >
+                Sign Up
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-slate-400 text-sm">Already have an account? </span>
+              <button
+                onClick={() => { setMode("login"); setPassword(""); }}
+                className="text-[#22C55E] font-bold text-sm hover:text-[#16A34A] hover:underline transition-colors ml-1"
+              >
+                Log In
+              </button>
+            </>
+          )}
+        </div>
+      </main>
+
+      {/* Copyright */}
+      <div className="fixed bottom-6 left-0 w-full text-center pointer-events-none z-20">
+        <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-medium">
+          &copy; 2026 TRAINELO. ALL RIGHTS RESERVED.
+        </p>
+      </div>
     </div>
   );
 }
