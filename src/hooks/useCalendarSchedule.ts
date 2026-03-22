@@ -69,7 +69,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
       supabase
         .from("workouts")
         .select(
-          "started_at, duration_seconds, activity_type, distance_meters"
+          "started_at, duration_seconds, activity_type, distance_meters, title"
         )
         .eq("user_id", user.id)
         .gte("started_at", startStr + "T00:00:00Z")
@@ -92,7 +92,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
 
     const workoutsByDate = new Map<
       string,
-      { count: number; totalMinutes: number; totalKm: number; type: string }
+      { count: number; totalMinutes: number; totalKm: number; type: string; title: string }
     >();
     if (workoutResult.data) {
       for (const row of workoutResult.data as Array<{
@@ -100,6 +100,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
         duration_seconds: number | null;
         activity_type: string | null;
         distance_meters: number | null;
+        title: string | null;
       }>) {
         const dateKey = row.started_at.slice(0, 10);
         const existing = workoutsByDate.get(dateKey) ?? {
@@ -107,6 +108,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
           totalMinutes: 0,
           totalKm: 0,
           type: "",
+          title: "",
         };
         existing.count++;
         existing.totalMinutes += Math.round(
@@ -115,6 +117,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
         existing.totalKm +=
           Math.round((row.distance_meters ?? 0) / 100) / 10;
         existing.type = row.activity_type ?? existing.type;
+        existing.title = row.title ?? existing.title;
         workoutsByDate.set(dateKey, existing);
       }
     }
@@ -135,7 +138,12 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
       let detail: string;
 
       if (workout && workout.count > 0) {
-        type = formatActivityType(workout.type);
+        // Prefer Garmin title (e.g. "Morning Run") over raw activity_type
+        // when activity_type is generic ("other" or empty)
+        const hasGoodType = workout.type && workout.type !== "other" && workout.type !== "";
+        type = hasGoodType
+          ? formatActivityType(workout.type)
+          : workout.title || formatActivityType(workout.type);
         detail =
           workout.totalKm > 0
             ? `${workout.totalKm} km`
