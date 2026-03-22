@@ -1,19 +1,31 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import type { WeekDay } from "./useWeekSchedule";
+
+/** A single workout entry (not aggregated). */
+export interface CalendarWorkout {
+  type: string;   // display name: "Run", "Bike Indoor", "Swim Pool"
+  detail: string; // "13.1 km" or "45 min"
+}
+
+/** A single calendar day with all its workouts. */
+export interface CalendarDay {
+  day: string;        // "Mon", "Tue", etc.
+  dateStr: string;    // YYYY-MM-DD
+  dateNum: string;    // "3", "15", etc.
+  status: "completed" | "today" | "rest" | "upcoming" | "missed";
+  workouts: CalendarWorkout[];
+}
 
 /**
  * Fetch schedule data for either a week or a full month.
- * Combines daily_recommendations + workouts (same logic as useWeekSchedule
- * but supports arbitrary date ranges for navigation and month view).
+ * Returns individual workouts per day (not aggregated).
  */
 export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
   const { user } = useAuth();
-  const [days, setDays] = useState<WeekDay[]>([]);
+  const [days, setDays] = useState<CalendarDay[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Stable key to avoid re-running on Date object identity changes
   const refKey = `${mode}-${refDate.getFullYear()}-${refDate.getMonth()}-${refDate.getDate()}`;
 
   const fetchSchedule = useCallback(async () => {
@@ -40,17 +52,14 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
       const monthStart = new Date(year, month, 1);
       const monthEnd = new Date(year, month + 1, 0);
 
-      // Monday of week containing month start
       const startBounds = getWeekBounds(monthStart);
       startStr = startBounds.monday;
 
-      // Sunday of week containing month end
       const endDow = monthEnd.getDay();
       const sundayAfter = new Date(monthEnd);
       if (endDow !== 0) sundayAfter.setDate(monthEnd.getDate() + (7 - endDow));
       endStr = toDateStr(sundayAfter);
 
-      // Generate all dates in range
       dayDates = [];
       const cur = new Date(startStr + "T12:00:00");
       while (toDateStr(cur) <= endStr) {
@@ -73,9 +82,11 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
         )
         .eq("user_id", user.id)
         .gte("started_at", startStr + "T00:00:00Z")
-        .lte("started_at", endStr + "T23:59:59Z"),
+        .lte("started_at", endStr + "T23:59:59Z")
+        .order("started_at", { ascending: true }),
     ]);
 
+    // Index recommendations by date
     const recByDate = new Map<
       string,
       { decision: string; workout_ref: string | null }
@@ -90,10 +101,8 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
       }
     }
 
-    const workoutsByDate = new Map<
-      string,
-      { count: number; totalMinutes: number; totalKm: number; type: string; title: string }
-    >();
+    // Group individual workouts by date (no aggregation)
+    const workoutsByDate = new Map<string, CalendarWorkout[]>();
     if (workoutResult.data) {
       for (const row of workoutResult.data as Array<{
         started_at: string;
@@ -103,75 +112,68 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
         title: string | null;
       }>) {
         const dateKey = row.started_at.slice(0, 10);
-        const existing = workoutsByDate.get(dateKey) ?? {
-          count: 0,
-          totalMinutes: 0,
-          totalKm: 0,
-          type: "",
-          title: "",
-        };
-        existing.count++;
-        existing.totalMinutes += Math.round(
-          (row.duration_seconds ?? 0) / 60
-        );
-        existing.totalKm +=
-          Math.round((row.distance_meters ?? 0) / 100) / 10;
-        existing.type = row.activity_type ?? existing.type;
-        existing.title = row.title ?? existing.title;
-        workoutsByDate.set(dateKey, existing);
+        if (!workoutsByDate.has(dateKey)) workoutsByDate.set(dateKey, []);
+
+        // Display name: prefer good activity_type, fall back to title
+        const actType = row.activity_type ?? "other";
+        const hasGoodType = actType !== "other" && actType !== "";
+        const type = hasGoodType
+          ? formatActivityType(actType)
+          : row.title || formatActivityType(actType);
+
+        // Detail: distance (formatted) or duration
+        const distKm = (row.distance_meters ?? 0) / 1000;
+        const durMin = Math.round((row.duration_seconds ?? 0) / 60);
+        const detail =
+          distKm >= 0.05 ? `${distKm.toFixed(1)} km` : `${durMin} min`;
+
+        workoutsByDate.get(dateKey)!.push({ type, detail });
       }
     }
 
     const todayStr = toDateStr(new Date());
     const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-    const result: WeekDay[] = dayDates.map((dateStr) => {
+    const result: CalendarDay[] = dayDates.map((dateStr) => {
       const d = new Date(dateStr + "T12:00:00");
       const dayOfWeek = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
 
       const rec = recByDate.get(dateStr);
-      const workout = workoutsByDate.get(dateStr);
+      const dayWorkouts = workoutsByDate.get(dateStr) || [];
       const isToday = dateStr === todayStr;
       const isPast = dateStr < todayStr;
 
-      let type: string;
-      let detail: string;
-
-      if (workout && workout.count > 0) {
-        // Prefer Garmin title (e.g. "Morning Run") over raw activity_type
-        // when activity_type is generic ("other" or empty)
-        const hasGoodType = workout.type && workout.type !== "other" && workout.type !== "";
-        type = hasGoodType
-          ? formatActivityType(workout.type)
-          : workout.title || formatActivityType(workout.type);
-        detail =
-          workout.totalKm > 0
-            ? `${workout.totalKm} km`
-            : `${workout.totalMinutes} min`;
+      // Build workouts array
+      let workouts: CalendarWorkout[];
+      if (dayWorkouts.length > 0) {
+        workouts = dayWorkouts;
       } else if (rec) {
-        type = formatDecision(rec.decision);
-        detail = formatWorkoutRef(rec.workout_ref);
+        workouts = [
+          {
+            type: formatDecision(rec.decision),
+            detail: formatWorkoutRef(rec.workout_ref),
+          },
+        ];
       } else {
-        type = isToday ? "Today" : isPast ? "No data" : "--";
-        detail = "";
+        workouts = [];
       }
 
+      // Determine day status
       const isRest =
         rec?.decision === "rest" || rec?.decision === "active_recovery";
-      let status: WeekDay["status"];
+      let status: CalendarDay["status"];
       if (isToday) status = "today";
-      else if (workout && workout.count > 0) status = "completed";
+      else if (dayWorkouts.length > 0) status = "completed";
       else if (isRest) status = "rest";
-      else if (isPast && rec && !workout) status = "missed";
+      else if (isPast && rec && dayWorkouts.length === 0) status = "missed";
       else status = "upcoming";
 
       return {
         day: dayNames[dayOfWeek],
         dateStr,
         dateNum: String(d.getDate()),
-        type,
-        detail,
         status,
+        workouts,
       };
     });
 
@@ -187,7 +189,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
   return { days, loading };
 }
 
-// ── helpers (same logic as useWeekSchedule) ──
+// ── helpers ──
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);

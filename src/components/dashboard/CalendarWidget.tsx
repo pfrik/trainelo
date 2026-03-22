@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { useCalendarSchedule } from "@/hooks/useCalendarSchedule";
-import type { WeekDay } from "@/hooks/useWeekSchedule";
+import {
+  useCalendarSchedule,
+  type CalendarDay,
+  type CalendarWorkout,
+} from "@/hooks/useCalendarSchedule";
 
 type CalendarView = "week" | "month";
 
@@ -30,19 +33,11 @@ const SPORT_STYLES: Record<string, { icon: string; textColor: string; borderColo
   swim:     { icon: "pool",            textColor: "text-blue-400",    borderColor: "border-l-blue-400" },
   strength: { icon: "fitness_center",  textColor: "text-purple-400",  borderColor: "border-l-purple-400" },
   rest:     { icon: "spa",             textColor: "text-slate-400",   borderColor: "" },
-  other:    { icon: "exercise",        textColor: "text-slate-400",   borderColor: "border-l-slate-600" },
+  other:    { icon: "fitness_center",  textColor: "text-slate-400",   borderColor: "border-l-slate-600" },
 };
 
 function getSportStyle(type: string) {
   return SPORT_STYLES[detectSport(type)] || SPORT_STYLES.other;
-}
-
-function isWorkoutDay(day: WeekDay) {
-  return day.type !== "--" && day.type !== "No data" && day.type !== "Today";
-}
-
-function isRestType(day: WeekDay) {
-  return day.status === "rest" || detectSport(day.type) === "rest";
 }
 
 // ── Main widget ──
@@ -148,9 +143,9 @@ export function CalendarWidget() {
   );
 }
 
-// ── Status icon helper ──
+// ── Status icon ──
 
-function StatusIcon({ status }: { status: WeekDay["status"] }) {
+function StatusIcon({ status }: { status: CalendarDay["status"] }) {
   if (status === "completed") {
     return (
       <span
@@ -178,15 +173,17 @@ function StatusIcon({ status }: { status: WeekDay["status"] }) {
   );
 }
 
-// ── Week grid (matching HTML prototype card layout) ──
+// ── Week grid ──
 
-function WeekGrid({ days }: { days: WeekDay[] }) {
+function WeekGrid({ days }: { days: CalendarDay[] }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
       {days.map((day) => {
         const isToday = day.status === "today";
-        const hasData = isWorkoutDay(day);
-        const isRest = isRestType(day);
+        const isRest =
+          day.status === "rest" ||
+          (day.workouts.length === 1 && detectSport(day.workouts[0].type) === "rest");
+        const hasWorkouts = day.workouts.length > 0;
 
         return (
           <div key={day.dateStr} className="flex flex-col gap-3">
@@ -215,15 +212,13 @@ function WeekGrid({ days }: { days: WeekDay[] }) {
             </div>
 
             {/* Cards */}
-            {!hasData && !isRest ? (
-              /* Empty day — no data */
-              <div className="group relative p-3 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent hover:border-gray-300 dark:hover:border-white/20 transition-all cursor-pointer">
+            {!hasWorkouts && !isRest ? (
+              <div className="group relative p-3 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent cursor-pointer">
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                  {day.type === "No data" ? "No data" : "--"}
+                  No data
                 </p>
               </div>
             ) : isRest ? (
-              /* Rest day card */
               <div className="group relative p-3 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent hover:border-gray-300 dark:hover:border-white/20 transition-all cursor-pointer">
                 <div className="flex items-center justify-between mb-2">
                   <span className="material-symbols-outlined text-slate-400">
@@ -239,8 +234,10 @@ function WeekGrid({ days }: { days: WeekDay[] }) {
                 </p>
               </div>
             ) : (
-              /* Workout card */
-              <WorkoutCard day={day} />
+              /* Render each workout as a separate card */
+              day.workouts.map((w, i) => (
+                <WorkoutCard key={i} workout={w} status={day.status} />
+              ))
             )}
           </div>
         );
@@ -249,10 +246,16 @@ function WeekGrid({ days }: { days: WeekDay[] }) {
   );
 }
 
-// ── Single workout card (matching prototype exactly) ──
+// ── Single workout card ──
 
-function WorkoutCard({ day }: { day: WeekDay }) {
-  const sport = getSportStyle(day.type);
+function WorkoutCard({
+  workout,
+  status,
+}: {
+  workout: CalendarWorkout;
+  status: CalendarDay["status"];
+}) {
+  const sport = getSportStyle(workout.type);
 
   return (
     <div
@@ -262,14 +265,14 @@ function WorkoutCard({ day }: { day: WeekDay }) {
         <span className={`material-symbols-outlined ${sport.textColor}`}>
           {sport.icon}
         </span>
-        <StatusIcon status={day.status} />
+        <StatusIcon status={status} />
       </div>
       <p className="text-sm font-bold text-slate-900 dark:text-white">
-        {day.type}
+        {workout.type}
       </p>
-      {day.detail && (
+      {workout.detail && (
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          {day.detail}
+          {workout.detail}
         </p>
       )}
     </div>
@@ -278,13 +281,12 @@ function WorkoutCard({ day }: { day: WeekDay }) {
 
 // ── Month grid ──
 
-function MonthGrid({ days, refDate }: { days: WeekDay[]; refDate: Date }) {
+function MonthGrid({ days, refDate }: { days: CalendarDay[]; refDate: Date }) {
   const currentMonth = refDate.getMonth();
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   return (
     <div className="grid grid-cols-7 gap-1">
-      {/* Column headers */}
       {dayNames.map((d) => (
         <div key={d} className="text-center py-2">
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
@@ -293,14 +295,13 @@ function MonthGrid({ days, refDate }: { days: WeekDay[]; refDate: Date }) {
         </div>
       ))}
 
-      {/* Day cells */}
       {days.map((day) => {
         const d = new Date(day.dateStr + "T12:00:00");
         const inMonth = d.getMonth() === currentMonth;
         const isToday = day.status === "today";
-        const sport = getSportStyle(day.type);
-        const hasData = isWorkoutDay(day) && !isRestType(day);
         const isCompleted = day.status === "completed";
+        const shown = inMonth ? day.workouts.slice(0, 2) : [];
+        const overflow = day.workouts.length - 2;
 
         return (
           <div
@@ -321,21 +322,29 @@ function MonthGrid({ days, refDate }: { days: WeekDay[]; refDate: Date }) {
               )}
             </div>
 
-            {inMonth && hasData && (
-              <div
-                className={`flex items-center gap-1.5 border-l-4 ${sport.borderColor} pl-1.5 rounded-r min-w-0`}
-              >
-                <span
-                  className={`material-symbols-outlined ${sport.textColor} text-sm shrink-0 ${
-                    !isCompleted && !isToday ? "opacity-50" : ""
-                  }`}
+            {shown.map((w, i) => {
+              const sport = getSportStyle(w.type);
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center gap-1.5 border-l-4 ${sport.borderColor} pl-1.5 rounded-r min-w-0`}
                 >
-                  {sport.icon}
-                </span>
-                <span className="text-xs text-slate-900 dark:text-white truncate font-medium">
-                  {day.type}
-                </span>
-              </div>
+                  <span
+                    className={`material-symbols-outlined ${sport.textColor} text-sm shrink-0 ${
+                      !isCompleted && !isToday ? "opacity-50" : ""
+                    }`}
+                  >
+                    {sport.icon}
+                  </span>
+                  <span className="text-xs text-slate-900 dark:text-white truncate font-medium">
+                    {w.type}
+                  </span>
+                </div>
+              );
+            })}
+
+            {inMonth && overflow > 0 && (
+              <p className="text-xs text-slate-400 pl-1">+{overflow} more</p>
             )}
           </div>
         );
