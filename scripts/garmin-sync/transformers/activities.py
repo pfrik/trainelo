@@ -43,6 +43,18 @@ ACTIVITY_TYPE_MAP = {
     "mountain_biking": "bike_mtb",
     "gravel_cycling": "bike_gravel",
     "road_biking": "bike_road",
+    "track_running": "run",
+    "street_running": "run",
+    "indoor_cardio": "cardio",
+    "cardio_training": "cardio",
+    "fitness_equipment": "strength",
+    "indoor_rowing": "row",
+    "resort_skiing": "ski",
+    "cross_country_skiing": "ski_xc",
+    "backcountry_skiing": "ski_bc",
+    "multi_sport": "multi",
+    "transition": "transition",
+    "breathwork": "breathwork",
     "other": "other",
 }
 
@@ -67,24 +79,36 @@ def _get_activity_type(garmin_data: dict[str, Any]) -> tuple[str, Optional[str]]
     """
     Map Garmin activity type to canonical type.
 
+    Handles both API response structures:
+    - Detail endpoint: activityTypeDTO.typeKey
+    - List endpoint:   activityType.typeKey
+
     Returns:
         Tuple of (activity_type, activity_subtype)
     """
-    activity_type_key = garmin_data.get("activityType", {})
-    if isinstance(activity_type_key, dict):
-        type_key = activity_type_key.get("typeKey", "other").lower()
+    type_key = "other"
+    subtype = None
+
+    # Try detail endpoint structure first (activityTypeDTO)
+    activity_type_dto = garmin_data.get("activityTypeDTO")
+    if isinstance(activity_type_dto, dict):
+        type_key = activity_type_dto.get("typeKey", "other").lower()
+        subtype = activity_type_dto.get("parentTypeId")
     else:
-        type_key = str(activity_type_key).lower() if activity_type_key else "other"
+        # Fall back to list endpoint structure (activityType)
+        activity_type_key = garmin_data.get("activityType", {})
+        if isinstance(activity_type_key, dict):
+            type_key = activity_type_key.get("typeKey", "other").lower()
+        elif activity_type_key:
+            type_key = str(activity_type_key).lower()
 
     # Clean up the type key
     type_key = type_key.replace(" ", "_").replace("-", "_")
 
     canonical_type = ACTIVITY_TYPE_MAP.get(type_key, "other")
 
-    # Extract subtype if available
-    subtype = None
-    if "activityTypeDTO" in garmin_data:
-        subtype = garmin_data["activityTypeDTO"].get("parentTypeId")
+    if canonical_type == "other" and type_key != "other":
+        print(f"   ⚠️  Unmapped Garmin activity type: '{type_key}' -> defaulting to 'other'")
 
     return canonical_type, subtype
 
@@ -132,17 +156,24 @@ def transform_activity(
 
     activity_type, activity_subtype = _get_activity_type(garmin_data)
 
+    # Extract summary metrics (needed before duration calculation)
+    summary = garmin_data.get("summaryDTO", {})
+
+    # Extract duration — check top-level first, then summaryDTO
+    duration_seconds = (
+        garmin_data.get("duration")
+        or summary.get("duration")
+        or summary.get("elapsedDuration")
+        or summary.get("movingDuration")
+    )
+
     # Calculate end time from start + duration
-    duration_seconds = garmin_data.get("duration")
     end_time = None
     if start_time and duration_seconds:
         start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
         from datetime import timedelta
         end_dt = start_dt + timedelta(seconds=duration_seconds)
         end_time = end_dt.isoformat().replace("+00:00", "Z")
-
-    # Extract summary metrics
-    summary = garmin_data.get("summaryDTO", {})
 
     return {
         "user_id": user_id,
@@ -155,8 +186,8 @@ def transform_activity(
         "started_at": start_time,
         "ended_at": end_time,
         "duration_seconds": _to_int(duration_seconds),
-        "distance_meters": _to_int(garmin_data.get("distance")),
-        "calories": _to_int(garmin_data.get("calories")),
+        "distance_meters": _to_int(garmin_data.get("distance") or summary.get("distance")),
+        "calories": _to_int(garmin_data.get("calories") or summary.get("calories")),
         "avg_heart_rate": _to_int(summary.get("averageHR") or garmin_data.get("averageHR")),
         "max_heart_rate": _to_int(summary.get("maxHR") or garmin_data.get("maxHR")),
         "min_heart_rate": _to_int(summary.get("minHR")),
