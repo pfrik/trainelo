@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 /** A single workout entry (not aggregated). */
 export interface CalendarWorkout {
+  id?: string;    // workout ID from database (absent for recommendation-only entries)
   type: string;   // display name: "Run", "Bike Indoor", "Swim Pool"
   detail: string; // "13.1 km" or "45 min"
 }
@@ -78,7 +79,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
       supabase
         .from("workouts")
         .select(
-          "started_at, duration_seconds, activity_type, distance_meters, title"
+          "id, started_at, duration_seconds, activity_type, distance_meters, title"
         )
         .eq("user_id", user.id)
         .gte("started_at", startStr + "T00:00:00Z")
@@ -105,6 +106,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
     const workoutsByDate = new Map<string, CalendarWorkout[]>();
     if (workoutResult.data) {
       for (const row of workoutResult.data as Array<{
+        id: string;
         started_at: string;
         duration_seconds: number | null;
         activity_type: string | null;
@@ -127,7 +129,7 @@ export function useCalendarSchedule(mode: "week" | "month", refDate: Date) {
         const detail =
           distKm >= 0.05 ? `${distKm.toFixed(1)} km` : `${durMin} min`;
 
-        workoutsByDate.get(dateKey)!.push({ type, detail });
+        workoutsByDate.get(dateKey)!.push({ id: row.id, type, detail });
       }
     }
 

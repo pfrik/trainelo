@@ -4,6 +4,7 @@ import {
   type CalendarDay,
   type CalendarWorkout,
 } from "@/hooks/useCalendarSchedule";
+import { ActivityDetailDrawer } from "@/components/calendar/ActivityDetailDrawer";
 
 type CalendarView = "week" | "month";
 
@@ -46,6 +47,14 @@ export function CalendarWidget() {
   const [view, setView] = useState<CalendarView>("week");
   const [refDate, setRefDate] = useState(new Date());
   const { days, loading } = useCalendarSchedule(view, refDate);
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const handleWorkoutClick = (workoutId: string | undefined) => {
+    if (!workoutId) return;
+    setSelectedWorkoutId(workoutId);
+    setDrawerOpen(true);
+  };
 
   const handlePrev = () => {
     const d = new Date(refDate);
@@ -135,10 +144,16 @@ export function CalendarWidget() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : view === "week" ? (
-        <WeekGrid days={days} />
+        <WeekGrid days={days} onWorkoutClick={handleWorkoutClick} />
       ) : (
-        <MonthGrid days={days} refDate={refDate} />
+        <MonthGrid days={days} refDate={refDate} onWorkoutClick={handleWorkoutClick} />
       )}
+
+      <ActivityDetailDrawer
+        workoutId={selectedWorkoutId}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </div>
   );
 }
@@ -175,7 +190,7 @@ function StatusIcon({ status }: { status: CalendarDay["status"] }) {
 
 // ── Week grid ──
 
-function WeekGrid({ days }: { days: CalendarDay[] }) {
+function WeekGrid({ days, onWorkoutClick }: { days: CalendarDay[]; onWorkoutClick: (id: string | undefined) => void }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
       {days.map((day) => {
@@ -236,7 +251,7 @@ function WeekGrid({ days }: { days: CalendarDay[] }) {
             ) : (
               /* Render each workout as a separate card */
               day.workouts.map((w, i) => (
-                <WorkoutCard key={i} workout={w} status={day.status} />
+                <WorkoutCard key={i} workout={w} status={day.status} onClick={() => onWorkoutClick(w.id)} />
               ))
             )}
           </div>
@@ -251,15 +266,19 @@ function WeekGrid({ days }: { days: CalendarDay[] }) {
 function WorkoutCard({
   workout,
   status,
+  onClick,
 }: {
   workout: CalendarWorkout;
   status: CalendarDay["status"];
+  onClick?: () => void;
 }) {
   const sport = getSportStyle(workout.type);
+  const clickable = !!workout.id;
 
   return (
     <div
-      className={`group relative p-3 rounded-lg bg-white dark:bg-dark-surface-lighter border-l-4 ${sport.borderColor} shadow-sm hover:shadow-md transition-all cursor-pointer`}
+      onClick={clickable ? onClick : undefined}
+      className={`group relative p-3 rounded-lg bg-white dark:bg-dark-surface-lighter border-l-4 ${sport.borderColor} shadow-sm hover:shadow-md transition-all ${clickable ? "cursor-pointer" : "cursor-default"}`}
     >
       <div className="flex items-center justify-between mb-2">
         <span className={`material-symbols-outlined ${sport.textColor}`}>
@@ -281,7 +300,7 @@ function WorkoutCard({
 
 // ── Month grid ──
 
-function MonthGrid({ days, refDate }: { days: CalendarDay[]; refDate: Date }) {
+function MonthGrid({ days, refDate, onWorkoutClick }: { days: CalendarDay[]; refDate: Date; onWorkoutClick: (id: string | undefined) => void }) {
   const currentMonth = refDate.getMonth();
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -324,10 +343,12 @@ function MonthGrid({ days, refDate }: { days: CalendarDay[]; refDate: Date }) {
 
             {shown.map((w, i) => {
               const sport = getSportStyle(w.type);
+              const clickable = !!w.id;
               return (
                 <div
                   key={i}
-                  className={`flex items-center gap-1.5 border-l-4 ${sport.borderColor} pl-1.5 rounded-r min-w-0`}
+                  onClick={clickable ? () => onWorkoutClick(w.id) : undefined}
+                  className={`flex items-center gap-1.5 border-l-4 ${sport.borderColor} pl-1.5 rounded-r min-w-0 ${clickable ? "cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5" : ""}`}
                 >
                   <span
                     className={`material-symbols-outlined ${sport.textColor} text-sm shrink-0 ${
