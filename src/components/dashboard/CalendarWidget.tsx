@@ -9,7 +9,7 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-// ── Sport detection & styling ──
+// ── Sport detection & styling (matching HTML prototype colors) ──
 
 function detectSport(type: string): string {
   const t = type.toLowerCase();
@@ -26,10 +26,10 @@ function detectSport(type: string): string {
 
 const SPORT_STYLES: Record<string, { icon: string; textColor: string; borderColor: string }> = {
   run:      { icon: "directions_run",  textColor: "text-orange-400",  borderColor: "border-l-orange-400" },
-  bike:     { icon: "directions_bike", textColor: "text-green-500",   borderColor: "border-l-green-500" },
+  bike:     { icon: "directions_bike", textColor: "text-primary",     borderColor: "border-l-primary" },
   swim:     { icon: "pool",            textColor: "text-blue-400",    borderColor: "border-l-blue-400" },
   strength: { icon: "fitness_center",  textColor: "text-purple-400",  borderColor: "border-l-purple-400" },
-  rest:     { icon: "spa",             textColor: "text-slate-400",   borderColor: "border-l-slate-600" },
+  rest:     { icon: "spa",             textColor: "text-slate-400",   borderColor: "" },
   other:    { icon: "exercise",        textColor: "text-slate-400",   borderColor: "border-l-slate-600" },
 };
 
@@ -37,8 +37,12 @@ function getSportStyle(type: string) {
   return SPORT_STYLES[detectSport(type)] || SPORT_STYLES.other;
 }
 
-function hasWorkoutData(day: WeekDay) {
+function isWorkoutDay(day: WeekDay) {
   return day.type !== "--" && day.type !== "No data" && day.type !== "Today";
+}
+
+function isRestType(day: WeekDay) {
+  return day.status === "rest" || detectSport(day.type) === "rest";
 }
 
 // ── Main widget ──
@@ -98,7 +102,7 @@ export function CalendarWidget() {
             <span className="w-2 h-2 rounded-full bg-blue-400" /> Swim
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-dark-surface-lighter rounded">
-            <span className="w-2 h-2 rounded-full bg-green-500" /> Bike
+            <span className="w-2 h-2 rounded-full bg-primary" /> Bike
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-dark-surface-lighter rounded">
             <span className="w-2 h-2 rounded-full bg-orange-400" /> Run
@@ -144,139 +148,130 @@ export function CalendarWidget() {
   );
 }
 
-// ── Week grid ──
+// ── Status icon helper ──
+
+function StatusIcon({ status }: { status: WeekDay["status"] }) {
+  if (status === "completed") {
+    return (
+      <span
+        className="material-symbols-outlined text-primary text-sm"
+        style={{ fontVariationSettings: '"FILL" 1' }}
+      >
+        check_circle
+      </span>
+    );
+  }
+  if (status === "missed") {
+    return (
+      <span
+        className="material-symbols-outlined text-red-400 text-sm"
+        style={{ fontVariationSettings: '"FILL" 1' }}
+      >
+        cancel
+      </span>
+    );
+  }
+  return (
+    <span className="material-symbols-outlined text-slate-600 dark:text-slate-500 text-sm">
+      circle
+    </span>
+  );
+}
+
+// ── Week grid (matching HTML prototype card layout) ──
 
 function WeekGrid({ days }: { days: WeekDay[] }) {
   return (
-    <div className="grid grid-cols-7 gap-2">
+    <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
       {days.map((day) => {
-        const sport = getSportStyle(day.type);
         const isToday = day.status === "today";
-        const isRest = day.status === "rest" || detectSport(day.type) === "rest";
-        const isCompleted = day.status === "completed";
-        const isMissed = day.status === "missed";
-        const hasData = hasWorkoutData(day);
+        const hasData = isWorkoutDay(day);
+        const isRest = isRestType(day);
 
         return (
-          <div key={day.dateStr} className="flex flex-col gap-2 group cursor-pointer">
-            {/* Day label */}
-            <div
-              className={`text-xs font-medium text-center uppercase ${
-                isToday ? "text-primary font-bold" : "text-slate-500"
-              }`}
-            >
-              {day.day}
-            </div>
-
-            {/* Card */}
-            {isRest && !isCompleted ? (
-              <div className="w-full bg-slate-50 dark:bg-dark-surface-lighter rounded-lg p-3 min-h-[110px] flex flex-col justify-between border border-dashed border-slate-300 dark:border-slate-600 transition-all hover:border-slate-400">
-                <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
-                  {day.dateNum}
-                </span>
-                <div className="flex flex-col items-center justify-center flex-1 gap-1">
-                  <span className="material-symbols-outlined text-slate-400 text-lg">
-                    spa
-                  </span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-medium">
-                    Rest
-                  </span>
-                </div>
-              </div>
-            ) : isToday ? (
-              <div
-                className={`w-full rounded-lg p-3 min-h-[110px] flex flex-col justify-between relative overflow-hidden shadow-sm transition-all border ${
-                  hasData
-                    ? `bg-primary/10 border-primary border-l-4 ${sport.borderColor}`
-                    : "bg-primary/10 border-primary"
+          <div key={day.dateStr} className="flex flex-col gap-3">
+            {/* Day header */}
+            <div className="text-center pb-2 border-b border-gray-200 dark:border-white/10">
+              <p
+                className={`text-xs font-medium uppercase ${
+                  isToday
+                    ? "text-primary font-bold"
+                    : "text-slate-500 dark:text-slate-400"
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center justify-center size-6 rounded-full bg-primary text-slate-900 text-xs font-bold">
+                {day.day}
+              </p>
+              {isToday ? (
+                <p className="text-lg font-bold">
+                  <span className="inline-flex items-center justify-center size-8 rounded-full bg-primary text-black">
                     {day.dateNum}
                   </span>
-                  {hasData && (
-                    <span
-                      className={`material-symbols-outlined ${sport.textColor} text-lg`}
-                      style={{ fontVariationSettings: '"FILL" 1' }}
-                    >
-                      {sport.icon}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-col gap-0.5 mt-2">
-                  <span className="text-[11px] leading-tight font-bold text-primary">
-                    {day.type}
+                </p>
+              ) : (
+                <p className="text-lg font-bold text-slate-900 dark:text-white">
+                  {day.dateNum}
+                </p>
+              )}
+            </div>
+
+            {/* Cards */}
+            {!hasData && !isRest ? (
+              /* Empty day — no data */
+              <div className="group relative p-3 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent hover:border-gray-300 dark:hover:border-white/20 transition-all cursor-pointer">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  {day.type === "No data" ? "No data" : "--"}
+                </p>
+              </div>
+            ) : isRest ? (
+              /* Rest day card */
+              <div className="group relative p-3 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent hover:border-gray-300 dark:hover:border-white/20 transition-all cursor-pointer">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="material-symbols-outlined text-slate-400">
+                    spa
                   </span>
-                  {day.detail && (
-                    <span className="text-[10px] leading-tight text-slate-600 dark:text-slate-300 font-medium">
-                      {day.detail}
-                    </span>
-                  )}
+                  <StatusIcon status={day.status} />
                 </div>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  Rest Day
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Active recovery or total rest.
+                </p>
               </div>
             ) : (
-              <div
-                className={`w-full bg-slate-50 dark:bg-dark-surface-lighter rounded-lg p-3 min-h-[110px] flex flex-col justify-between border-l-4 border transition-all hover:border-slate-400 relative ${
-                  hasData
-                    ? sport.borderColor
-                    : "border-l-slate-300 dark:border-l-slate-600"
-                } ${
-                  isMissed
-                    ? "border-red-500/30"
-                    : "border-slate-200 dark:border-slate-700"
-                } ${isCompleted ? "opacity-70" : ""}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    {day.dateNum}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {hasData && (
-                      <span
-                        className={`material-symbols-outlined ${sport.textColor} text-base`}
-                      >
-                        {sport.icon}
-                      </span>
-                    )}
-                    {isCompleted && (
-                      <span
-                        className="material-symbols-outlined text-green-500 text-[16px]"
-                        style={{ fontVariationSettings: '"FILL" 1' }}
-                      >
-                        check_circle
-                      </span>
-                    )}
-                    {isMissed && (
-                      <span
-                        className="material-symbols-outlined text-red-400 text-[16px]"
-                        style={{ fontVariationSettings: '"FILL" 1' }}
-                      >
-                        cancel
-                      </span>
-                    )}
-                    {day.status === "upcoming" && hasData && (
-                      <span className="material-symbols-outlined text-slate-500 text-[16px]">
-                        circle
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-0.5 mt-2">
-                  <span className="text-[11px] leading-tight font-semibold text-slate-700 dark:text-slate-300">
-                    {day.type}
-                  </span>
-                  {day.detail && (
-                    <span className="text-[10px] leading-tight text-slate-500 font-medium">
-                      {day.detail}
-                    </span>
-                  )}
-                </div>
-              </div>
+              /* Workout card */
+              <WorkoutCard day={day} />
             )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── Single workout card (matching prototype exactly) ──
+
+function WorkoutCard({ day }: { day: WeekDay }) {
+  const sport = getSportStyle(day.type);
+
+  return (
+    <div
+      className={`group relative p-3 rounded-lg bg-white dark:bg-dark-surface-lighter border-l-4 ${sport.borderColor} shadow-sm hover:shadow-md transition-all cursor-pointer`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className={`material-symbols-outlined ${sport.textColor}`}>
+          {sport.icon}
+        </span>
+        <StatusIcon status={day.status} />
+      </div>
+      <p className="text-sm font-bold text-slate-900 dark:text-white">
+        {day.type}
+      </p>
+      {day.detail && (
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          {day.detail}
+        </p>
+      )}
     </div>
   );
 }
@@ -304,21 +299,19 @@ function MonthGrid({ days, refDate }: { days: WeekDay[]; refDate: Date }) {
         const inMonth = d.getMonth() === currentMonth;
         const isToday = day.status === "today";
         const sport = getSportStyle(day.type);
-        const hasData =
-          hasWorkoutData(day) &&
-          detectSport(day.type) !== "rest";
+        const hasData = isWorkoutDay(day) && !isRestType(day);
         const isCompleted = day.status === "completed";
 
         return (
           <div
             key={day.dateStr}
-            className={`border border-slate-200 dark:border-slate-700/50 rounded-lg bg-light-surface dark:bg-dark-surface-lighter hover:bg-slate-50 dark:hover:bg-dark-surface p-2 min-h-[80px] flex flex-col gap-1 transition-colors ${
+            className={`border border-slate-200 dark:border-white/5 rounded-lg bg-white dark:bg-dark-surface-lighter hover:bg-slate-50 dark:hover:bg-dark-surface p-2 min-h-[80px] flex flex-col gap-1 transition-colors ${
               !inMonth ? "opacity-30" : ""
             }`}
           >
             <div className="text-right">
               {isToday ? (
-                <span className="inline-flex items-center justify-center size-6 rounded-full bg-primary text-slate-900 text-sm font-bold">
+                <span className="inline-flex items-center justify-center size-6 rounded-full bg-primary text-black text-sm font-bold">
                   {day.dateNum}
                 </span>
               ) : (
