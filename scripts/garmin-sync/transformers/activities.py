@@ -108,7 +108,7 @@ def _get_activity_type(garmin_data: dict[str, Any]) -> tuple[str, Optional[str]]
     canonical_type = ACTIVITY_TYPE_MAP.get(type_key, "other")
 
     if canonical_type == "other" and type_key != "other":
-        print(f"   ⚠️  Unmapped Garmin activity type: '{type_key}' -> defaulting to 'other'")
+        print(f"   [WARN] Unmapped Garmin activity type: '{type_key}' -> defaulting to 'other'")
 
     return canonical_type, subtype
 

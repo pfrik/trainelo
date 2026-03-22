@@ -89,9 +89,9 @@ def backfill(dry_run: bool = False):
                 params = {"id": f"eq.{workout['id']}"}
                 extra_headers = {"Prefer": "return=minimal"}
                 client._request("PATCH", "workouts", params=params, json=changes, extra_headers=extra_headers)
-                print(f"  ✅ {ref}: {old_type} -> {changes}")
+                print(f"  [OK] {ref}: {old_type} -> {changes}")
             except Exception as e:
-                print(f"  ❌ {ref}: Failed to update: {e}")
+                print(f"  [FAIL] {ref}: Failed to update: {e}")
 
         fixed += 1
 
