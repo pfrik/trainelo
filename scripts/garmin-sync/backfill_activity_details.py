@@ -59,11 +59,16 @@ def backfill(dry_run: bool = False):
     client = SupabaseClient()
 
     print("Fetching Garmin workouts with raw_data...")
-    result = client.client.table("workouts").select(
-        "id,title,activity_type,raw_data"
-    ).eq("source", "garmin").not_.is_("raw_data", "null").execute()
-
-    workouts = result.data or []
+    resp = client._request(
+        "GET", "workouts",
+        params={
+            "select": "id,title,activity_type,raw_data",
+            "source": "eq.garmin",
+            "raw_data": "not.is.null",
+        },
+    )
+    resp.raise_for_status()
+    workouts = resp.json()
     print(f"Found {len(workouts)} workouts with raw_data")
 
     updated = 0
@@ -88,9 +93,12 @@ def backfill(dry_run: bool = False):
         if dry_run:
             print(f"  Would update {title}: {list(non_null.keys())}")
         else:
-            client.client.table("workouts").update(non_null).eq(
-                "id", workout["id"]
-            ).execute()
+            patch_resp = client._request(
+                "PATCH", "workouts",
+                params={"id": f"eq.{workout['id']}"},
+                json=non_null,
+            )
+            patch_resp.raise_for_status()
             print(f"  Updated: {title} ({len(non_null)} fields)")
 
         updated += 1
