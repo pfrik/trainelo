@@ -13,7 +13,7 @@ interface ActivityDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// ── Sport detection (shared with CalendarWidget) ──
+// ── Sport detection ──
 
 function detectSport(type: string): string {
   const t = type.toLowerCase();
@@ -25,12 +25,12 @@ function detectSport(type: string): string {
   return "other";
 }
 
-const SPORT_META: Record<string, { icon: string; color: string; bg: string }> = {
-  run:      { icon: "directions_run",  color: "text-orange-400", bg: "bg-orange-400/10" },
-  bike:     { icon: "directions_bike", color: "text-primary",    bg: "bg-primary/10" },
-  swim:     { icon: "pool",            color: "text-blue-400",   bg: "bg-blue-400/10" },
-  strength: { icon: "fitness_center",  color: "text-purple-400", bg: "bg-purple-400/10" },
-  other:    { icon: "fitness_center",  color: "text-slate-400",  bg: "bg-slate-400/10" },
+const SPORT_META: Record<string, { icon: string; color: string; bg: string; border: string; headerBg: string }> = {
+  run:      { icon: "directions_run",  color: "text-orange-400",  bg: "bg-orange-400",  border: "border-orange-400/20", headerBg: "bg-orange-400/10" },
+  bike:     { icon: "directions_bike", color: "text-primary",     bg: "bg-primary",     border: "border-primary/20",    headerBg: "bg-primary/10" },
+  swim:     { icon: "pool",            color: "text-blue-400",    bg: "bg-blue-400",    border: "border-blue-400/20",   headerBg: "bg-blue-400/10" },
+  strength: { icon: "fitness_center",  color: "text-purple-400",  bg: "bg-purple-400",  border: "border-purple-400/20", headerBg: "bg-purple-400/10" },
+  other:    { icon: "fitness_center",  color: "text-slate-400",   bg: "bg-slate-400",   border: "border-slate-400/20",  headerBg: "bg-slate-400/10" },
 };
 
 // ── Formatters ──
@@ -38,9 +38,8 @@ const SPORT_META: Record<string, { icon: string; color: string; bg: string }> = 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 function formatPace(seconds: number, meters: number): string {
@@ -68,368 +67,192 @@ function formatActivityType(type: string): string {
   return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function formatDateTime(iso: string): { date: string; time: string } {
+function formatDate(iso: string): string {
   const d = new Date(iso);
-  const date = d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
     day: "numeric",
-    year: "numeric",
   });
-  const time = d.toLocaleTimeString("en-US", {
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
-  return { date, time };
 }
 
-// ── Components ──
+// ── Detail content ──
 
-function MetricCard({
-  icon,
-  label,
-  value,
-  unit,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  unit?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 p-3 rounded-lg bg-slate-100 dark:bg-white/5">
-      <div className="flex items-center gap-1.5">
-        <span className="material-symbols-outlined text-slate-400 text-base">
-          {icon}
-        </span>
-        <span className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-          {label}
-        </span>
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-lg font-bold text-slate-900 dark:text-white">
-          {value}
-        </span>
-        {unit && (
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {unit}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function HeartRateBar({ detail }: { detail: WorkoutDetail }) {
-  const { avg_heart_rate, max_heart_rate, min_heart_rate } = detail;
-  if (!avg_heart_rate) return null;
-
-  const min = min_heart_rate ?? avg_heart_rate;
-  const max = max_heart_rate ?? avg_heart_rate;
-  const range = max - min || 1;
-  const avgPos = ((avg_heart_rate - min) / range) * 100;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-1.5">
-        <span className="material-symbols-outlined text-red-400 text-base">
-          favorite
-        </span>
-        <span className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">
-          Heart Rate
-        </span>
-      </div>
-
-      {/* Bar visualization */}
-      <div className="relative h-2 rounded-full bg-gradient-to-r from-primary/60 via-yellow-400/60 to-red-400/60 overflow-hidden">
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-2 border-red-400 shadow-sm"
-          style={{ left: `clamp(6px, ${avgPos}% - 6px, calc(100% - 6px))` }}
-        />
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="text-center">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Min</p>
-          <p className="text-sm font-bold text-slate-900 dark:text-white">
-            {min_heart_rate ?? "--"}
-            <span className="text-xs font-normal text-slate-400 ml-0.5">bpm</span>
-          </p>
-        </div>
-        <div className="text-center">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Avg</p>
-          <p className="text-sm font-bold text-red-400">
-            {avg_heart_rate}
-            <span className="text-xs font-normal text-slate-400 ml-0.5">bpm</span>
-          </p>
-        </div>
-        <div className="text-center">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Max</p>
-          <p className="text-sm font-bold text-slate-900 dark:text-white">
-            {max_heart_rate ?? "--"}
-            <span className="text-xs font-normal text-slate-400 ml-0.5">bpm</span>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DetailContent({ detail }: { detail: WorkoutDetail }) {
+function DetailContent({ detail, onClose }: { detail: WorkoutDetail; onClose: () => void }) {
   const sport = detectSport(detail.activity_type);
   const meta = SPORT_META[sport] || SPORT_META.other;
-  const { date, time } = formatDateTime(detail.started_at);
   const isRunOrWalk = sport === "run";
   const hasPower = !!(detail.avg_power_watts || detail.max_power_watts);
-  const hasCadence = !!(detail.avg_cadence || detail.max_cadence);
-  const hasElevation = !!(detail.elevation_gain_meters || detail.elevation_loss_meters);
-  const hasEnvironment = !!(detail.temperature_celsius !== null || detail.humidity_percent !== null);
-  const hasTrainingLoad = !!(detail.training_stress_score || detail.intensity_factor);
+  const hasDetailMetrics = !!(
+    detail.avg_heart_rate ||
+    detail.avg_cadence ||
+    detail.elevation_gain_meters ||
+    detail.training_stress_score ||
+    detail.intensity_factor ||
+    detail.perceived_exertion
+  );
+
+  // Build the 3 key metrics for the top grid
+  const keyMetrics: { label: string; value: string; unit?: string; highlight?: boolean }[] = [];
+
+  if (detail.duration_seconds != null) {
+    keyMetrics.push({ label: "Duration", value: formatDuration(detail.duration_seconds) });
+  }
+  if (detail.distance_meters != null && detail.distance_meters > 0) {
+    keyMetrics.push({ label: "Distance", value: formatDistance(detail.distance_meters), unit: "km" });
+  }
+  if (isRunOrWalk && detail.distance_meters && detail.duration_seconds) {
+    keyMetrics.push({ label: "Avg Pace", value: formatPace(detail.duration_seconds, detail.distance_meters), unit: "/km" });
+  }
+  if (!isRunOrWalk && detail.distance_meters && detail.duration_seconds && detail.distance_meters > 0) {
+    keyMetrics.push({ label: "Avg Speed", value: formatSpeed(detail.duration_seconds, detail.distance_meters), unit: "km/h" });
+  }
+  if (hasPower && detail.avg_power_watts != null) {
+    keyMetrics.push({ label: "Avg Power", value: String(detail.avg_power_watts), unit: "W" });
+  }
+  if (detail.calories != null) {
+    keyMetrics.push({ label: "Calories", value: String(detail.calories), unit: "kcal" });
+  }
+  if (detail.intensity_factor != null) {
+    keyMetrics.push({ label: "Int. Factor", value: detail.intensity_factor.toFixed(2), highlight: true });
+  }
+
+  // Cap at 3 for the top grid
+  const topMetrics = keyMetrics.slice(0, 3);
+
+  // Build detail rows for the secondary section
+  const detailRows: { label: string; value: string }[] = [];
+
+  if (detail.avg_heart_rate != null) {
+    detailRows.push({ label: "Avg Heart Rate", value: `${detail.avg_heart_rate} bpm` });
+  }
+  if (detail.max_heart_rate != null) {
+    detailRows.push({ label: "Max Heart Rate", value: `${detail.max_heart_rate} bpm` });
+  }
+  if (hasPower && detail.normalized_power_watts != null) {
+    detailRows.push({ label: "Normalized Power", value: `${detail.normalized_power_watts} W` });
+  }
+  if (detail.avg_cadence != null) {
+    detailRows.push({ label: "Avg Cadence", value: `${detail.avg_cadence} ${isRunOrWalk ? "spm" : "rpm"}` });
+  }
+  if (detail.elevation_gain_meters != null) {
+    detailRows.push({ label: "Elevation Gain", value: `${Math.round(detail.elevation_gain_meters)} m` });
+  }
+  if (detail.elevation_loss_meters != null) {
+    detailRows.push({ label: "Elevation Loss", value: `${Math.round(detail.elevation_loss_meters)} m` });
+  }
+  if (detail.training_stress_score != null) {
+    detailRows.push({ label: "TSS", value: String(Math.round(detail.training_stress_score)) });
+  }
+  if (detail.perceived_exertion != null) {
+    detailRows.push({ label: "RPE", value: `${detail.perceived_exertion}/10` });
+  }
+  if (detail.temperature_celsius != null) {
+    detailRows.push({ label: "Temperature", value: `${Math.round(detail.temperature_celsius)}°C` });
+  }
 
   return (
-    <div className="flex flex-col gap-5 pb-6 px-4 overflow-y-auto max-h-[70vh]">
+    <div className="overflow-hidden">
       {/* ── Header ── */}
-      <div className="flex items-start gap-3">
-        <div className={`flex items-center justify-center w-12 h-12 rounded-xl ${meta.bg} shrink-0`}>
-          <span
-            className={`material-symbols-outlined ${meta.color} text-2xl`}
-            style={{ fontVariationSettings: '"FILL" 1' }}
-          >
-            {meta.icon}
-          </span>
+      <div className={`${meta.headerBg} px-5 py-4 flex justify-between items-center border-b ${meta.border}`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-full ${meta.bg} flex items-center justify-center`}>
+            <span
+              className="material-symbols-outlined text-white text-lg"
+              style={{ fontVariationSettings: '"FILL" 1' }}
+            >
+              {meta.icon}
+            </span>
+          </div>
+          <div>
+            <p className={`text-[10px] font-black ${meta.color} uppercase leading-none mb-1 tracking-wider`}>
+              Workout Complete
+            </p>
+            <h3 className="text-sm font-black text-white tracking-tight uppercase">
+              {detail.title || formatActivityType(detail.activity_type)}
+            </h3>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate">
-            {detail.title || formatActivityType(detail.activity_type)}
-          </h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {date}
-          </p>
-          <p className="text-xs text-slate-400">
-            {time}
-            {detail.source === "garmin" && (
-              <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400">
-                <span className="material-symbols-outlined text-xs">watch</span>
-                Garmin
-              </span>
-            )}
-          </p>
-        </div>
+        <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
+          <span className="material-symbols-outlined">close</span>
+        </button>
       </div>
 
-      {/* ── Key metrics ── */}
-      <div className="grid grid-cols-2 gap-2">
-        {detail.distance_meters != null && detail.distance_meters > 0 && (
-          <MetricCard
-            icon="straighten"
-            label="Distance"
-            value={formatDistance(detail.distance_meters)}
-            unit="km"
-          />
+      {/* ── Body ── */}
+      <div className="p-5 space-y-4">
+        {/* Date & source */}
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span>{formatDate(detail.started_at)} at {formatTime(detail.started_at)}</span>
+          {detail.source === "garmin" && (
+            <span className="flex items-center gap-1 text-slate-500">
+              <span className="material-symbols-outlined text-xs">watch</span>
+              Garmin
+            </span>
+          )}
+        </div>
+
+        {/* ── Key metrics grid ── */}
+        {topMetrics.length > 0 && (
+          <div className={`grid gap-4 ${topMetrics.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+            {topMetrics.map((m, i) => (
+              <div
+                key={m.label}
+                className={`text-center ${i > 0 ? "border-l border-white/5" : ""}`}
+              >
+                <p className="text-[9px] font-black text-white/40 uppercase mb-1 tracking-wide">
+                  {m.label}
+                </p>
+                <p className={`text-lg font-black ${m.highlight ? meta.color : "text-white"}`}>
+                  {m.value}
+                  {m.unit && (
+                    <span className="text-[10px] font-bold text-white/40 ml-0.5">{m.unit}</span>
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
         )}
-        {detail.duration_seconds != null && (
-          <MetricCard
-            icon="timer"
-            label="Duration"
-            value={formatDuration(detail.duration_seconds)}
-          />
+
+        {/* ── Detail rows ── */}
+        {detailRows.length > 0 && (
+          <div className="bg-white/5 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-black text-white/60 uppercase tracking-wide">
+                Details
+              </p>
+              {detail.avg_heart_rate != null && (
+                <span className="text-[10px] font-black text-red-400 bg-red-400/10 px-2 py-0.5 rounded">
+                  {detail.avg_heart_rate} BPM AVG
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {detailRows.map((row) => (
+                <div key={row.label} className="flex justify-between text-[11px]">
+                  <span className="text-slate-400">{row.label}</span>
+                  <span className="text-white font-bold">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
-        {isRunOrWalk && detail.distance_meters != null && detail.duration_seconds != null && detail.distance_meters > 0 && (
-          <MetricCard
-            icon="speed"
-            label="Avg Pace"
-            value={formatPace(detail.duration_seconds, detail.distance_meters)}
-            unit="/km"
-          />
-        )}
-        {!isRunOrWalk && detail.distance_meters != null && detail.duration_seconds != null && detail.distance_meters > 0 && (
-          <MetricCard
-            icon="speed"
-            label="Avg Speed"
-            value={formatSpeed(detail.duration_seconds, detail.distance_meters)}
-            unit="km/h"
-          />
-        )}
-        {detail.calories != null && (
-          <MetricCard
-            icon="local_fire_department"
-            label="Calories"
-            value={String(detail.calories)}
-            unit="kcal"
-          />
+
+        {/* ── Notes ── */}
+        {detail.notes && (
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-[10px] font-black text-white/60 uppercase tracking-wide mb-2">Notes</p>
+            <p className="text-[11px] text-slate-300 leading-relaxed">{detail.notes}</p>
+          </div>
         )}
       </div>
-
-      {/* ── Heart Rate ── */}
-      {detail.avg_heart_rate != null && (
-        <div className="p-3 rounded-lg bg-slate-100 dark:bg-white/5">
-          <HeartRateBar detail={detail} />
-        </div>
-      )}
-
-      {/* ── Power (cycling/etc) ── */}
-      {hasPower && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-yellow-400 text-base">
-              bolt
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">
-              Power
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {detail.avg_power_watts != null && (
-              <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-white/5 text-center">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Avg</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  {detail.avg_power_watts}<span className="text-xs font-normal text-slate-400 ml-0.5">W</span>
-                </p>
-              </div>
-            )}
-            {detail.normalized_power_watts != null && (
-              <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-white/5 text-center">
-                <p className="text-xs text-slate-500 dark:text-slate-400">NP</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  {detail.normalized_power_watts}<span className="text-xs font-normal text-slate-400 ml-0.5">W</span>
-                </p>
-              </div>
-            )}
-            {detail.max_power_watts != null && (
-              <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-white/5 text-center">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Max</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  {detail.max_power_watts}<span className="text-xs font-normal text-slate-400 ml-0.5">W</span>
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Cadence ── */}
-      {hasCadence && (
-        <div className="grid grid-cols-2 gap-2">
-          {detail.avg_cadence != null && (
-            <MetricCard
-              icon="steps"
-              label="Avg Cadence"
-              value={String(detail.avg_cadence)}
-              unit={isRunOrWalk ? "spm" : "rpm"}
-            />
-          )}
-          {detail.max_cadence != null && (
-            <MetricCard
-              icon="steps"
-              label="Max Cadence"
-              value={String(detail.max_cadence)}
-              unit={isRunOrWalk ? "spm" : "rpm"}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Elevation ── */}
-      {hasElevation && (
-        <div className="grid grid-cols-2 gap-2">
-          {detail.elevation_gain_meters != null && (
-            <MetricCard
-              icon="trending_up"
-              label="Elev. Gain"
-              value={String(Math.round(detail.elevation_gain_meters))}
-              unit="m"
-            />
-          )}
-          {detail.elevation_loss_meters != null && (
-            <MetricCard
-              icon="trending_down"
-              label="Elev. Loss"
-              value={String(Math.round(detail.elevation_loss_meters))}
-              unit="m"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Training Load ── */}
-      {hasTrainingLoad && (
-        <div className="grid grid-cols-2 gap-2">
-          {detail.training_stress_score != null && (
-            <MetricCard
-              icon="monitoring"
-              label="TSS"
-              value={String(Math.round(detail.training_stress_score))}
-            />
-          )}
-          {detail.intensity_factor != null && (
-            <MetricCard
-              icon="equalizer"
-              label="Intensity Factor"
-              value={detail.intensity_factor.toFixed(2)}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Subjective ── */}
-      {(detail.perceived_exertion != null || detail.feeling_score != null) && (
-        <div className="grid grid-cols-2 gap-2">
-          {detail.perceived_exertion != null && (
-            <MetricCard
-              icon="psychology"
-              label="RPE"
-              value={`${detail.perceived_exertion}/10`}
-            />
-          )}
-          {detail.feeling_score != null && (
-            <MetricCard
-              icon="sentiment_satisfied"
-              label="Feeling"
-              value={`${detail.feeling_score}/5`}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Environment ── */}
-      {hasEnvironment && (
-        <div className="grid grid-cols-2 gap-2">
-          {detail.temperature_celsius != null && (
-            <MetricCard
-              icon="thermostat"
-              label="Temperature"
-              value={String(Math.round(detail.temperature_celsius))}
-              unit="°C"
-            />
-          )}
-          {detail.humidity_percent != null && (
-            <MetricCard
-              icon="humidity_percentage"
-              label="Humidity"
-              value={String(Math.round(detail.humidity_percent))}
-              unit="%"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── Notes ── */}
-      {detail.notes && (
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-slate-400 text-base">
-              notes
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">
-              Notes
-            </span>
-          </div>
-          <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            {detail.notes}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -445,7 +268,7 @@ export function ActivityDetailDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh]">
+      <DrawerContent className="max-h-[85vh] bg-dark-surface border-white/10">
         <DrawerHeader className="sr-only">
           <DrawerTitle>Activity Details</DrawerTitle>
           <DrawerDescription>Detailed view of your workout activity</DrawerDescription>
@@ -456,15 +279,11 @@ export function ActivityDetailDrawer({
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         ) : detail ? (
-          <DetailContent detail={detail} />
+          <DetailContent detail={detail} onClose={() => onOpenChange(false)} />
         ) : (
           <div className="flex flex-col items-center justify-center h-48 pb-6 gap-2">
-            <span className="material-symbols-outlined text-slate-400 text-3xl">
-              error_outline
-            </span>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Could not load activity details
-            </p>
+            <span className="material-symbols-outlined text-slate-500 text-3xl">error_outline</span>
+            <p className="text-sm text-slate-500">Could not load activity details</p>
           </div>
         )}
       </DrawerContent>
