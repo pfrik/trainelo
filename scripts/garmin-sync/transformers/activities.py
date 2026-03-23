@@ -200,6 +200,20 @@ def transform_activity(
         "intensity_factor": summary.get("intensityFactor"),  # This is a decimal, not int
         "elevation_gain_meters": _to_int(garmin_data.get("elevationGain")),
         "elevation_loss_meters": _to_int(garmin_data.get("elevationLoss")),
+        # Detailed metrics (from summaryDTO / top-level)
+        "avg_speed_mps": summary.get("averageSpeed"),
+        "max_speed_mps": summary.get("maxSpeed"),
+        "moving_duration_seconds": _to_int(summary.get("movingDuration")),
+        "elapsed_duration_seconds": _to_int(summary.get("elapsedDuration")),
+        "aerobic_training_effect": summary.get("trainingEffect"),
+        "anaerobic_training_effect": summary.get("anaerobicTrainingEffect"),
+        "vo2max_value": garmin_data.get("vO2MaxValue"),
+        "avg_stride_length_cm": (
+            round(summary.get("averageStrideLength", 0) * 100, 2)
+            if summary.get("averageStrideLength") else None
+        ),
+        "avg_vertical_oscillation_cm": summary.get("avgVerticalOscillation"),
+        "avg_ground_contact_time_ms": summary.get("avgGroundContactTime"),
         "raw_data": garmin_data,
     }
 

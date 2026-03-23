@@ -30,6 +30,19 @@ export interface WorkoutDetail {
   humidity_percent: number | null;
   notes: string | null;
   source: string;
+  // New detailed metrics
+  avg_speed_mps: number | null;
+  max_speed_mps: number | null;
+  moving_duration_seconds: number | null;
+  elapsed_duration_seconds: number | null;
+  aerobic_training_effect: number | null;
+  anaerobic_training_effect: number | null;
+  vo2max_value: number | null;
+  avg_stride_length_cm: number | null;
+  avg_vertical_oscillation_cm: number | null;
+  avg_ground_contact_time_ms: number | null;
+  // Raw data for laps/HR zones
+  raw_data: Record<string, unknown> | null;
 }
 
 export function useWorkoutDetail(workoutId: string | null) {
@@ -58,7 +71,13 @@ export function useWorkoutDetail(workoutId: string | null) {
          calories, training_stress_score, intensity_factor,
          perceived_exertion, feeling_score,
          temperature_celsius, humidity_percent,
-         notes, source`
+         notes, source,
+         avg_speed_mps, max_speed_mps,
+         moving_duration_seconds, elapsed_duration_seconds,
+         aerobic_training_effect, anaerobic_training_effect,
+         vo2max_value,
+         avg_stride_length_cm, avg_vertical_oscillation_cm, avg_ground_contact_time_ms,
+         raw_data`
       )
       .eq("id", workoutId)
       .eq("user_id", user.id)
