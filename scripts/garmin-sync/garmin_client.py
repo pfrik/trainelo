@@ -131,7 +131,7 @@ class GarminClient:
             except GarminConnectAuthenticationError:
                 raise
             except Exception as e:
-                if self._is_rate_limit_error(e):
+                if self._is_rate_limit_error(e) and not has_env_secret:
                     raise
                 print(f"Cached token resume failed ({e})")
                 self.client = None
