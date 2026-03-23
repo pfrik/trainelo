@@ -34,7 +34,9 @@ jobs:
           cache-dependency-path: scripts/garmin-sync/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r scripts/garmin-sync/requirements.txt
+        run: |
+          pip install -r scripts/garmin-sync/requirements.txt
+          pip install "garth>=0.7.9"
 
       - name: Restore Garmin OAuth tokens
         uses: actions/cache/restore@v5
