@@ -36,21 +36,30 @@ def extract_details(raw_data: dict) -> dict:
     """Extract detailed metrics from Garmin raw_data payload."""
     summary = raw_data.get("summaryDTO", {})
 
-    stride_length = summary.get("averageStrideLength")
-
     return {
+        # Speed
         "avg_speed_mps": summary.get("averageSpeed"),
         "max_speed_mps": summary.get("maxSpeed"),
+        # Duration
         "moving_duration_seconds": _to_int(summary.get("movingDuration")),
         "elapsed_duration_seconds": _to_int(summary.get("elapsedDuration")),
+        # Training effect
         "aerobic_training_effect": summary.get("trainingEffect"),
         "anaerobic_training_effect": summary.get("anaerobicTrainingEffect"),
-        "vo2max_value": raw_data.get("vO2MaxValue"),
+        # VO2 Max not available in detail endpoint
+        "vo2max_value": None,
+        # Running dynamics (strideLength is already in cm)
         "avg_stride_length_cm": (
-            round(stride_length * 100, 2) if stride_length else None
+            round(summary["strideLength"], 2)
+            if summary.get("strideLength") else None
         ),
-        "avg_vertical_oscillation_cm": summary.get("avgVerticalOscillation"),
-        "avg_ground_contact_time_ms": summary.get("avgGroundContactTime"),
+        "avg_vertical_oscillation_cm": summary.get("verticalOscillation"),
+        "avg_ground_contact_time_ms": summary.get("groundContactTime"),
+        # Also fix power and elevation while backfilling
+        "avg_power_watts": _to_int(summary.get("averagePower")),
+        "normalized_power_watts": _to_int(summary.get("normalizedPower")),
+        "elevation_gain_meters": _to_int(summary.get("elevationGain")),
+        "elevation_loss_meters": _to_int(summary.get("elevationLoss")),
     }
 
 

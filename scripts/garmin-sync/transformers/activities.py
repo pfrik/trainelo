@@ -193,27 +193,27 @@ def transform_activity(
         "min_heart_rate": _to_int(summary.get("minHR")),
         "avg_cadence": _to_int(summary.get("averageRunCadence") or summary.get("averageBikeCadence")),
         "max_cadence": _to_int(summary.get("maxRunCadence") or summary.get("maxBikeCadence")),
-        "avg_power_watts": _to_int(summary.get("avgPower")),
+        "avg_power_watts": _to_int(summary.get("averagePower")),
         "max_power_watts": _to_int(summary.get("maxPower")),
-        "normalized_power_watts": _to_int(summary.get("normPower")),
+        "normalized_power_watts": _to_int(summary.get("normalizedPower")),
         "training_stress_score": _to_int(summary.get("trainingStressScore")),
         "intensity_factor": summary.get("intensityFactor"),  # This is a decimal, not int
-        "elevation_gain_meters": _to_int(garmin_data.get("elevationGain")),
-        "elevation_loss_meters": _to_int(garmin_data.get("elevationLoss")),
-        # Detailed metrics (from summaryDTO / top-level)
+        "elevation_gain_meters": _to_int(summary.get("elevationGain") or garmin_data.get("elevationGain")),
+        "elevation_loss_meters": _to_int(summary.get("elevationLoss") or garmin_data.get("elevationLoss")),
+        # Detailed metrics (from summaryDTO)
         "avg_speed_mps": summary.get("averageSpeed"),
         "max_speed_mps": summary.get("maxSpeed"),
         "moving_duration_seconds": _to_int(summary.get("movingDuration")),
         "elapsed_duration_seconds": _to_int(summary.get("elapsedDuration")),
         "aerobic_training_effect": summary.get("trainingEffect"),
         "anaerobic_training_effect": summary.get("anaerobicTrainingEffect"),
-        "vo2max_value": garmin_data.get("vO2MaxValue"),
+        "vo2max_value": None,  # Not available in detail endpoint
         "avg_stride_length_cm": (
-            round(summary.get("averageStrideLength", 0) * 100, 2)
-            if summary.get("averageStrideLength") else None
+            round(summary.get("strideLength"), 2)
+            if summary.get("strideLength") else None
         ),
-        "avg_vertical_oscillation_cm": summary.get("avgVerticalOscillation"),
-        "avg_ground_contact_time_ms": summary.get("avgGroundContactTime"),
+        "avg_vertical_oscillation_cm": summary.get("verticalOscillation"),
+        "avg_ground_contact_time_ms": summary.get("groundContactTime"),
         "raw_data": garmin_data,
     }
 
