@@ -64,7 +64,7 @@ jobs:
           fi
 
       - name: Update GARMIN_TOKENS_BASE64 secret with fresh tokens
-        if: success()
+        if: always()
         working-directory: scripts/garmin-sync
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
