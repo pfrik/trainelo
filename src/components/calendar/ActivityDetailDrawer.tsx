@@ -1,10 +1,9 @@
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-} from "@/components/ui/drawer";
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useWorkoutDetail, type WorkoutDetail } from "@/hooks/useWorkoutDetail";
 
 interface ActivityDetailDrawerProps {
@@ -267,26 +266,24 @@ export function ActivityDetailDrawer({
   const { detail, loading } = useWorkoutDetail(open ? workoutId : null);
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh] bg-dark-surface border-white/10">
-        <DrawerHeader className="sr-only">
-          <DrawerTitle>Activity Details</DrawerTitle>
-          <DrawerDescription>Detailed view of your workout activity</DrawerDescription>
-        </DrawerHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[360px] p-0 gap-0 bg-dark-surface border-white/10 rounded-xl overflow-hidden [&>button:last-child]:hidden">
+        <DialogTitle className="sr-only">Activity Details</DialogTitle>
+        <DialogDescription className="sr-only">Detailed view of your workout activity</DialogDescription>
 
         {loading ? (
-          <div className="flex items-center justify-center h-48 pb-6">
+          <div className="flex items-center justify-center h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         ) : detail ? (
           <DetailContent detail={detail} onClose={() => onOpenChange(false)} />
         ) : (
-          <div className="flex flex-col items-center justify-center h-48 pb-6 gap-2">
+          <div className="flex flex-col items-center justify-center h-48 gap-2">
             <span className="material-symbols-outlined text-slate-500 text-3xl">error_outline</span>
             <p className="text-sm text-slate-500">Could not load activity details</p>
           </div>
         )}
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }
