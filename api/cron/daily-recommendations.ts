@@ -827,7 +827,55 @@ export async function GET(request: Request): Promise<Response> {
       response.errors = errors;
     }
 
-    log.info("completed", { upserts_ok: upsertsOk, upserts_failed: upsertsFailed, duration_ms: durationMs });
+    // -----------------------------------------------------------------------
+    // Plan compliance: mark yesterday's missed planned workouts (non-fatal)
+    // -----------------------------------------------------------------------
+    let complianceMissed = 0;
+    try {
+      const yesterday = new Date(targetDate);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+      const { data: planned } = await supabase
+        .from("planned_workouts")
+        .select("id, user_id, goal_id, week_number")
+        .eq("planned_date", yesterdayIso)
+        .eq("status", "planned");
+
+      if (planned && planned.length > 0) {
+        for (const pw of planned) {
+          const { data: workouts } = await supabase
+            .from("workouts")
+            .select("id")
+            .eq("user_id", pw.user_id)
+            .gte("started_at", `${yesterdayIso}T00:00:00Z`)
+            .lt("started_at", `${yesterdayIso}T23:59:59Z`)
+            .limit(1);
+
+          const newStatus = workouts && workouts.length > 0 ? "completed" : "missed";
+          if (newStatus === "missed") complianceMissed++;
+          await supabase.from("planned_workouts").update({ status: newStatus }).eq("id", pw.id);
+        }
+
+        // Update weekly compliance percentages
+        const goalIds = [...new Set(planned.map((pw) => pw.goal_id).filter(Boolean))];
+        for (const goalId of goalIds) {
+          const weekNums = [...new Set(planned.filter((pw) => pw.goal_id === goalId).map((pw) => pw.week_number).filter(Boolean))];
+          for (const wn of weekNums) {
+            const { data: ww } = await supabase.from("planned_workouts").select("status").eq("goal_id", goalId).eq("week_number", wn);
+            if (ww && ww.length > 0) {
+              const pct = Math.round((ww.filter((w) => w.status === "completed").length / ww.length) * 100);
+              await supabase.from("training_plan_weeks").update({ compliance_pct: pct }).eq("goal_id", goalId).eq("week_number", wn);
+            }
+          }
+        }
+        log.info("compliance check", { date: yesterdayIso, checked: planned.length, missed: complianceMissed });
+      }
+    } catch (compErr) {
+      log.warn("compliance check failed (non-fatal)", { error: compErr instanceof Error ? compErr.message : String(compErr) });
+    }
+
+    log.info("completed", { upserts_ok: upsertsOk, upserts_failed: upsertsFailed, compliance_missed: complianceMissed, duration_ms: durationMs });
 
     return Response.json(response, { headers });
   } catch (err) {

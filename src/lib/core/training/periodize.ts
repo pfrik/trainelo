@@ -507,8 +507,8 @@ function getSportPrefix(sport: string, workoutType: WorkoutType): string {
       return "swim";
     case "triathlon":
       // For triathlon, infer from workout type
+      // (swim_drill, strength, mobility already handled above)
       if (workoutType === "endurance" || workoutType === "brick") return "bike";
-      if (workoutType === "swim_drill") return "swim";
       return "run";
     default:
       return "run";

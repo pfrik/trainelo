@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/daily-recommendations",
       "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron/plan-compliance",
-      "schedule": "30 5 * * *"
     }
   ],
   "framework": "vite",

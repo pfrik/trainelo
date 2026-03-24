@@ -105,7 +105,7 @@ export function useGoals() {
   const generatePlan = useCallback(
     async (goalId: string): Promise<PlanGenerationResult | null> => {
       try {
-        const res = await fetch(`/api/goals/generate-plan?id=${goalId}`, {
+        const res = await fetch(`/api/goals?action=generate-plan&id=${goalId}`, {
           method: "POST",
           headers: headers(),
         });
