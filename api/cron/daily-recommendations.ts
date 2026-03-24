@@ -62,6 +62,7 @@ import {
   type TrainingLoadRow,
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
+import { getPlannedWorkoutForDate } from "../../src/lib/db/goalQueries.js";
 import type { DailyTssEntry } from "../../src/lib/core/recommendations/computeEwma.js";
 import {
   calibrateSession,
@@ -539,9 +540,11 @@ async function computeForUser(
     consecutive_training_days: row?.days_since_rest ?? 0,
   };
 
+  // 4b. Resolve today's planned workout from active training plan (if any)
+  const scheduledWorkout = await getPlannedWorkoutForDate(userId, targetDate);
   const constraints: DailyConstraints = {
-    has_scheduled_workout: false,
-    scheduled_template_ref: null,
+    has_scheduled_workout: scheduledWorkout !== null,
+    scheduled_template_ref: scheduledWorkout?.template_ref ?? null,
   };
 
   // 5. Generate ordered candidates

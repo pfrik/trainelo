@@ -8,6 +8,11 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Mock goal queries
+vi.mock("../../src/lib/db/goalQueries.js", () => ({
+  getPlannedWorkoutForDate: vi.fn().mockResolvedValue(null),
+}));
+
 // Mock DB queries before importing handler
 vi.mock("../../src/lib/db/queries.js", () => ({
   getDailyUserState: vi.fn(),

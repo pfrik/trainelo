@@ -24,6 +24,10 @@ import {
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
 import {
+  getPlannedWorkoutForDate,
+  type ScheduledWorkoutRow,
+} from "../../src/lib/db/goalQueries.js";
+import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
   type ReadinessAndFatigueOutput,
@@ -432,6 +436,7 @@ function buildEvidence(
   checkin: DailyCheckinRow | null,
   calibration: CalibrationResult | null,
   anomaly: AnomalyResult | null,
+  scheduledWorkout?: ScheduledWorkoutRow | null,
 ): EvidenceSummary {
   const impact = checkin ? computeCheckinImpact(checkin) : null;
 
@@ -475,6 +480,17 @@ function buildEvidence(
     anomaly_caution_level: anomaly?.caution_level ?? null,
     anomaly_restrictions: anomaly?.restrictions.length ? anomaly.restrictions : null,
     anomaly_question_key: anomaly?.question_key ?? null,
+    // Goal context
+    goal_id: scheduledWorkout?.goal_id ?? null,
+    goal_title: scheduledWorkout?.goal_title ?? null,
+    training_phase: scheduledWorkout?.phase ?? null,
+    plan_week_number: scheduledWorkout?.week_number ?? null,
+    days_until_race: scheduledWorkout
+      ? Math.max(0, Math.floor(
+          (new Date(scheduledWorkout.target_date).getTime() - Date.now()) /
+            (24 * 60 * 60 * 1000),
+        ))
+      : null,
   };
 }
 
@@ -703,9 +719,11 @@ export default async function handler(
       consecutive_training_days: row?.days_since_rest ?? 0,
     };
 
+    // 4b. Resolve today's planned workout from active training plan (if any)
+    const scheduledWorkout = await getPlannedWorkoutForDate(userId, date);
     const constraints: DailyConstraints = {
-      has_scheduled_workout: false,
-      scheduled_template_ref: null,
+      has_scheduled_workout: scheduledWorkout !== null,
+      scheduled_template_ref: scheduledWorkout?.template_ref ?? null,
     };
 
     // 5. Generate ordered candidates
@@ -744,7 +762,7 @@ export default async function handler(
     const calMs = calTimer.elapsed();
 
     // 7. Build evidence summary
-    const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration, anomalyResult);
+    const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration, anomalyResult, scheduledWorkout);
 
     log.info("pipeline complete", {
       user_id: userId,

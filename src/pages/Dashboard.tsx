@@ -235,10 +235,23 @@ export default function Dashboard() {
             {/* Hero Card: Today's Focus — single prescribed session */}
               <div className="bg-slate-900 dark:bg-dark-surface rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700/50 group relative">
                 <div className="relative z-10 p-8">
-                  <div className="flex items-center gap-3 mb-6">
+                  <div className="flex items-center gap-3 mb-6 flex-wrap">
                     <span className="bg-primary text-slate-900 text-xs font-black px-3 py-1.5 rounded uppercase tracking-wide">Today's Focus</span>
                     {recommendation?.llm_used && (
                       <span className="bg-blue-500/20 text-blue-300 text-xs font-bold px-2 py-1 rounded border border-blue-500/30 uppercase tracking-wide">AI Enhanced</span>
+                    )}
+                    {recommendation?.evidence?.goal_title && (
+                      <span className="bg-orange-500/20 text-orange-300 text-xs font-bold px-2 py-1 rounded border border-orange-500/30">
+                        {recommendation.evidence.training_phase && (
+                          <span className="capitalize">{recommendation.evidence.training_phase}</span>
+                        )}
+                        {recommendation.evidence.plan_week_number && recommendation.evidence.goal_title && (
+                          <span> · Wk {recommendation.evidence.plan_week_number}</span>
+                        )}
+                        {recommendation.evidence.days_until_race != null && recommendation.evidence.days_until_race <= 30 && (
+                          <span> · {recommendation.evidence.days_until_race}d to race</span>
+                        )}
+                      </span>
                     )}
                   </div>
 

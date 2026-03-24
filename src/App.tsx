@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Calendar from "./pages/Calendar";
+import Goals from "./pages/Goals";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -77,6 +78,7 @@ const AppRoutes = () => (
       }
     >
       <Route path="/calendar" element={<Calendar />} />
+      <Route path="/goals" element={<Goals />} />
     </Route>
     <Route
       path="/settings"

@@ -127,6 +127,16 @@ export interface EvidenceSummary {
   anomaly_restrictions?: Restriction[] | null;
   /** Anomaly detector: follow-up question key */
   anomaly_question_key?: string | null;
+  /** Goal context: active goal ID (present when a training plan is active) */
+  goal_id?: string | null;
+  /** Goal context: goal title (e.g., "Texel 60km Ultra") */
+  goal_title?: string | null;
+  /** Goal context: current training phase */
+  training_phase?: string | null;
+  /** Goal context: current week number within the plan */
+  plan_week_number?: number | null;
+  /** Goal context: days until race date */
+  days_until_race?: number | null;
 }
 
 /** A single recommendation candidate */

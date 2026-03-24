@@ -72,6 +72,30 @@ export function EvidencePanel({ evidence, generatedAt, lastGarminSync, expanded,
             )}
           </div>
 
+          {/* Goal / Training Plan context */}
+          {evidence.goal_title && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="bg-orange-500/10 text-orange-400 text-xs px-2 py-0.5 rounded border border-orange-500/30">
+                {evidence.goal_title}
+              </span>
+              {evidence.training_phase && (
+                <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded capitalize">
+                  {evidence.training_phase} phase
+                </span>
+              )}
+              {evidence.plan_week_number && (
+                <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded">
+                  Week {evidence.plan_week_number}
+                </span>
+              )}
+              {evidence.days_until_race != null && (
+                <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded">
+                  {evidence.days_until_race}d to race
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Check-in context */}
           {evidence.checkin_mood != null ? (
             <>

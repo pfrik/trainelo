@@ -1,10 +1,10 @@
-import { Calendar, Zap, LayoutDashboard, Dumbbell, Activity } from "lucide-react";
+import { Calendar, Zap, LayoutDashboard, Target, Activity } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/dashboard", label: "Home", icon: LayoutDashboard },
-  { to: "/workouts", label: "Workouts", icon: Dumbbell },
+  { to: "/goals", label: "Goals", icon: Target },
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/recovery", label: "Recovery", icon: Activity },
 ];
