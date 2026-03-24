@@ -368,6 +368,70 @@ export async function insertPlannedWorkouts(
   }
 }
 
+// ============================================================================
+// EWMA Daily Persistence
+// ============================================================================
+
+export async function upsertEwmaDaily(
+  userId: string,
+  dateIso: string,
+  fitnessRaw: number,
+  fatigueRaw: number,
+  dailyTss: number = 0,
+  dataDays: number = 0,
+): Promise<void> {
+  const supabase = getClient();
+  const { error } = await supabase.from("ewma_daily").upsert(
+    {
+      user_id: userId,
+      date: dateIso,
+      fitness_raw: fitnessRaw,
+      fatigue_raw: fatigueRaw,
+      form_raw: fitnessRaw - fatigueRaw,
+      daily_tss: dailyTss,
+      data_days: dataDays,
+    },
+    { onConflict: "user_id,date" },
+  );
+  if (error) throw error;
+}
+
+export async function getEwmaHistory(
+  userId: string,
+  days: number = 90,
+): Promise<Array<{
+  date: string;
+  fitness_raw: number;
+  fatigue_raw: number;
+  form_raw: number;
+  daily_tss: number;
+}>> {
+  const supabase = getClient();
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceIso = since.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("ewma_daily")
+    .select("date, fitness_raw, fatigue_raw, form_raw, daily_tss")
+    .eq("user_id", userId)
+    .gte("date", sinceIso)
+    .order("date", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Array<{
+    date: string;
+    fitness_raw: number;
+    fatigue_raw: number;
+    form_raw: number;
+    daily_tss: number;
+  }>;
+}
+
+// ============================================================================
+// Plan cleanup
+// ============================================================================
+
 /**
  * Delete all planned workouts and weeks for a goal (before regenerating).
  */

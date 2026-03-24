@@ -25,7 +25,9 @@ import {
   clearPlanForGoal,
   insertPlanWeeks,
   insertPlannedWorkouts,
+  getEwmaHistory,
 } from "../../src/lib/db/goalQueries.js";
+import { normalizeEwma } from "../../src/lib/core/recommendations/computeEwma.js";
 
 // ============================================================================
 // Schemas
@@ -101,6 +103,12 @@ export default async function handler(
     const userId = await resolveUserId(req);
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    // Route: GET /api/goals?action=pmc&days=90
+    if (req.method === "GET" && req.query.action === "pmc") {
+      await handlePmc(req, res, userId);
       return;
     }
 
@@ -184,6 +192,45 @@ export default async function handler(
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// ============================================================================
+// PMC Sub-handler
+// ============================================================================
+
+async function handlePmc(
+  req: VercelRequest,
+  res: VercelResponse,
+  userId: string,
+): Promise<void> {
+  const days = Math.min(365, Math.max(7, parseInt(req.query.days as string) || 90));
+
+  try {
+    const rows = await getEwmaHistory(userId, days);
+
+    const data = rows.map((row) => {
+      const normalized = normalizeEwma({
+        fitness: Number(row.fitness_raw),
+        fatigue: Number(row.fatigue_raw),
+        form: Number(row.form_raw),
+        data_days: 0,
+      });
+      return {
+        date: row.date,
+        fitness: normalized.fitness_score,
+        fatigue: normalized.fatigue_score,
+        form: normalized.form_score,
+        tss: Math.round(Number(row.daily_tss)),
+      };
+    });
+
+    res.status(200).json({ ok: true, days, data });
+  } catch (error) {
+    res.status(500).json({
+      error: "Failed to fetch PMC data",
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 

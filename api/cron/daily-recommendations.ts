@@ -62,7 +62,7 @@ import {
   type TrainingLoadRow,
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
-import { getPlannedWorkoutForDate } from "../../src/lib/db/goalQueries.js";
+import { getPlannedWorkoutForDate, upsertEwmaDaily } from "../../src/lib/db/goalQueries.js";
 import type { DailyTssEntry } from "../../src/lib/core/recommendations/computeEwma.js";
 import {
   calibrateSession,
@@ -669,6 +669,22 @@ async function processBatch(
         upsertOk,
         error,
       });
+
+      // Persist EWMA state (non-fatal)
+      if (!dryRun && output.evidence) {
+        try {
+          const fr = output.evidence.ewma_fitness_raw;
+          const fa = output.evidence.ewma_fatigue_raw;
+          if (fr != null && fa != null) {
+            await upsertEwmaDaily(userId, targetDate, Number(fr), Number(fa));
+          }
+        } catch (ewmaErr) {
+          log.warn("ewma persist error (non-fatal)", {
+            user_id: userId,
+            error: ewmaErr instanceof Error ? ewmaErr.message : String(ewmaErr),
+          });
+        }
+      }
 
       // Run passive calibration (non-fatal)
       if (!dryRun) {

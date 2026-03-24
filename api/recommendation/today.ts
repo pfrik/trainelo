@@ -25,6 +25,7 @@ import {
 } from "../../src/lib/db/queries.js";
 import {
   getPlannedWorkoutForDate,
+  upsertEwmaDaily,
   type ScheduledWorkoutRow,
 } from "../../src/lib/db/goalQueries.js";
 import {
@@ -763,6 +764,15 @@ export default async function handler(
 
     // 7. Build evidence summary
     const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration, anomalyResult, scheduledWorkout);
+
+    // 7b. Persist EWMA state (non-fatal)
+    if (rfOutput.ewma?.fitness_raw != null && rfOutput.ewma?.fatigue_raw != null) {
+      try {
+        await upsertEwmaDaily(userId, date, rfOutput.ewma.fitness_raw, rfOutput.ewma.fatigue_raw);
+      } catch {
+        // Non-fatal — don't break recommendations if EWMA persist fails
+      }
+    }
 
     log.info("pipeline complete", {
       user_id: userId,

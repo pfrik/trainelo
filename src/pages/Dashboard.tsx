@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { CalendarWidget } from '@/components/dashboard/CalendarWidget';
+import { PmcChart } from '@/components/dashboard/PmcChart';
 import { useProfile } from '@/hooks/useProfile';
 import { useLocation } from '@/hooks/useLocation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -430,6 +431,19 @@ export default function Dashboard() {
 
               {/* Weekly Schedule */}
               <CalendarWidget />
+
+              {/* Performance Management Chart */}
+              <div className="bg-light-surface dark:bg-dark-surface rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Performance</h3>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500"></span> <span className="text-slate-400">Fitness</span></span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500"></span> <span className="text-slate-400">Fatigue</span></span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span> <span className="text-slate-400">Form</span></span>
+                  </div>
+                </div>
+                <PmcChart />
+              </div>
             </div>
 
             {/* Right Column (4/12) */}
