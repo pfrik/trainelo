@@ -71,6 +71,14 @@ const AppRoutes = () => (
       }
     />
     <Route
+      path="/goals"
+      element={
+        <ProtectedRoute>
+          <Goals />
+        </ProtectedRoute>
+      }
+    />
+    <Route
       element={
         <ProtectedRoute>
           <AppLayout />
@@ -78,7 +86,6 @@ const AppRoutes = () => (
       }
     >
       <Route path="/calendar" element={<Calendar />} />
-      <Route path="/goals" element={<Goals />} />
     </Route>
     <Route
       path="/settings"
