@@ -33,11 +33,11 @@ interface FormZone {
 }
 
 const FORM_ZONES: FormZone[] = [
-  { label: "Transition", min: 15, max: 50, color: "rgba(34,211,238,0.08)", textColor: "text-cyan-400" },
-  { label: "Fresh", min: 5, max: 15, color: "rgba(34,197,94,0.08)", textColor: "text-green-400" },
-  { label: "Grey Zone", min: -10, max: 5, color: "rgba(100,116,139,0.06)", textColor: "text-slate-400" },
-  { label: "Optimal", min: -25, max: -10, color: "rgba(20,184,166,0.10)", textColor: "text-teal-400" },
-  { label: "High Risk", min: -50, max: -25, color: "rgba(239,68,68,0.10)", textColor: "text-red-400" },
+  { label: "Transition", min: 15, max: 50, color: "rgba(34,211,238,0.18)", textColor: "text-cyan-400" },
+  { label: "Fresh", min: 5, max: 15, color: "rgba(34,197,94,0.18)", textColor: "text-green-400" },
+  { label: "Grey Zone", min: -10, max: 5, color: "rgba(100,116,139,0.15)", textColor: "text-slate-400" },
+  { label: "Optimal", min: -25, max: -10, color: "rgba(20,184,166,0.20)", textColor: "text-teal-400" },
+  { label: "High Risk", min: -50, max: -25, color: "rgba(239,68,68,0.20)", textColor: "text-red-400" },
 ];
 
 function getFormZone(form: number): FormZone {
