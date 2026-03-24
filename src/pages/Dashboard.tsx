@@ -434,15 +434,12 @@ export default function Dashboard() {
 
               {/* Performance Management Chart */}
               <div className="bg-light-surface dark:bg-dark-surface rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700/50">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Performance</h3>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500"></span> <span className="text-slate-400">Fitness</span></span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500"></span> <span className="text-slate-400">Fatigue</span></span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span> <span className="text-slate-400">Form</span></span>
-                  </div>
-                </div>
-                <PmcChart />
+                <PmcChart
+                  raceDate={evidence?.days_until_race != null
+                    ? new Date(Date.now() + evidence.days_until_race * 86400000).toISOString().slice(0, 10)
+                    : null}
+                  raceName={evidence?.goal_title ?? null}
+                />
               </div>
             </div>
 
