@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { AppLayout } from "@/components/layout/AppLayout";
 import Calendar from "./pages/Calendar";
 import Goals from "./pages/Goals";
 import Auth from "./pages/Auth";
@@ -79,14 +78,13 @@ const AppRoutes = () => (
       }
     />
     <Route
+      path="/calendar"
       element={
         <ProtectedRoute>
-          <AppLayout />
+          <Calendar />
         </ProtectedRoute>
       }
-    >
-      <Route path="/calendar" element={<Calendar />} />
-    </Route>
+    />
     <Route
       path="/settings"
       element={
