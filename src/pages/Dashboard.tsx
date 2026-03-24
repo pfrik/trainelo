@@ -3,12 +3,11 @@ import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { CalendarWidget } from '@/components/dashboard/CalendarWidget';
 import { useProfile } from '@/hooks/useProfile';
 import { useLocation } from '@/hooks/useLocation';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { MorningCheckinFlow, type CheckinPayload } from '@/components/checkin/MorningCheckinFlow';
 import { GarminSyncCard } from '@/components/garmin/GarminSyncCard';
 import type { ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
-import { NavItem } from '@/components/dashboard/NavItem';
+import { AppSidebar } from '@/components/navigation/AppSidebar';
 import { EvidencePanel } from '@/components/dashboard/EvidencePanel';
 import { WorkoutDetail } from '@/components/dashboard/WorkoutDetail';
 import { CalibrationBlock } from '@/components/dashboard/CalibrationBlock';
@@ -17,7 +16,6 @@ import { getCautionStyles, formatReasonCode, sanitizeRationale } from '@/compone
 export default function Dashboard() {
   const { displayName, loading: profileLoading } = useProfile();
   const locationCity = useLocation();
-  const navigate = useNavigate();
   const {
     data: recommendation,
     loading: recLoading,
@@ -91,43 +89,7 @@ export default function Dashboard() {
   return (
     <div className="dark h-screen flex overflow-hidden bg-light-base dark:bg-dark-base text-slate-800 dark:text-slate-200 font-sans antialiased transition-colors duration-200">
 
-      {/* Sidebar */}
-      <aside className="w-64 bg-light-surface dark:bg-dark-base border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between flex-shrink-0 z-20">
-        <div className="p-6">
-          {/* User Profile */}
-          <div className="flex items-center space-x-3 mb-8">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full bg-slate-200 border-2 border-primary overflow-hidden">
-                <img
-                  alt={userName}
-                  className="w-full h-full object-cover"
-                  src="https://i.pravatar.cc/150?img=9"
-                />
-              </div>
-              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-light-surface dark:border-dark-base rounded-full"></div>
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white">{userName}</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Pro Plan Member</p>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <nav className="space-y-2">
-            <NavItem icon="dashboard" text="Dashboard" active={true} />
-            <NavItem icon="fitness_center" text="Training Log" />
-            <NavItem icon="insights" text="Analytics" />
-            <NavItem icon="battery_charging_full" text="Recovery" />
-          </nav>
-        </div>
-
-        <div className="p-6 border-t border-slate-200 dark:border-slate-800">
-          <button onClick={() => navigate("/settings")} className="flex items-center space-x-3 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors w-full">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>settings</span>
-            <span className="font-medium">Settings</span>
-          </button>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-light-base dark:bg-dark-base relative">
