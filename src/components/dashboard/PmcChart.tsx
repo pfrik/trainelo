@@ -147,6 +147,9 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
       <div className="flex gap-4">
         {/* Charts column */}
         <div className="flex-1 min-w-0">
+          {/* Top panel label */}
+          <div className="text-xs text-slate-500 font-medium mb-1 ml-9">Training Load</div>
+
           {/* Top panel: Fitness + Fatigue */}
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
@@ -197,8 +200,11 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
             </ResponsiveContainer>
           </div>
 
+          {/* Spacer + bottom panel label */}
+          <div className="mt-4 text-xs text-slate-500 font-medium mb-1 ml-9">Form</div>
+
           {/* Bottom panel: Form with zone bands */}
-          <div className="h-28">
+          <div className="h-32 relative">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={data} margin={{ top: 0, right: 5, left: -15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
@@ -216,6 +222,7 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
                   tickLine={false}
                   domain={[-40, 30]}
                   width={35}
+                  yAxisId="form"
                 />
                 <Tooltip content={<CustomTooltip />} />
 
@@ -227,10 +234,21 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
                     y2={Math.min(zone.max, 30)}
                     fill={zone.color}
                     strokeOpacity={0}
+                    yAxisId="form"
+                    label={{
+                      value: zone.label,
+                      position: "right",
+                      fill: zone.label === "Transition" ? "#22d3ee"
+                        : zone.label === "Fresh" ? "#22c55e"
+                        : zone.label === "Grey Zone" ? "#64748b"
+                        : zone.label === "Optimal" ? "#14b8a6"
+                        : "#ef4444",
+                      fontSize: 9,
+                    }}
                   />
                 ))}
 
-                <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" />
+                <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" yAxisId="form" />
 
                 {/* Race day marker */}
                 {raceDate && (
@@ -239,6 +257,7 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
                     stroke="#f97316"
                     strokeDasharray="4 4"
                     strokeWidth={1.5}
+                    yAxisId="form"
                   />
                 )}
 
@@ -248,6 +267,7 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
                   stroke="#22c55e"
                   strokeWidth={2}
                   dot={false}
+                  yAxisId="form"
                 />
               </ComposedChart>
             </ResponsiveContainer>
