@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Line,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -124,6 +125,7 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500" /> <span className="text-slate-400">Fitness</span></span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500" /> <span className="text-slate-400">Fatigue</span></span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /> <span className="text-slate-400">Form</span></span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded bg-slate-500/30" /> <span className="text-slate-400">TSS</span></span>
           </div>
           <div className="flex bg-slate-800/70 rounded-lg p-0.5">
             {TIME_RANGES.map((r) => (
@@ -180,6 +182,15 @@ export function PmcChart({ raceDate, raceName }: PmcChartProps) {
                     }}
                   />
                 )}
+
+                {/* TSS bars — faint background showing daily training stress */}
+                <Bar
+                  dataKey="tss"
+                  fill="#64748b"
+                  opacity={0.15}
+                  radius={[1, 1, 0, 0]}
+                  isAnimationActive={false}
+                />
 
                 <Line
                   type="monotone"
