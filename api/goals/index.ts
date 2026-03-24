@@ -73,15 +73,16 @@ async function resolveUserId(req: VercelRequest): Promise<string | null> {
     if (!match) return null;
     const token = match[1];
 
-    const supabaseUrl = cleanEnv("SUPABASE_URL") ?? cleanEnv("VITE_SUPABASE_URL");
-    const anonKey =
+    const supabaseUrl = cleanEnv("SUPABASE_URL") ?? cleanEnv("VITE_SUPABASE_URL") ?? cleanEnv("NEXT_PUBLIC_SUPABASE_URL");
+    const supabaseKey =
       cleanEnv("SUPABASE_ANON_KEY") ??
       cleanEnv("VITE_SUPABASE_ANON_KEY") ??
-      cleanEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+      cleanEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY") ??
+      cleanEnv("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!supabaseUrl || !anonKey) return null;
+    if (!supabaseUrl || !supabaseKey) return null;
 
-    const client = createClient(supabaseUrl, anonKey);
+    const client = createClient(supabaseUrl, supabaseKey);
     const { data } = await client.auth.getUser(token);
     return data?.user?.id ?? null;
   }
