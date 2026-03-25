@@ -784,6 +784,26 @@ export default async function handler(
       timing_ms: { total: total.elapsed(), db: dbMs, rf: rfMs, anomaly: anomalyMs, candidates: candidateMs, calibration: calMs },
     });
 
+    // 7c. Generate LLM coaching explanation (non-fatal)
+    let llmUsed = false;
+    if (process.env.ANTHROPIC_API_KEY && finalCandidates.length > 0) {
+      try {
+        const { generateExplanation } = await import(
+          "../../src/lib/core/recommendations/generateExplanation.js"
+        );
+        const explanation = await generateExplanation(evidence, finalCandidates[0]);
+        if (explanation) {
+          llmUsed = true;
+          finalCandidates[0] = {
+            ...finalCandidates[0],
+            rationale: explanation,
+          };
+        }
+      } catch {
+        // Non-fatal — deterministic rationale used as fallback
+      }
+    }
+
     // 8. Assemble response
     const response: TodayRecommendationResponse = {
       schema_version: SchemaVersion,
@@ -792,7 +812,7 @@ export default async function handler(
       user_id: userId,
       candidates: finalCandidates,
       evidence,
-      llm_used: false,
+      llm_used: llmUsed,
       generated_at: generatedAt,
     };
 
