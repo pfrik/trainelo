@@ -26,6 +26,8 @@ import {
 import {
   getPlannedWorkoutForDate,
   upsertEwmaDaily,
+  upsertAnomalyLog,
+  getRecentAnomalyHistory,
   type ScheduledWorkoutRow,
 } from "../../src/lib/db/goalQueries.js";
 import {
@@ -481,6 +483,9 @@ function buildEvidence(
     anomaly_caution_level: anomaly?.caution_level ?? null,
     anomaly_restrictions: anomaly?.restrictions.length ? anomaly.restrictions : null,
     anomaly_question_key: anomaly?.question_key ?? null,
+    anomaly_escalation_note: (anomaly as Record<string, unknown>)?.escalation_note as string | null ?? null,
+    anomaly_streak_days: (anomaly as Record<string, unknown>)?.streak_days as number | null ?? null,
+    anomaly_resolved_today: (anomaly as Record<string, unknown>)?.resolved_today as string[] | null ?? null,
     // Goal context
     goal_id: scheduledWorkout?.goal_id ?? null,
     goal_title: scheduledWorkout?.goal_title ?? null,
@@ -695,7 +700,25 @@ export default async function handler(
 
     // 3a. Anomaly detection (between R&F and candidate generation)
     const anomalyTimer = timer();
-    const anomalyResult = detectAnomalies(rfOutput);
+    let anomalyResult = detectAnomalies(rfOutput);
+
+    // 3b. Persist anomaly + escalate based on history (non-fatal)
+    try {
+      await upsertAnomalyLog(
+        userId, date,
+        anomalyResult.reason_codes,
+        anomalyResult.caution_level,
+        anomalyResult.restrictions,
+        anomalyResult.question_key,
+      );
+      const history = await getRecentAnomalyHistory(userId, 7);
+      const { escalateAnomalies } = await import(
+        "../../src/lib/core/safety/anomalyEscalation.js"
+      );
+      anomalyResult = escalateAnomalies(anomalyResult, history);
+    } catch {
+      // Non-fatal — use raw anomaly result if persistence/escalation fails
+    }
     const anomalyMs = anomalyTimer.elapsed();
 
     // 4. Build inputs for candidate generation

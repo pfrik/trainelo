@@ -127,6 +127,12 @@ export interface EvidenceSummary {
   anomaly_restrictions?: Restriction[] | null;
   /** Anomaly detector: follow-up question key */
   anomaly_question_key?: string | null;
+  /** Anomaly escalation: human-readable note (e.g., "HRV suppression 3 days in a row") */
+  anomaly_escalation_note?: string | null;
+  /** Anomaly escalation: consecutive days the anomaly has fired */
+  anomaly_streak_days?: number | null;
+  /** Anomaly escalation: reason codes that resolved today (signals normalized) */
+  anomaly_resolved_today?: string[] | null;
   /** Goal context: active goal ID (present when a training plan is active) */
   goal_id?: string | null;
   /** Goal context: goal title (e.g., "Texel 60km Ultra") */

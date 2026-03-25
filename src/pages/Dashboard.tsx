@@ -145,6 +145,19 @@ export default function Dashboard() {
             <div className="col-span-12 lg:col-span-8 space-y-6">
 
                 {/* Anomaly Warning Banner */}
+              {/* Anomaly Resolved Banner */}
+              {evidence && (!evidence.anomaly_caution_level || evidence.anomaly_caution_level === "none") && evidence.anomaly_resolved_today && evidence.anomaly_resolved_today.length > 0 && (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-center gap-3">
+                  <span className="material-symbols-outlined text-green-400 text-xl" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+                  <div>
+                    <span className="text-sm font-bold text-green-400">Signals normalized</span>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {evidence.anomaly_resolved_today.map((c) => formatReasonCode(c as ReasonCode)).join(", ")} resolved — your body is recovering.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {evidence && evidence.anomaly_caution_level && evidence.anomaly_caution_level !== "none" && (() => {
                 const severity = evidence.anomaly_caution_level;
                 const styles = getCautionStyles(severity);
@@ -160,7 +173,15 @@ export default function Dashboard() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`text-sm font-bold ${styles.text} uppercase`}>{severity} caution</span>
+                        {evidence.anomaly_streak_days != null && evidence.anomaly_streak_days >= 2 && (
+                          <span className="bg-red-500/20 text-red-400 text-xs font-bold px-2 py-0.5 rounded border border-red-500/30">
+                            Day {evidence.anomaly_streak_days}
+                          </span>
+                        )}
                       </div>
+                      {evidence.anomaly_escalation_note && (
+                        <p className="text-sm text-slate-300 mb-2">{evidence.anomaly_escalation_note}</p>
+                      )}
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {anomalyReasons.map((code) => (
                           <span key={code} className={`${styles.bg} ${styles.text} text-xs font-semibold px-2 py-0.5 rounded`}>

@@ -429,6 +429,65 @@ export async function getEwmaHistory(
 }
 
 // ============================================================================
+// Anomaly Log Persistence
+// ============================================================================
+
+export interface AnomalyLogRow {
+  date: string;
+  reason_codes: string[];
+  caution_level: string;
+  restrictions: string[];
+  question_key: string | null;
+  resolved: boolean;
+}
+
+export async function upsertAnomalyLog(
+  userId: string,
+  dateIso: string,
+  reasonCodes: string[],
+  cautionLevel: string,
+  restrictions: string[],
+  questionKey: string | null,
+): Promise<void> {
+  const supabase = getClient();
+  const isClean = cautionLevel === "none" || reasonCodes.length === 0;
+  const { error } = await supabase.from("daily_anomaly_log").upsert(
+    {
+      user_id: userId,
+      date: dateIso,
+      reason_codes: reasonCodes,
+      caution_level: cautionLevel,
+      restrictions,
+      question_key: questionKey,
+      resolved: isClean,
+      resolved_at: isClean ? new Date().toISOString() : null,
+    },
+    { onConflict: "user_id,date" },
+  );
+  if (error) throw error;
+}
+
+export async function getRecentAnomalyHistory(
+  userId: string,
+  days: number = 7,
+): Promise<AnomalyLogRow[]> {
+  const supabase = getClient();
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceIso = since.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("daily_anomaly_log")
+    .select("date, reason_codes, caution_level, restrictions, question_key, resolved")
+    .eq("user_id", userId)
+    .gte("date", sinceIso)
+    .order("date", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as AnomalyLogRow[];
+}
+
+// ============================================================================
 // Plan cleanup
 // ============================================================================
 

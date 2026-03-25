@@ -62,7 +62,7 @@ import {
   type TrainingLoadRow,
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
-import { getPlannedWorkoutForDate, upsertEwmaDaily } from "../../src/lib/db/goalQueries.js";
+import { getPlannedWorkoutForDate, upsertEwmaDaily, upsertAnomalyLog } from "../../src/lib/db/goalQueries.js";
 import type { DailyTssEntry } from "../../src/lib/core/recommendations/computeEwma.js";
 import {
   calibrateSession,
@@ -521,6 +521,19 @@ async function computeForUser(
 
   // 3a. Anomaly detection
   const anomalyResult = detectAnomalies(rfOutput);
+
+  // 3b. Persist anomaly log (non-fatal)
+  try {
+    await upsertAnomalyLog(
+      userId, targetDate,
+      anomalyResult.reason_codes,
+      anomalyResult.caution_level,
+      anomalyResult.restrictions,
+      anomalyResult.question_key,
+    );
+  } catch {
+    // Non-fatal
+  }
 
   // 4. Build candidate-generation inputs
   const mergedReasonCodes = [...rfOutput.reason_codes, ...anomalyResult.reason_codes];
