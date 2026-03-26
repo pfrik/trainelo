@@ -30,6 +30,7 @@ import {
   getRecentAnomalyHistory,
   type ScheduledWorkoutRow,
 } from "../../src/lib/db/goalQueries.js";
+import { generateExplanation } from "../../src/lib/core/recommendations/generateExplanation.js";
 import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
@@ -810,23 +811,22 @@ export default async function handler(
     // 7c. Generate LLM coaching explanation (non-fatal)
     let llmUsed = false;
     if (process.env.ANTHROPIC_API_KEY && finalCandidates.length > 0) {
+      const llmTimer = timer();
       try {
-        const { generateExplanation } = await import(
-          "../../src/lib/core/recommendations/generateExplanation.js"
-        );
         const explanation = await generateExplanation(evidence, finalCandidates[0]);
+        const llmMs = llmTimer.elapsed();
         if (explanation) {
           llmUsed = true;
           finalCandidates[0] = {
             ...finalCandidates[0],
             rationale: explanation,
           };
-          log.info("llm explanation generated", { length: explanation.length });
+          log.info("llm ok", { ms: llmMs, len: explanation.length });
         } else {
-          log.warn("llm explanation returned null (timeout or empty)");
+          log.warn("llm null", { ms: llmMs });
         }
       } catch (llmErr) {
-        log.warn("llm explanation failed", { error: llmErr instanceof Error ? llmErr.message : String(llmErr) });
+        log.warn("llm error", { ms: llmTimer.elapsed(), error: llmErr instanceof Error ? llmErr.message : String(llmErr) });
       }
     }
 
