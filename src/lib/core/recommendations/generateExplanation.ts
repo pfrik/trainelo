@@ -147,15 +147,27 @@ export async function generateExplanation(
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
     ]);
 
-    if (!response) return null; // timeout
+    if (!response) {
+      console.warn("[llm] timeout - no response within 8s");
+      return null;
+    }
+
+    console.log("[llm] response received", {
+      stop_reason: response.stop_reason,
+      content_length: response.content?.length,
+      content_type: response.content?.[0]?.type,
+      model: response.model,
+    });
 
     const text = response.content?.[0];
     if (text?.type === "text" && text.text.trim()) {
       return text.text.trim();
     }
 
+    console.warn("[llm] no text in response content");
     return null;
-  } catch {
+  } catch (err) {
+    console.error("[llm] API error", err instanceof Error ? err.message : String(err));
     return null;
   }
 }
