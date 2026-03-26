@@ -37,13 +37,6 @@ jobs:
         run: |
           pip install -r scripts/garmin-sync/requirements.txt
 
-      - name: Restore Garmin OAuth tokens
-        uses: actions/cache/restore@v5
-        with:
-          path: scripts/garmin-sync/.garmin_tokens
-          key: garmin-tokens-v2-${{ github.run_id }}
-          restore-keys: garmin-tokens-v2-
-
       - name: Run Garmin sync
         working-directory: scripts/garmin-sync
         env:
@@ -69,10 +62,3 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python update_github_secret.py
-
-      - name: Save Garmin OAuth tokens
-        if: always()
-        uses: actions/cache/save@v5
-        with:
-          path: scripts/garmin-sync/.garmin_tokens
-          key: garmin-tokens-v2-${{ github.run_id }}
