@@ -41,8 +41,10 @@ DATA_TYPES = ["activities", "daily_summary", "sleep", "hrv"]
 RATE_LIMIT_DELAY_SECONDS = 1  # Delay between API calls to avoid rate limiting
 
 # Authentication retry (Garmin SSO aggressively 429s cloud IPs)
-AUTH_MAX_RETRIES = 4
-AUTH_INITIAL_BACKOFF_SECONDS = 60  # Doubles each attempt: 60s, 120s, 240s
+# Keep retries low — each failed exchange counts against Garmin's per-account quota.
+# With cron every 6h, fewer retries = faster rate limit recovery.
+AUTH_MAX_RETRIES = 2
+AUTH_INITIAL_BACKOFF_SECONDS = 120  # Doubles each attempt: 120s, 240s
 
 
 def validate_config():

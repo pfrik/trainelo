@@ -116,7 +116,12 @@ class GarminClient:
             return False
 
     def _try_authenticate(self) -> bool:
-        """Single authentication attempt (cached tokens → env secret → full login)."""
+        """Single authentication attempt (cached tokens → env secret → full login).
+
+        IMPORTANT: If any token exchange hits a 429, we raise immediately.
+        The OAuth exchange endpoint is what's rate-limited — trying a different
+        token source won't help and only makes the rate limit worse.
+        """
         has_cached = self.token_dir.exists() and any(self.token_dir.iterdir())
         has_env_secret = bool(os.environ.get("GARMIN_TOKENS_BASE64"))
 
@@ -131,7 +136,8 @@ class GarminClient:
             except GarminConnectAuthenticationError:
                 raise
             except Exception as e:
-                if self._is_rate_limit_error(e) and not has_env_secret:
+                if self._is_rate_limit_error(e):
+                    # 429 = stop immediately, don't try other token sources
                     raise
                 print(f"Cached token resume failed ({e})")
                 self.client = None
@@ -150,6 +156,7 @@ class GarminClient:
                     raise
                 except Exception as e:
                     if self._is_rate_limit_error(e):
+                        # 429 = stop immediately
                         raise
                     print(f"Env secret token resume failed ({e})")
                     self.client = None
