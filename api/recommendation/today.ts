@@ -821,9 +821,12 @@ export default async function handler(
             ...finalCandidates[0],
             rationale: explanation,
           };
+          log.info("llm explanation generated", { length: explanation.length });
+        } else {
+          log.warn("llm explanation returned null (timeout or empty)");
         }
-      } catch {
-        // Non-fatal — deterministic rationale used as fallback
+      } catch (llmErr) {
+        log.warn("llm explanation failed", { error: llmErr instanceof Error ? llmErr.message : String(llmErr) });
       }
     }
 

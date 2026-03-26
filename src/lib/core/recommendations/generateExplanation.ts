@@ -49,7 +49,7 @@ function buildUserPrompt(
 
   // Recommendation
   parts.push(`TODAY'S RECOMMENDATION: ${candidate.label}`);
-  parts.push(`Decision: ${candidate.id}`);
+  parts.push(`Decision: ${candidate.candidate_id}`);
   if (candidate.reason_codes?.length) {
     parts.push(`Reason codes: ${candidate.reason_codes.join(", ")}`);
   }
@@ -144,7 +144,7 @@ export async function generateExplanation(
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
       }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
     ]);
 
     if (!response) return null; // timeout
