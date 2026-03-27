@@ -41,9 +41,11 @@ DATA_TYPES = ["activities", "daily_summary", "sleep", "hrv"]
 RATE_LIMIT_DELAY_SECONDS = 1  # Delay between API calls to avoid rate limiting
 
 # Authentication retry (Garmin SSO aggressively 429s cloud IPs)
-# Keep retries low — each failed exchange counts against Garmin's per-account quota.
+# Keep retries minimal — each failed exchange counts against Garmin's per-account quota.
 # With cron every 6h, fewer retries = faster rate limit recovery.
-AUTH_MAX_RETRIES = 2
+# The auth flow now falls through to full SSO login on token exchange 429,
+# so a single attempt already tries two different endpoints.
+AUTH_MAX_RETRIES = 1
 AUTH_INITIAL_BACKOFF_SECONDS = 120  # Doubles each attempt: 120s, 240s
 
 

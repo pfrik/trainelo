@@ -54,11 +54,22 @@ def main():
         print("Skipping secret update: no tokens to export")
         sys.exit(0)
 
-    bundle = {
+    # Only update the secret if the tokens were actually refreshed during this run.
+    # If auth failed, the tokens on disk are the same stale ones restored from the
+    # env secret — re-uploading them just wastes an API call and masks the problem.
+    env_encoded = os.environ.get("GARMIN_TOKENS_BASE64", "")
+    disk_bundle = {
         "oauth1": json.loads(oauth1_path.read_text()),
         "oauth2": json.loads(oauth2_path.read_text()),
     }
-    secret_value = base64.b64encode(json.dumps(bundle).encode()).decode()
+    disk_encoded = base64.b64encode(json.dumps(disk_bundle).encode()).decode()
+
+    if env_encoded and disk_encoded == env_encoded:
+        print("Skipping secret update: tokens unchanged (auth likely failed)")
+        sys.exit(0)
+
+    bundle = disk_bundle
+    secret_value = disk_encoded
 
     # Get repo public key for encryption
     import httpx

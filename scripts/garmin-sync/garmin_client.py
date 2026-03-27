@@ -118,12 +118,14 @@ class GarminClient:
     def _try_authenticate(self) -> bool:
         """Single authentication attempt (cached tokens → env secret → full login).
 
-        IMPORTANT: If any token exchange hits a 429, we raise immediately.
-        The OAuth exchange endpoint is what's rate-limited — trying a different
-        token source won't help and only makes the rate limit worse.
+        If a token exchange hits 429, we fall through to full SSO login
+        (different endpoint) instead of raising immediately. This avoids the
+        self-perpetuating rate-limit cycle where expired OAuth2 tokens can
+        never be refreshed from CI.
         """
         has_cached = self.token_dir.exists() and any(self.token_dir.iterdir())
         has_env_secret = bool(os.environ.get("GARMIN_TOKENS_BASE64"))
+        exchange_rate_limited = False
 
         # 1. Try cached tokens first (refreshed by garth on each successful run)
         if has_cached:
@@ -137,13 +139,14 @@ class GarminClient:
                 raise
             except Exception as e:
                 if self._is_rate_limit_error(e):
-                    # 429 = stop immediately, don't try other token sources
-                    raise
-                print(f"Cached token resume failed ({e})")
+                    print(f"Token exchange rate-limited (cached tokens), will try full SSO login")
+                    exchange_rate_limited = True
+                else:
+                    print(f"Cached token resume failed ({e})")
                 self.client = None
 
-        # 2. Try env secret (may be fresher than stale cache)
-        if has_env_secret:
+        # 2. Try env secret (may be fresher than stale cache) — skip if already 429'd
+        if has_env_secret and not exchange_rate_limited:
             self._restore_tokens_from_env()
             if self.token_dir.exists():
                 try:
@@ -156,12 +159,14 @@ class GarminClient:
                     raise
                 except Exception as e:
                     if self._is_rate_limit_error(e):
-                        # 429 = stop immediately
-                        raise
-                    print(f"Env secret token resume failed ({e})")
+                        print(f"Token exchange rate-limited (env secret), will try full SSO login")
+                        exchange_rate_limited = True
+                    else:
+                        print(f"Env secret token resume failed ({e})")
                     self.client = None
 
-        # 3. Full login with credentials (last resort)
+        # 3. Full login with credentials — goes through SSO endpoint
+        #    (different from the oauth/exchange endpoint that gets 429'd)
         self.client = Garmin(self.email, self.password)
         self.client.login()
         print(f"Successfully authenticated as {self.email}")
