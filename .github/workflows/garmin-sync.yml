@@ -2,8 +2,9 @@ name: Garmin Sync
 
 on:
   schedule:
-    # Every 6 hours
-    - cron: '0 */6 * * *'
+    # Once daily at 05:00 UTC — reduced from every 6h to avoid
+    # Garmin's aggressive 429 rate limits on cloud IPs.
+    - cron: '0 5 * * *'
   workflow_dispatch:
     inputs:
       full_sync:
@@ -52,7 +53,7 @@ jobs:
           elif [ -n "${{ inputs.days }}" ]; then
             python sync.py --days ${{ inputs.days }}
           else
-            python sync.py --days 3
+            python sync.py --days 5
           fi
 
       - name: Update GARMIN_TOKENS_BASE64 secret with fresh tokens
