@@ -27,6 +27,10 @@ export interface AdaptationInput {
   illnessFlag: boolean;
   /** Whether the user flagged injury/pain in their check-in */
   painFlag: boolean;
+  /** Average surplus ratio over last 7 days (actual_tss / planned_tss). */
+  recentLoadSurplusAvg?: number | null;
+  /** Total transferred cross-sport TSS over last 7 days. */
+  crossSportTransferredTss7d?: number | null;
 }
 
 export interface AdaptationResult {
@@ -130,6 +134,32 @@ export function adaptPlan(input: AdaptationInput): AdaptationResult {
       replanRecommended: recentCompliancePct < 0.5,
       reason: `Compliance at ${Math.round(recentCompliancePct * 100)}% — reducing peak volume target.`,
       riskLevel: recentCompliancePct < 0.5 ? "high" : "medium",
+    };
+  }
+
+  // Cross-training load adjustment: reduce plan volume when significant
+  // cross-sport load is adding systemic fatigue the plan doesn't account for.
+  // Never auto-increase, per least-intervention principle.
+  const surplusAvg = input.recentLoadSurplusAvg ?? null;
+  const crossTss = input.crossSportTransferredTss7d ?? null;
+
+  if (crossTss != null && crossTss > 200) {
+    return {
+      volumeMultiplier: 0.85,
+      insertRecoveryWeek: false,
+      replanRecommended: false,
+      reason: "Significant cross-sport training load detected — reducing plan volume by 15%.",
+      riskLevel: "medium",
+    };
+  }
+
+  if (surplusAvg != null && surplusAvg > 1.3) {
+    return {
+      volumeMultiplier: 0.9,
+      insertRecoveryWeek: false,
+      replanRecommended: false,
+      reason: "Consistently training above plan — reducing volume by 10% to prevent overload.",
+      riskLevel: "low",
     };
   }
 

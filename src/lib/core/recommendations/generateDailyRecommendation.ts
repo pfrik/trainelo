@@ -11,6 +11,7 @@ import type {
   CautionLevel,
   RecommendationCandidate,
 } from "../contracts/index.js";
+import type { LoadSurplusResult, ComplianceMatchResult } from "../compliance/types.js";
 
 // ---------------------------------------------------------------------------
 // Input types (local to this module)
@@ -40,6 +41,14 @@ export interface DailyConstraints {
   has_scheduled_workout: boolean;
   /** Template ref for the scheduled workout (null = use default). */
   scheduled_template_ref: string | null;
+  /** Sport of the scheduled workout (for cross-sport awareness). */
+  scheduled_sport?: string | null;
+  /** Target TSS of the scheduled workout. */
+  scheduled_target_tss?: number | null;
+  /** Yesterday's load surplus result (from compliance layer). */
+  yesterday_load_surplus?: LoadSurplusResult | null;
+  /** Yesterday's compliance match result (from compliance layer). */
+  yesterday_compliance?: ComplianceMatchResult | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +69,20 @@ const REST_DAY_DUE_DAYS = 7;
 const FORM_PROMOTE_THRESHOLD = 15;
 /** EWMA form score below which normal tier is demoted to moderate. */
 const FORM_DEMOTE_THRESHOLD = -15;
+/** Yesterday's surplus ratio above which tier is biased toward moderate. */
+const SURPLUS_MODERATE_THRESHOLD = 1.5;
+/** Yesterday's surplus ratio above which tier is biased toward rest (when already moderate). */
+const SURPLUS_REST_THRESHOLD = 2.0;
+
+/** Template refs considered high-intensity (hard to do after surplus). */
+const HIGH_INTENSITY_TEMPLATES = new Set([
+  "tempo-run-45min",
+  "interval-run-60min",
+  "threshold-run",
+  "speed-intervals",
+  "hill-repeats",
+  "race-pace",
+]);
 
 // ---------------------------------------------------------------------------
 // Decision tiers
@@ -67,7 +90,11 @@ const FORM_DEMOTE_THRESHOLD = -15;
 
 type Tier = "rest" | "insufficient_data" | "moderate" | "normal";
 
-function classifyTier(state: DailyState, history: DailyHistory): Tier {
+function classifyTier(
+  state: DailyState,
+  history: DailyHistory,
+  constraints?: DailyConstraints,
+): Tier {
   // 1. Safety net — absolute fatigue/readiness or overdue rest.
   //    EWMA form never overrides the safety net.
   if (
@@ -88,12 +115,17 @@ function classifyTier(state: DailyState, history: DailyHistory): Tier {
   }
 
   const formScore = state.ewma_form_score ?? null;
+  const surplusRatio = constraints?.yesterday_load_surplus?.surplus_ratio ?? null;
 
   // 3. Moderate concern
   if (
     state.fatigue_score >= FATIGUE_MODERATE ||
     state.readiness_score < READINESS_MODERATE
   ) {
+    // If yesterday had extreme surplus AND fatigue is already moderate, push toward rest
+    if (surplusRatio != null && surplusRatio > SURPLUS_REST_THRESHOLD) {
+      return "rest";
+    }
     // Promote to normal if EWMA form is strongly positive (fresh + adapted).
     // The athlete has high fitness relative to fatigue — they can handle it.
     if (formScore != null && formScore >= FORM_PROMOTE_THRESHOLD) {
@@ -102,9 +134,15 @@ function classifyTier(state: DailyState, history: DailyHistory): Tier {
     return "moderate";
   }
 
-  // 4. Normal — but demote to moderate if overreaching.
+  // 4. Normal — but demote to moderate if overreaching or after high surplus.
   //    Negative form means fatigue is outpacing fitness adaptation.
   if (formScore != null && formScore <= FORM_DEMOTE_THRESHOLD) {
+    return "moderate";
+  }
+
+  // Surplus demotion: if yesterday was significantly over plan, bias toward moderate
+  // (even if body signals say normal — proactive recovery)
+  if (surplusRatio != null && surplusRatio > SURPLUS_MODERATE_THRESHOLD) {
     return "moderate";
   }
 
@@ -120,13 +158,25 @@ function mkScheduled(
   constraints: DailyConstraints,
   tier: Tier,
 ): RecommendationCandidate {
-  const templateRef = constraints.has_scheduled_workout
+  let templateRef = constraints.has_scheduled_workout
     ? (constraints.scheduled_template_ref ?? "easy-run-30min")
     : "easy-run-30min";
 
   const reasons: ReasonCode[] = [];
   if (constraints.has_scheduled_workout) {
     reasons.push("SCHEDULED_WORKOUT_EXISTS");
+  }
+
+  // Downgrade high-intensity template after significant unplanned load
+  const surplus = constraints.yesterday_load_surplus;
+  const surplusTriggered =
+    surplus != null &&
+    surplus.has_unplanned_load &&
+    HIGH_INTENSITY_TEMPLATES.has(templateRef);
+
+  if (surplusTriggered) {
+    templateRef = "easy-run-30min";
+    reasons.push("LOAD_SURPLUS_RECOVERY");
   }
 
   let cautionLevel: CautionLevel;
@@ -152,8 +202,9 @@ function mkScheduled(
     case "moderate":
       cautionLevel = "low";
       appendStateReasons(reasons, state.reason_codes);
-      rationale =
-        "Your full workout is available, though a lighter session may be more beneficial.";
+      rationale = surplusTriggered
+        ? "Yesterday's unplanned session was harder than expected — adjusting today to an easy session."
+        : "Your full workout is available, though a lighter session may be more beneficial.";
       break;
 
     case "rest":
@@ -313,7 +364,7 @@ export function generateDailyRecommendation(
   history: DailyHistory,
   constraints: DailyConstraints,
 ): RecommendationCandidate[] {
-  const tier = classifyTier(state, history);
+  const tier = classifyTier(state, history, constraints);
   const restDayDue = history.consecutive_training_days >= REST_DAY_DUE_DAYS;
 
   const scheduled = mkScheduled(state, constraints, tier);

@@ -49,6 +49,10 @@ export const ReasonCodeSchema = z.enum([
   "ANOMALY_OVERTRAINING_RISK",
   "ANOMALY_LOW_CONFIDENCE",
   "RHR_ELEVATED",
+  "UNPLANNED_LOAD_HIGH",
+  "CROSS_SPORT_LOAD",
+  "PLAN_COMPLIANCE_LOW",
+  "LOAD_SURPLUS_RECOVERY",
 ]);
 
 /** Evidence summary schema */
@@ -92,6 +96,24 @@ export const EvidenceSummarySchema = z.object({
   anomaly_caution_level: z.enum(["none", "low", "moderate", "high"]).nullable().optional(),
   anomaly_restrictions: z.array(z.enum(["cap_intensity", "suggest_rest", "require_checkin"])).nullable().optional(),
   anomaly_question_key: z.string().nullable().optional(),
+  anomaly_escalation_note: z.string().nullable().optional(),
+  anomaly_streak_days: z.number().int().nullable().optional(),
+  anomaly_resolved_today: z.array(z.string()).nullable().optional(),
+  goal_id: z.string().nullable().optional(),
+  goal_title: z.string().nullable().optional(),
+  training_phase: z.string().nullable().optional(),
+  plan_week_number: z.number().int().nullable().optional(),
+  days_until_race: z.number().int().nullable().optional(),
+  compliance_match_score: z.number().min(0).max(1).nullable().optional(),
+  compliance_match_status: z.string().nullable().optional(),
+  load_surplus_tss: z.number().nullable().optional(),
+  cross_sport_tss: z.number().nullable().optional(),
+  source_attribution: z.array(z.object({
+    source: z.string(),
+    sport: z.string(),
+    tss: z.number(),
+    is_planned: z.boolean(),
+  })).nullable().optional(),
 });
 
 /** Workout set schema */

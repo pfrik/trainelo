@@ -28,8 +28,11 @@ import {
   upsertEwmaDaily,
   upsertAnomalyLog,
   getRecentAnomalyHistory,
+  getDailyComplianceLog,
   type ScheduledWorkoutRow,
 } from "../../src/lib/db/goalQueries.js";
+import { computeLoadSurplus, normalizeSport } from "../../src/lib/core/compliance/index.js";
+import type { LoadSurplusResult } from "../../src/lib/core/compliance/types.js";
 import { generateExplanation } from "../../src/lib/core/recommendations/generateExplanation.js";
 import {
   computeReadinessAndFatigue,
@@ -498,6 +501,13 @@ function buildEvidence(
             (24 * 60 * 60 * 1000),
         ))
       : null,
+
+    // Compliance / load surplus (populated when compliance data available)
+    compliance_match_score: null,
+    compliance_match_status: null,
+    load_surplus_tss: null,
+    cross_sport_tss: null,
+    source_attribution: null,
   };
 }
 
@@ -746,9 +756,36 @@ export default async function handler(
 
     // 4b. Resolve today's planned workout from active training plan (if any)
     const scheduledWorkout = await getPlannedWorkoutForDate(userId, date);
+
+    // 4c. Fetch yesterday's compliance log for load surplus awareness (non-fatal)
+    let yesterdayLoadSurplus: LoadSurplusResult | null = null;
+    try {
+      const yesterday = new Date(date);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayIso = yesterday.toISOString().slice(0, 10);
+      const complianceLog = await getDailyComplianceLog(userId, yesterdayIso);
+      if (complianceLog && (complianceLog.actual_tss > 0 || complianceLog.planned_tss > 0)) {
+        yesterdayLoadSurplus = {
+          surplus_tss: complianceLog.surplus_tss,
+          surplus_ratio: complianceLog.planned_tss > 0
+            ? complianceLog.actual_tss / complianceLog.planned_tss
+            : complianceLog.actual_tss > 0 ? Infinity : 1.0,
+          has_unplanned_load: complianceLog.surplus_tss > complianceLog.planned_tss * 0.5,
+          cross_sport_tss: complianceLog.cross_sport_tss,
+          transferred_tss: complianceLog.transferred_tss,
+          source_attribution: (complianceLog.source_breakdown ?? []) as LoadSurplusResult["source_attribution"],
+        };
+      }
+    } catch {
+      // Non-fatal — continue without compliance data
+    }
+
     const constraints: DailyConstraints = {
       has_scheduled_workout: scheduledWorkout !== null,
       scheduled_template_ref: scheduledWorkout?.template_ref ?? null,
+      scheduled_sport: scheduledWorkout?.sport ?? null,
+      scheduled_target_tss: scheduledWorkout?.target_tss != null ? Number(scheduledWorkout.target_tss) : null,
+      yesterday_load_surplus: yesterdayLoadSurplus,
     };
 
     // 5. Generate ordered candidates
@@ -788,6 +825,13 @@ export default async function handler(
 
     // 7. Build evidence summary
     const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration, anomalyResult, scheduledWorkout);
+
+    // 7a. Enrich evidence with compliance data (if available)
+    if (yesterdayLoadSurplus) {
+      evidence.load_surplus_tss = yesterdayLoadSurplus.surplus_tss;
+      evidence.cross_sport_tss = yesterdayLoadSurplus.cross_sport_tss;
+      evidence.source_attribution = yesterdayLoadSurplus.source_attribution;
+    }
 
     // 7b. Persist EWMA state (non-fatal)
     if (rfOutput.ewma?.fitness_raw != null && rfOutput.ewma?.fatigue_raw != null) {

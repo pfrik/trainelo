@@ -62,7 +62,21 @@ import {
   type TrainingLoadRow,
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
-import { getPlannedWorkoutForDate, upsertEwmaDaily, upsertAnomalyLog } from "../../src/lib/db/goalQueries.js";
+import {
+  getPlannedWorkoutForDate,
+  upsertEwmaDaily,
+  upsertAnomalyLog,
+  getActualWorkoutsForDate,
+  getAllPlannedWorkoutsForDate,
+  updatePlannedWorkoutCompliance,
+  upsertDailyComplianceLog,
+} from "../../src/lib/db/goalQueries.js";
+import {
+  matchAllPlannedForDate,
+  normalizeSport,
+  computeTransferredTss,
+  type ComplianceMatchInput,
+} from "../../src/lib/core/compliance/index.js";
 import type { DailyTssEntry } from "../../src/lib/core/recommendations/computeEwma.js";
 import {
   calibrateSession,
@@ -857,7 +871,7 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     // -----------------------------------------------------------------------
-    // Plan compliance: mark yesterday's missed planned workouts (non-fatal)
+    // Plan compliance: smart matching of yesterday's planned vs actual (non-fatal)
     // -----------------------------------------------------------------------
     let complianceMissed = 0;
     try {
@@ -865,35 +879,149 @@ export async function GET(request: Request): Promise<Response> {
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayIso = yesterday.toISOString().slice(0, 10);
 
+      // Group planned workouts by user for batch processing
       const { data: planned } = await supabase
         .from("planned_workouts")
-        .select("id, user_id, goal_id, week_number")
+        .select("id, user_id, goal_id, week_number, sport, template_ref, planned_duration_minutes, intensity_level, target_tss")
         .eq("planned_date", yesterdayIso)
         .eq("status", "planned");
 
       if (planned && planned.length > 0) {
+        // Group by user_id
+        const byUser = new Map<string, typeof planned>();
         for (const pw of planned) {
-          const { data: workouts } = await supabase
-            .from("workouts")
-            .select("id")
-            .eq("user_id", pw.user_id)
-            .gte("started_at", `${yesterdayIso}T00:00:00Z`)
-            .lt("started_at", `${yesterdayIso}T23:59:59Z`)
-            .limit(1);
-
-          const newStatus = workouts && workouts.length > 0 ? "completed" : "missed";
-          if (newStatus === "missed") complianceMissed++;
-          await supabase.from("planned_workouts").update({ status: newStatus }).eq("id", pw.id);
+          const arr = byUser.get(pw.user_id) ?? [];
+          arr.push(pw);
+          byUser.set(pw.user_id, arr);
         }
 
-        // Update weekly compliance percentages
+        for (const [userId, userPlanned] of byUser) {
+          try {
+            // Fetch actual workouts for this user+date
+            const actuals = await getActualWorkoutsForDate(userId, yesterdayIso);
+
+            // Build input arrays for multi-plan matching
+            const planInputs: ComplianceMatchInput["planned"][] = userPlanned.map((pw) => ({
+              sport: pw.sport,
+              template_ref: pw.template_ref,
+              duration_minutes: pw.planned_duration_minutes,
+              intensity_level: pw.intensity_level,
+              target_tss: pw.target_tss ? Number(pw.target_tss) : null,
+            }));
+
+            const actualInputs: ComplianceMatchInput["actuals"] = actuals.map((a) => ({
+              id: a.id,
+              activity_type: a.activity_type,
+              activity_subtype: a.activity_subtype,
+              duration_seconds: a.duration_seconds,
+              training_stress_score: a.training_stress_score,
+              intensity_factor: a.intensity_factor,
+              source: a.source,
+            }));
+
+            // Run smart matching
+            const matchResults = matchAllPlannedForDate(planInputs, actualInputs);
+
+            // Persist results and compute load surplus
+            let totalPlannedTss = 0;
+            let totalActualTss = 0;
+            let matchCount = 0;
+            let missCount = 0;
+            let scoreSum = 0;
+            const matchedWorkoutIds = new Set<string>();
+
+            for (let i = 0; i < userPlanned.length; i++) {
+              const pw = userPlanned[i];
+              const result = matchResults[i];
+
+              await updatePlannedWorkoutCompliance(
+                pw.id,
+                result.match_status,
+                result.match_score,
+                result.best_match_id,
+                result.reason,
+              );
+
+              if (result.match_status === "missed") {
+                missCount++;
+                complianceMissed++;
+              } else {
+                matchCount++;
+                scoreSum += result.match_score;
+              }
+
+              if (result.best_match_id) {
+                matchedWorkoutIds.add(result.best_match_id);
+              }
+
+              totalPlannedTss += pw.target_tss ? Number(pw.target_tss) : 0;
+            }
+
+            // Compute actual TSS and unplanned workout count
+            const unplannedWorkouts = actuals.filter((a) => !matchedWorkoutIds.has(a.id));
+            for (const a of actuals) {
+              totalActualTss += a.training_stress_score ?? 0;
+            }
+
+            // Compute cross-sport TSS
+            const plannedSports = new Set(
+              userPlanned.map((pw) => pw.sport ? normalizeSport(pw.sport) : null).filter(Boolean),
+            );
+            let crossSportTss = 0;
+            let transferredTss = 0;
+            // Use first planned sport as the reference for transfer coefficients
+            const primaryPlannedSport = plannedSports.values().next().value ?? "running";
+            for (const a of unplannedWorkouts) {
+              const sport = normalizeSport(a.activity_type);
+              if (!plannedSports.has(sport)) {
+                const tss = a.training_stress_score ?? 0;
+                crossSportTss += tss;
+                transferredTss += computeTransferredTss(sport, primaryPlannedSport, tss);
+              }
+            }
+
+            // Persist compliance log
+            await upsertDailyComplianceLog(userId, yesterdayIso, {
+              planned_tss: totalPlannedTss,
+              actual_tss: totalActualTss,
+              surplus_tss: totalActualTss - totalPlannedTss,
+              cross_sport_tss: crossSportTss,
+              transferred_tss: Math.round(transferredTss * 100) / 100,
+              match_count: matchCount,
+              miss_count: missCount,
+              unplanned_count: unplannedWorkouts.length,
+              avg_match_score: matchCount > 0 ? Math.round((scoreSum / matchCount) * 100) / 100 : null,
+              source_breakdown: actuals.map((a) => ({
+                id: a.id,
+                source: a.source,
+                sport: normalizeSport(a.activity_type),
+                tss: a.training_stress_score ?? 0,
+                is_planned: matchedWorkoutIds.has(a.id),
+              })),
+            });
+          } catch (userErr) {
+            log.warn("compliance check failed for user (non-fatal)", {
+              user_id: userId,
+              error: userErr instanceof Error ? userErr.message : String(userErr),
+            });
+          }
+        }
+
+        // Update weekly compliance percentages (using improved scoring)
         const goalIds = [...new Set(planned.map((pw) => pw.goal_id).filter(Boolean))];
         for (const goalId of goalIds) {
           const weekNums = [...new Set(planned.filter((pw) => pw.goal_id === goalId).map((pw) => pw.week_number).filter(Boolean))];
           for (const wn of weekNums) {
-            const { data: ww } = await supabase.from("planned_workouts").select("status").eq("goal_id", goalId).eq("week_number", wn);
+            const { data: ww } = await supabase
+              .from("planned_workouts")
+              .select("status, match_score")
+              .eq("goal_id", goalId)
+              .eq("week_number", wn);
             if (ww && ww.length > 0) {
-              const pct = Math.round((ww.filter((w) => w.status === "completed").length / ww.length) * 100);
+              // Count completed + partial as partial credit
+              const completed = ww.filter((w) => w.status === "completed").length;
+              const partial = ww.filter((w) => w.status === "partial").length;
+              const pct = Math.round(((completed + partial * 0.5) / ww.length) * 100);
               await supabase.from("training_plan_weeks").update({ compliance_pct: pct }).eq("goal_id", goalId).eq("week_number", wn);
             }
           }

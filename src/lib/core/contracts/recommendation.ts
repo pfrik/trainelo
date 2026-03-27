@@ -42,7 +42,11 @@ export type ReasonCode =
   | "ANOMALY_HRV_DISSOCIATION"
   | "ANOMALY_OVERTRAINING_RISK"
   | "ANOMALY_LOW_CONFIDENCE"
-  | "RHR_ELEVATED";
+  | "RHR_ELEVATED"
+  | "UNPLANNED_LOAD_HIGH"
+  | "CROSS_SPORT_LOAD"
+  | "PLAN_COMPLIANCE_LOW"
+  | "LOAD_SURPLUS_RECOVERY";
 
 /** Restriction types from anomaly detection */
 export type Restriction = "cap_intensity" | "suggest_rest" | "require_checkin";
@@ -143,6 +147,21 @@ export interface EvidenceSummary {
   plan_week_number?: number | null;
   /** Goal context: days until race date */
   days_until_race?: number | null;
+  /** Compliance: match score for yesterday's planned workout (0-1) */
+  compliance_match_score?: number | null;
+  /** Compliance: match status (completed/partial/substituted/missed) */
+  compliance_match_status?: string | null;
+  /** Load surplus: actual TSS minus planned TSS from yesterday */
+  load_surplus_tss?: number | null;
+  /** Cross-sport: TSS from sports different than planned */
+  cross_sport_tss?: number | null;
+  /** Per-workout source attribution with is_planned flag */
+  source_attribution?: Array<{
+    source: string;
+    sport: string;
+    tss: number;
+    is_planned: boolean;
+  }> | null;
 }
 
 /** A single recommendation candidate */

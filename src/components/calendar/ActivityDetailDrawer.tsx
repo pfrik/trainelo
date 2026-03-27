@@ -5,6 +5,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useWorkoutDetail, type WorkoutDetail } from "@/hooks/useWorkoutDetail";
+import { normalizeSport, sportToDisplayKey } from "@/lib/core/compliance/normalizeSport";
 
 interface ActivityDetailDrawerProps {
   workoutId: string | null;
@@ -12,16 +13,10 @@ interface ActivityDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// ── Sport detection ──
+// ── Sport detection (delegates to shared normalizeSport) ──
 
 function detectSport(type: string): string {
-  const t = type.toLowerCase();
-  if (t.includes("run") || t.includes("jog") || t.includes("walk")) return "run";
-  if (t.includes("bike") || t.includes("cycling") || t.includes("ride")) return "bike";
-  if (t.includes("swim") || t.includes("pool") || t.includes("water")) return "swim";
-  if (t.includes("strength") || t.includes("gym") || t.includes("core") || t.includes("weight") || t.includes("fitness"))
-    return "strength";
-  return "other";
+  return sportToDisplayKey(normalizeSport(type));
 }
 
 const SPORT_META: Record<string, { icon: string; color: string; bg: string; border: string; headerBg: string }> = {

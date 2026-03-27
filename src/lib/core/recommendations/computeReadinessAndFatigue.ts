@@ -86,6 +86,13 @@ export interface ReadinessAndFatigueInput {
   targetDate?: string | null;
   /** Calibrated personal thresholds (from user_thresholds table). */
   personalThresholds?: PersonalThresholds | null;
+  /** Yesterday's load surplus result (from compliance layer). */
+  loadSurplus?: {
+    surplus_ratio: number;
+    has_unplanned_load: boolean;
+    transferred_tss: number;
+    cross_sport_tss: number;
+  } | null;
 }
 
 export interface ReadinessAndFatigueOutput {
@@ -508,6 +515,16 @@ export function computeReadinessAndFatigue(
       if (adaptCode && !reasons.includes(adaptCode)) {
         reasons.push(adaptCode);
       }
+    }
+  }
+
+  // --- Load surplus reason codes (from compliance layer) ---
+  if (input.loadSurplus) {
+    if (input.loadSurplus.has_unplanned_load && !reasons.includes("UNPLANNED_LOAD_HIGH")) {
+      reasons.push("UNPLANNED_LOAD_HIGH");
+    }
+    if (input.loadSurplus.cross_sport_tss > 30 && !reasons.includes("CROSS_SPORT_LOAD")) {
+      reasons.push("CROSS_SPORT_LOAD");
     }
   }
 

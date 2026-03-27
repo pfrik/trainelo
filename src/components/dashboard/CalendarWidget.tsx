@@ -5,6 +5,7 @@ import {
   type CalendarWorkout,
 } from "@/hooks/useCalendarSchedule";
 import { ActivityDetailDrawer } from "@/components/calendar/ActivityDetailDrawer";
+import { normalizeSport, sportToDisplayKey } from "@/lib/core/compliance/normalizeSport";
 
 type CalendarView = "week" | "month";
 
@@ -17,15 +18,8 @@ const MONTHS = [
 
 function detectSport(type: string): string {
   const t = type.toLowerCase();
-  if (t.includes("run") || t.includes("jog") || t.includes("walk")) return "run";
-  if (t.includes("bike") || t.includes("cycling") || t.includes("ride")) return "bike";
-  if (t.includes("swim") || t.includes("pool") || t.includes("water")) return "swim";
-  if (
-    t.includes("strength") || t.includes("gym") || t.includes("core") ||
-    t.includes("weight") || t.includes("fitness")
-  ) return "strength";
   if (t === "rest" || t === "recovery" || t.includes("rest")) return "rest";
-  return "other";
+  return sportToDisplayKey(normalizeSport(type));
 }
 
 const SPORT_STYLES: Record<string, { icon: string; textColor: string; borderColor: string }> = {

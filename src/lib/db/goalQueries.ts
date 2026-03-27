@@ -488,6 +488,152 @@ export async function getRecentAnomalyHistory(
 }
 
 // ============================================================================
+// Compliance Matching Queries (Bio-Adaptive Brain)
+// ============================================================================
+
+/** Row shape returned by getActualWorkoutsForDate. */
+export interface ActualWorkoutRow {
+  id: string;
+  activity_type: string;
+  activity_subtype: string | null;
+  duration_seconds: number;
+  training_stress_score: number | null;
+  intensity_factor: number | null;
+  source: string;
+}
+
+/**
+ * Get all actual workouts for a user on a specific date.
+ * Returns fields needed for compliance matching.
+ */
+export async function getActualWorkoutsForDate(
+  userId: string,
+  dateIso: string,
+): Promise<ActualWorkoutRow[]> {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(
+      "id, activity_type, activity_subtype, duration_seconds, training_stress_score, intensity_factor, source",
+    )
+    .eq("user_id", userId)
+    .gte("started_at", `${dateIso}T00:00:00Z`)
+    .lt("started_at", `${dateIso}T23:59:59Z`);
+
+  if (error) throw error;
+  return (data ?? []) as ActualWorkoutRow[];
+}
+
+/**
+ * Get all planned workouts for a user on a specific date (all goals).
+ * Returns full planned workout rows for compliance matching.
+ */
+export async function getAllPlannedWorkoutsForDate(
+  userId: string,
+  dateIso: string,
+): Promise<PlannedWorkoutRow[]> {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("planned_workouts")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("planned_date", dateIso)
+    .eq("status", "planned");
+
+  if (error) throw error;
+  return (data ?? []) as PlannedWorkoutRow[];
+}
+
+/**
+ * Update a planned workout with compliance matching results.
+ */
+export async function updatePlannedWorkoutCompliance(
+  plannedWorkoutId: string,
+  status: string,
+  matchScore: number | null,
+  matchedWorkoutId: string | null,
+  matchReason: string | null,
+): Promise<void> {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from("planned_workouts")
+    .update({
+      status,
+      match_score: matchScore,
+      matched_workout_id: matchedWorkoutId,
+      match_reason: matchReason,
+    })
+    .eq("id", plannedWorkoutId);
+
+  if (error) throw error;
+}
+
+/**
+ * Upsert a daily compliance log entry.
+ */
+export async function upsertDailyComplianceLog(
+  userId: string,
+  dateIso: string,
+  data: {
+    planned_tss: number;
+    actual_tss: number;
+    surplus_tss: number;
+    cross_sport_tss: number;
+    transferred_tss: number;
+    match_count: number;
+    miss_count: number;
+    unplanned_count: number;
+    avg_match_score: number | null;
+    source_breakdown: unknown[];
+  },
+): Promise<void> {
+  const supabase = getClient();
+  const { error } = await supabase.from("daily_compliance_log").upsert(
+    {
+      user_id: userId,
+      date: dateIso,
+      ...data,
+    },
+    { onConflict: "user_id,date" },
+  );
+  if (error) throw error;
+}
+
+/** Row shape returned by getDailyComplianceLog. */
+export interface DailyComplianceLogRow {
+  date: string;
+  planned_tss: number;
+  actual_tss: number;
+  surplus_tss: number;
+  cross_sport_tss: number;
+  transferred_tss: number;
+  match_count: number;
+  miss_count: number;
+  unplanned_count: number;
+  avg_match_score: number | null;
+  source_breakdown: unknown[];
+}
+
+/**
+ * Get the compliance log for a specific user and date.
+ */
+export async function getDailyComplianceLog(
+  userId: string,
+  dateIso: string,
+): Promise<DailyComplianceLogRow | null> {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("daily_compliance_log")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("date", dateIso)
+    .single();
+
+  if (error) return null;
+  return data as DailyComplianceLogRow;
+}
+
+// ============================================================================
 // Plan cleanup
 // ============================================================================
 
