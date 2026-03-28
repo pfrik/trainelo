@@ -114,6 +114,8 @@ export const EvidenceSummarySchema = z.object({
     tss: z.number(),
     is_planned: z.boolean(),
   })).nullable().optional(),
+  workout_completed_today: z.boolean().nullable().optional(),
+  workout_completed_tss: z.number().nullable().optional(),
 });
 
 /** Workout set schema */

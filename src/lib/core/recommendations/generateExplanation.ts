@@ -106,6 +106,14 @@ function buildUserPrompt(
     if (evidence.days_until_race != null) parts.push(`Days until race: ${evidence.days_until_race}`);
   }
 
+  // Completed workout
+  if (evidence.workout_completed_today) {
+    parts.push("");
+    parts.push("ALREADY TRAINED TODAY:");
+    parts.push(`The athlete has already completed a workout today (${evidence.workout_completed_tss ?? 0} TSS).`);
+    parts.push("Acknowledge this and focus the recommendation on recovery.");
+  }
+
   // Anomaly
   if (evidence.anomaly_caution_level && evidence.anomaly_caution_level !== "none") {
     parts.push("");

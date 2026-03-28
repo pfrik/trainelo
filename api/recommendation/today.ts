@@ -757,6 +757,11 @@ export default async function handler(
     // 4b. Resolve today's planned workout from active training plan (if any)
     const scheduledWorkout = await getPlannedWorkoutForDate(userId, date);
 
+    // 4b2. Check if user has already completed a workout today
+    const todayLoad = loadRows.filter((r) => r.date === date);
+    const todayTss = todayLoad.reduce((sum, r) => sum + r.total_tss, 0);
+    const hasTrainedToday = todayLoad.length > 0 && todayTss > 0;
+
     // 4c. Fetch yesterday's compliance log for load surplus awareness (non-fatal)
     let yesterdayLoadSurplus: LoadSurplusResult | null = null;
     try {
@@ -781,7 +786,7 @@ export default async function handler(
     }
 
     const constraints: DailyConstraints = {
-      has_scheduled_workout: scheduledWorkout !== null,
+      has_scheduled_workout: scheduledWorkout !== null && !hasTrainedToday,
       scheduled_template_ref: scheduledWorkout?.template_ref ?? null,
       scheduled_sport: scheduledWorkout?.sport ?? null,
       scheduled_target_tss: scheduledWorkout?.target_tss != null ? Number(scheduledWorkout.target_tss) : null,
@@ -826,7 +831,13 @@ export default async function handler(
     // 7. Build evidence summary
     const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration, anomalyResult, scheduledWorkout);
 
-    // 7a. Enrich evidence with compliance data (if available)
+    // 7a. Enrich evidence with today's completed workout info
+    if (hasTrainedToday) {
+      evidence.workout_completed_today = true;
+      evidence.workout_completed_tss = todayTss;
+    }
+
+    // 7a2. Enrich evidence with compliance data (if available)
     if (yesterdayLoadSurplus) {
       evidence.load_surplus_tss = yesterdayLoadSurplus.surplus_tss;
       evidence.cross_sport_tss = yesterdayLoadSurplus.cross_sport_tss;

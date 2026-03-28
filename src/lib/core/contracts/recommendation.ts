@@ -162,6 +162,10 @@ export interface EvidenceSummary {
     tss: number;
     is_planned: boolean;
   }> | null;
+  /** Whether the user has already completed a workout today */
+  workout_completed_today?: boolean | null;
+  /** TSS of today's completed workout(s), if any */
+  workout_completed_tss?: number | null;
 }
 
 /** A single recommendation candidate */
