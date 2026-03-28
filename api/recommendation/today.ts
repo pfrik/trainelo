@@ -799,6 +799,16 @@ export default async function handler(
     // 5. Generate ordered candidates
     const candidateTimer = timer();
     const candidates = generateDailyRecommendation(state, history, constraints);
+
+    // 5a. If user already trained today, promote rest to primary
+    if (hasTrainedToday) {
+      const restIdx = candidates.findIndex((c) => c.candidate_id === "rest_day");
+      if (restIdx > 0) {
+        const [rest] = candidates.splice(restIdx, 1);
+        rest.rationale = "You've already completed today's workout. Rest and recover.";
+        candidates.unshift(rest);
+      }
+    }
     const candidateMs = candidateTimer.elapsed();
 
     // 6. Run calibrator (non-fatal on error)
