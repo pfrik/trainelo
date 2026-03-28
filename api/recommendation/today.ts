@@ -800,15 +800,6 @@ export default async function handler(
     const candidateTimer = timer();
     const candidates = generateDailyRecommendation(state, history, constraints);
 
-    // 5a. If user already trained today, promote rest to primary
-    if (hasTrainedToday) {
-      const restIdx = candidates.findIndex((c) => c.candidate_id === "rest_day");
-      if (restIdx > 0) {
-        const [rest] = candidates.splice(restIdx, 1);
-        rest.rationale = "You've already completed today's workout. Rest and recover.";
-        candidates.unshift(rest);
-      }
-    }
     const candidateMs = candidateTimer.elapsed();
 
     // 6. Run calibrator (non-fatal on error)
@@ -840,6 +831,16 @@ export default async function handler(
       return { ...c, workout };
     });
     const calMs = calTimer.elapsed();
+
+    // 6d. If user already trained today, promote rest_day to primary position
+    if (hasTrainedToday) {
+      const restIdx = finalCandidates.findIndex((c) => c.candidate_id === "rest_day");
+      if (restIdx > 0) {
+        const [rest] = finalCandidates.splice(restIdx, 1);
+        rest.rationale = "You've already completed today's workout. Rest and recover.";
+        finalCandidates.unshift(rest);
+      }
+    }
 
     // 7. Build evidence summary
     const evidence = buildEvidence(row, loadRows, rfOutput, checkinRes.data, calibration, anomalyResult, scheduledWorkout);
