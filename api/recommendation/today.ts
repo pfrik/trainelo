@@ -758,9 +758,12 @@ export default async function handler(
     const scheduledWorkout = await getPlannedWorkoutForDate(userId, date);
 
     // 4b2. Check if user has already completed a workout today
+    // Use workouts_count or duration — many Garmin workouts have null/0 TSS
     const todayLoad = loadRows.filter((r) => r.date === date);
     const todayTss = todayLoad.reduce((sum, r) => sum + r.total_tss, 0);
-    const hasTrainedToday = todayLoad.length > 0 && todayTss > 0;
+    const todayWorkouts = todayLoad.reduce((sum, r) => sum + r.workouts_count, 0);
+    const todayDuration = todayLoad.reduce((sum, r) => sum + r.total_duration_seconds, 0);
+    const hasTrainedToday = todayWorkouts > 0 || todayDuration > 0;
 
     // 4c. Fetch yesterday's compliance log for load surplus awareness (non-fatal)
     let yesterdayLoadSurplus: LoadSurplusResult | null = null;
