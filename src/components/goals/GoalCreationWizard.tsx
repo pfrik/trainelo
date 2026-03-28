@@ -1,19 +1,22 @@
-import { useState, useCallback } from "react";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
 import type { CreateGoalInput } from "@/hooks/useGoals";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type Step = "sport" | "details" | "fitness" | "review";
+type Step = "sport" | "details";
 
 interface SportOption {
   value: string;
   label: string;
   icon: string;
+  disabled?: boolean;
   distances: Array<{ label: string; km: number }>;
 }
+
+type CourseProfile = "flat" | "rolling" | "hilly" | "mountain";
+type GoalTarget = "finish" | "time";
 
 // ============================================================================
 // Constants
@@ -25,10 +28,10 @@ const SPORTS: SportOption[] = [
     label: "Running",
     icon: "directions_run",
     distances: [
-      { label: "5K", km: 5 },
-      { label: "10K", km: 10 },
+      { label: "Full Marathon", km: 42.2 },
       { label: "Half Marathon", km: 21.1 },
-      { label: "Marathon", km: 42.2 },
+      { label: "10 KM Run", km: 10 },
+      { label: "5 KM Run", km: 5 },
       { label: "50K Ultra", km: 50 },
       { label: "60K Ultra", km: 60 },
       { label: "100K Ultra", km: 100 },
@@ -37,7 +40,7 @@ const SPORTS: SportOption[] = [
   {
     value: "cycling",
     label: "Cycling",
-    icon: "pedal_bike",
+    icon: "directions_bike",
     distances: [
       { label: "Gran Fondo (100km)", km: 100 },
       { label: "Century (160km)", km: 160 },
@@ -45,9 +48,16 @@ const SPORTS: SportOption[] = [
     ],
   },
   {
+    value: "swimming",
+    label: "Swimming",
+    icon: "pool",
+    disabled: true,
+    distances: [],
+  },
+  {
     value: "triathlon",
     label: "Triathlon",
-    icon: "pool",
+    icon: "social_leaderboard",
     distances: [
       { label: "Sprint", km: 25.75 },
       { label: "Olympic", km: 51.5 },
@@ -58,13 +68,82 @@ const SPORTS: SportOption[] = [
 ];
 
 const PRIORITIES = [
-  { value: "A", label: "A Race", desc: "Primary goal — plan revolves around this" },
-  { value: "B", label: "B Race", desc: "Important but secondary" },
-  { value: "C", label: "C Race", desc: "Training race / tune-up" },
+  { value: "A", label: "Target Goal", desc: "Includes a full 2-3 week taper and peak for maximum performance." },
+  { value: "B", label: "Tune-Up", desc: "Intermediate races with a partial taper to test fitness." },
+  { value: "C", label: "Training", desc: "Low-stakes races with no taper, used as a high-intensity workout." },
+];
+
+const COURSE_PROFILES: Array<{ value: CourseProfile; label: string; icon: string }> = [
+  { value: "flat", label: "Flat", icon: "horizontal_rule" },
+  { value: "rolling", label: "Rolling", icon: "trending_up" },
+  { value: "hilly", label: "Hilly", icon: "terrain" },
+  { value: "mountain", label: "Mountain", icon: "landscape" },
 ];
 
 // ============================================================================
-// Component
+// Subcomponents
+// ============================================================================
+
+function SelectionBox({
+  active,
+  disabled,
+  onClick,
+  children,
+  className = "",
+}: {
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={`
+        border rounded-2xl transition-all duration-200
+        ${active
+          ? "border-primary bg-primary/5 shadow-[0_0_0_1px_#22C55E]"
+          : "border-white/10 bg-slate-700 hover:border-white/25 hover:bg-slate-600"
+        }
+        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
+        ${className}
+      `}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ProgressBar({ percent }: { percent: number }) {
+  return (
+    <div className="mb-14">
+      <div className="flex justify-between items-end mb-4">
+        <div />
+        <span className="font-headline text-2xl font-bold text-primary">{percent}%</span>
+      </div>
+      <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary shadow-[0_0_15px_rgba(34,197,94,0.4)] transition-all duration-500"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
+  return (
+    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
+      {children}
+      {optional && <span className="text-slate-500/60 normal-case italic ml-2 font-normal">(Optional)</span>}
+    </label>
+  );
+}
+
+// ============================================================================
+// Main Component
 // ============================================================================
 
 interface GoalCreationWizardProps {
@@ -81,24 +160,48 @@ export function GoalCreationWizard({
   const [step, setStep] = useState<Step>("sport");
   const [submitting, setSubmitting] = useState(false);
 
-  // Form state
+  // Step 1: Sport
   const [sport, setSport] = useState("");
+
+  // Step 2: Details
+  const [eventName, setEventName] = useState("");
+  const [targetDate, setTargetDate] = useState("");
   const [distanceKm, setDistanceKm] = useState(0);
   const [distanceLabel, setDistanceLabel] = useState("");
   const [customDistance, setCustomDistance] = useState("");
-  const [eventName, setEventName] = useState("");
-  const [targetDate, setTargetDate] = useState("");
-  const [targetHours, setTargetHours] = useState("");
-  const [targetMinutes, setTargetMinutes] = useState("");
   const [priority, setPriority] = useState("A");
+  const [goalTarget, setGoalTarget] = useState<GoalTarget>("time");
+  const [targetTime, setTargetTime] = useState("");
+  const [courseProfile, setCourseProfile] = useState<CourseProfile | null>(null);
   const [trainingDays, setTrainingDays] = useState(5);
+  const [weeklyVolume, setWeeklyVolume] = useState(20);
 
   const selectedSport = SPORTS.find((s) => s.value === sport);
-  const canProceedFromSport = sport !== "" && distanceKm > 0;
-  const canProceedFromDetails = eventName.trim() !== "" && targetDate !== "";
 
-  const targetTimeMinutes =
-    (parseInt(targetHours) || 0) * 60 + (parseInt(targetMinutes) || 0) || undefined;
+  const daysToGo = useMemo(() => {
+    if (!targetDate) return null;
+    const diff = Math.ceil(
+      (new Date(targetDate + "T00:00:00").getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
+    return diff > 0 ? diff : null;
+  }, [targetDate]);
+
+  const canContinue = sport !== "";
+  const canGenerate = eventName.trim() !== "" && targetDate !== "" && distanceKm > 0;
+
+  // Parse target time HH:MM:SS → minutes
+  const targetTimeMinutes = useMemo(() => {
+    if (goalTarget === "finish" || !targetTime) return undefined;
+    const parts = targetTime.split(":").map(Number);
+    if (parts.length >= 2) {
+      const h = parts[0] || 0;
+      const m = parts[1] || 0;
+      const s = parts[2] || 0;
+      const total = h * 60 + m + s / 60;
+      return total > 0 ? Math.round(total) : undefined;
+    }
+    return undefined;
+  }, [goalTarget, targetTime]);
 
   const handleSelectDistance = useCallback((km: number, label: string) => {
     setDistanceKm(km);
@@ -111,7 +214,7 @@ export function GoalCreationWizard({
     const num = parseFloat(value);
     if (!isNaN(num) && num > 0) {
       setDistanceKm(num);
-      setDistanceLabel(`${num}km`);
+      setDistanceLabel(`${num} km`);
     }
   }, []);
 
@@ -126,6 +229,7 @@ export function GoalCreationWizard({
         target_time_minutes: targetTimeMinutes,
         priority,
         training_days_per_week: trainingDays,
+        current_weekly_volume_km: weeklyVolume,
       });
 
       if (result?.goalId) {
@@ -135,293 +239,398 @@ export function GoalCreationWizard({
     } finally {
       setSubmitting(false);
     }
-  }, [onSubmit, onGeneratePlan, onClose, eventName, targetDate, sport, distanceKm, targetTimeMinutes, priority, trainingDays]);
+  }, [onSubmit, onGeneratePlan, onClose, eventName, targetDate, sport, distanceKm, targetTimeMinutes, priority, trainingDays, weeklyVolume]);
 
-  const steps: Step[] = ["sport", "details", "fitness", "review"];
+  // ========================================================================
+  // Screen 1: Sport Selection
+  // ========================================================================
 
-  return (
-    <div className="space-y-6">
-      {/* Progress indicator */}
-      <div className="flex items-center gap-2 text-sm">
-        {steps.map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            {i > 0 && <ChevronRight className="h-3 w-3 text-slate-600" />}
-            <span className={step === s ? "text-white font-medium" : "text-slate-500 capitalize"}>
-              {s}
-            </span>
-          </div>
-        ))}
-      </div>
+  if (step === "sport") {
+    return (
+      <div>
+        <ProgressBar percent={33} />
 
-      {/* Step 1: Sport */}
-      {step === "sport" && (
-        <div className="space-y-5">
-          <h3 className="text-lg font-bold text-white">What are you training for?</h3>
+        <h1 className="font-headline text-4xl font-bold tracking-tight uppercase mb-4">
+          Sport Selection
+        </h1>
 
-          <div className="grid grid-cols-3 gap-3">
-            {SPORTS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => { setSport(s.value); setDistanceKm(0); setDistanceLabel(""); }}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors ${
-                  sport === s.value
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-slate-700 hover:border-slate-500 text-slate-300"
-                }`}
-              >
-                <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: '"FILL" 1' }}>
+        <p className="text-slate-400 text-base max-w-xl mx-auto text-center leading-relaxed mb-12">
+          Select your primary sport for your training engine. We'll calibrate your cycles based on your choice.
+        </p>
+
+        {/* Sport Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+          {SPORTS.map((s) => (
+            <SelectionBox
+              key={s.value}
+              active={sport === s.value}
+              disabled={s.disabled}
+              onClick={() => setSport(s.value)}
+              className="relative flex flex-col items-center p-8 group"
+            >
+              {/* Selected badge */}
+              {sport === s.value && (
+                <div className="absolute bg-primary text-black text-[10px] font-black uppercase px-2 py-0.5 rounded-sm tracking-widest shadow-lg -top-2.5 left-1/2 -translate-x-1/2 z-20">
+                  Selected
+                </div>
+              )}
+
+              {/* Disabled badge */}
+              {s.disabled && (
+                <div className="absolute bg-slate-600 text-slate-300 text-[9px] font-bold uppercase px-2 py-0.5 rounded-sm tracking-widest -top-2.5 left-1/2 -translate-x-1/2 z-20">
+                  Coming soon
+                </div>
+              )}
+
+              <div className={`mb-6 h-16 w-16 rounded-xl flex items-center justify-center transition-transform duration-500 ${
+                sport === s.value
+                  ? "bg-primary/10"
+                  : "bg-slate-800 border border-white/5 group-hover:scale-110"
+              }`}>
+                <span
+                  className={`material-symbols-outlined text-3xl transition-colors ${
+                    sport === s.value ? "text-primary" : "text-slate-400 group-hover:text-primary"
+                  }`}
+                  style={{ fontVariationSettings: sport === s.value ? '"FILL" 1' : '"FILL" 0' }}
+                >
                   {s.icon}
                 </span>
-                <span className="text-sm font-medium">{s.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {selectedSport && (
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-300">Distance</label>
-              <div className="flex flex-wrap gap-2">
-                {selectedSport.distances.map((d) => (
-                  <button
-                    key={d.km}
-                    onClick={() => handleSelectDistance(d.km, d.label)}
-                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                      distanceKm === d.km && customDistance === ""
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-slate-700 text-slate-300 hover:border-slate-500"
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder="Custom distance"
-                  value={customDistance}
-                  onChange={(e) => handleCustomDistance(e.target.value)}
-                  className="w-40 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm placeholder-slate-500 focus:border-primary focus:outline-none"
-                />
-                <span className="text-sm text-slate-500">km</span>
-              </div>
-            </div>
-          )}
 
-          <div className="flex justify-end">
-            <button
-              onClick={() => setStep("details")}
-              disabled={!canProceedFromSport}
-              className="flex items-center gap-1 px-4 py-2.5 bg-primary text-slate-900 rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Next <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+              <h3 className="font-headline font-bold text-lg tracking-tight text-white uppercase italic">
+                {s.label}
+              </h3>
+            </SelectionBox>
+          ))}
         </div>
-      )}
 
-      {/* Step 2: Details */}
-      {step === "details" && (
-        <div className="space-y-5">
-          <h3 className="text-lg font-bold text-white">Event details</h3>
+        {/* Continue */}
+        <div className="flex flex-col items-center gap-6">
+          <button
+            onClick={() => setStep("details")}
+            disabled={!canContinue}
+            className="w-full md:w-auto px-16 py-5 rounded-2xl bg-primary hover:bg-[#2be06b] text-black font-headline font-bold text-sm uppercase tracking-widest shadow-[0_20px_40px_-10px_rgba(34,197,94,0.25)] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            Continue
+          </button>
+          <p className="text-slate-500 text-[11px] flex items-center gap-2 tracking-wide">
+            <span className="material-symbols-outlined text-sm">info</span>
+            You can add secondary sports later in your profile.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-slate-300 mb-1.5 block">Event name</label>
+  // ========================================================================
+  // Screen 2: Race Details
+  // ========================================================================
+
+  return (
+    <div>
+      <ProgressBar percent={66} />
+
+      <h1 className="font-headline text-4xl font-bold tracking-tight uppercase mb-10">
+        Race Details
+      </h1>
+
+      <div className="space-y-12">
+        {/* Row 1: Race Name + Date */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2">
+            <SectionLabel>Race Name</SectionLabel>
+            <div className="relative">
               <input
-                placeholder="e.g., Texel 60km Ultra Trail"
+                type="text"
+                placeholder="e.g., Berlin Marathon"
                 value={eventName}
                 onChange={(e) => setEventName(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm placeholder-slate-500 focus:border-primary focus:outline-none"
+                className="w-full bg-slate-700/50 border border-white/10 rounded-xl px-5 py-4 text-white focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-500/50 transition-all font-medium text-lg"
               />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-300 mb-1.5 block">Race date</label>
-              <input
-                type="date"
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:border-primary focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-300 mb-1.5 block">Target time (optional)</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder="HH"
-                  value={targetHours}
-                  onChange={(e) => setTargetHours(e.target.value)}
-                  className="w-20 px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm text-center focus:border-primary focus:outline-none"
-                  min={0} max={24}
-                />
-                <span className="text-slate-500">h</span>
-                <input
-                  type="number"
-                  placeholder="MM"
-                  value={targetMinutes}
-                  onChange={(e) => setTargetMinutes(e.target.value)}
-                  className="w-20 px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm text-center focus:border-primary focus:outline-none"
-                  min={0} max={59}
-                />
-                <span className="text-slate-500">min</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-300 mb-1.5 block">Race priority</label>
-              <div className="grid grid-cols-3 gap-2">
-                {PRIORITIES.map((p) => (
-                  <button
-                    key={p.value}
-                    onClick={() => setPriority(p.value)}
-                    className={`p-3 rounded-xl border text-left transition-colors ${
-                      priority === p.value
-                        ? "border-primary bg-primary/10"
-                        : "border-slate-700 hover:border-slate-500"
-                    }`}
-                  >
-                    <div className="font-bold text-sm text-white">{p.label}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">{p.desc}</div>
-                  </button>
-                ))}
-              </div>
+              <span className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-slate-500/40">flag</span>
             </div>
           </div>
-
-          <div className="flex justify-between">
-            <button onClick={() => setStep("sport")} className="flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </button>
-            <button
-              onClick={() => setStep("fitness")}
-              disabled={!canProceedFromDetails}
-              className="flex items-center gap-1 px-4 py-2.5 bg-primary text-slate-900 rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Next <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Fitness / Availability */}
-      {step === "fitness" && (
-        <div className="space-y-5">
-          <h3 className="text-lg font-bold text-white">Training availability</h3>
-
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-slate-300">Training days per week</label>
-              <span className="text-sm font-bold text-white tabular-nums">{trainingDays} days</span>
+            <SectionLabel>Race Date</SectionLabel>
+            <input
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className="w-full bg-slate-700/50 border border-white/10 rounded-xl px-5 py-4 text-white focus:ring-1 focus:ring-primary focus:border-primary transition-all font-medium text-lg [color-scheme:dark]"
+            />
+            {daysToGo && (
+              <p className="text-[11px] text-primary font-bold uppercase tracking-widest mt-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>timer</span>
+                {daysToGo} Days to Go
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* Row 2: Distance + Priority */}
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-8 border-t border-white/5">
+          {/* Distance */}
+          <div>
+            <SectionLabel>Race Distance</SectionLabel>
+            <div className="grid grid-cols-2 gap-3">
+              {(selectedSport?.distances ?? []).slice(0, 4).map((d) => (
+                <SelectionBox
+                  key={d.km}
+                  active={distanceKm === d.km && customDistance === ""}
+                  onClick={() => handleSelectDistance(d.km, d.label)}
+                  className="px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-center"
+                >
+                  <span className={distanceKm === d.km && customDistance === "" ? "text-white" : "text-slate-300"}>
+                    {d.label}
+                  </span>
+                </SelectionBox>
+              ))}
+              <div className="col-span-2 mt-2">
+                <div className="relative w-48">
+                  <input
+                    type="text"
+                    placeholder="Custom (KM)"
+                    value={customDistance}
+                    onChange={(e) => handleCustomDistance(e.target.value)}
+                    className="w-full bg-slate-700/50 border border-white/10 rounded-lg px-4 py-3 text-[10px] font-bold text-white focus:ring-1 focus:ring-primary placeholder:text-slate-500/30 uppercase tracking-widest"
+                  />
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[16px] text-slate-500/40">edit_note</span>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              {[3, 4, 5, 6].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setTrainingDays(d)}
-                  className={`flex-1 py-3 rounded-xl text-sm font-bold border transition-colors ${
-                    trainingDays === d
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-slate-700 text-slate-300 hover:border-slate-500"
+            <p className="text-[11px] text-slate-400 mt-5 italic">
+              Distances for {selectedSport?.label ?? "..."}.{" "}
+              <button
+                onClick={() => { setSport(""); setDistanceKm(0); setDistanceLabel(""); setCustomDistance(""); setStep("sport"); }}
+                className="text-primary hover:underline font-bold uppercase ml-1 not-italic"
+              >
+                Change Sport?
+              </button>
+            </p>
+          </div>
+
+          {/* Priority */}
+          <div>
+            <div className="flex items-center gap-2 mb-5">
+              <SectionLabel>Race Priority</SectionLabel>
+              <div className="group relative -mt-4">
+                <span className="material-symbols-outlined text-[18px] text-slate-500/40 cursor-help hover:text-primary transition-colors">info</span>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-4 bg-slate-800 border border-white/10 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-primary font-bold text-[10px] uppercase block mb-1">A - Peak Performance</span>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">Target goals with a full 2-3 week taper for maximum results.</p>
+                    </div>
+                    <div>
+                      <span className="text-white/80 font-bold text-[10px] uppercase block mb-1">B - Tune-Up</span>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">Intermediate races with a partial taper to test fitness.</p>
+                    </div>
+                    <div>
+                      <span className="text-white/80 font-bold text-[10px] uppercase block mb-1">C - Training</span>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">Low-stakes races with no taper, used as a high-intensity workout.</p>
+                    </div>
+                  </div>
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-8 border-transparent border-t-slate-800" />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              {PRIORITIES.map((p) => (
+                <label
+                  key={p.value}
+                  className={`flex-1 block text-center py-5 rounded-2xl border cursor-pointer transition-all ${
+                    priority === p.value
+                      ? "border-primary bg-primary/5 shadow-[0_0_0_1px_#22C55E]"
+                      : "border-white/10 bg-slate-700/50 hover:bg-slate-700"
                   }`}
                 >
-                  {d}
-                </button>
+                  <input
+                    type="radio"
+                    name="priority"
+                    value={p.value}
+                    checked={priority === p.value}
+                    onChange={() => setPriority(p.value)}
+                    className="hidden"
+                  />
+                  <span className={`block font-headline font-black text-3xl mb-1 ${priority === p.value ? "text-primary" : "text-slate-400"}`}>
+                    {p.value}
+                  </span>
+                  <span className={`block text-[9px] font-bold uppercase tracking-widest ${priority === p.value ? "text-primary" : "text-slate-400"}`}>
+                    {p.label}
+                  </span>
+                </label>
               ))}
             </div>
-          </div>
-
-          <div className="flex justify-between">
-            <button onClick={() => setStep("details")} className="flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </button>
-            <button
-              onClick={() => setStep("review")}
-              className="flex items-center gap-1 px-4 py-2.5 bg-primary text-slate-900 rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
-            >
-              Next <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Review */}
-      {step === "review" && (
-        <div className="space-y-5">
-          <h3 className="text-lg font-bold text-white">Review your goal</h3>
-
-          <div className="rounded-xl bg-slate-800/50 border border-slate-700 p-5 space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl text-primary" style={{ fontVariationSettings: '"FILL" 1' }}>
-                  {selectedSport?.icon ?? "flag"}
+            <div className="mt-4 p-5 rounded-2xl bg-slate-700/30 border border-white/5">
+              <p className="text-[12px] text-slate-400 leading-relaxed">
+                <span className="font-bold text-primary uppercase mr-2">
+                  {priority}-Race:
                 </span>
-              </div>
-              <div>
-                <div className="font-bold text-white">{eventName}</div>
-                <div className="text-sm text-slate-400">
-                  {selectedSport?.label} — {distanceLabel || `${distanceKm}km`}
-                </div>
-              </div>
+                {PRIORITIES.find((p) => p.value === priority)?.desc}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Row 3: Goal Target */}
+        <section className="pt-8 border-t border-white/5">
+          <SectionLabel>Goal Target</SectionLabel>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-stretch">
+            <div className="flex gap-4">
+              {/* Just Finish */}
+              <SelectionBox
+                active={goalTarget === "finish"}
+                onClick={() => setGoalTarget("finish")}
+                className="flex-1 flex flex-col items-center justify-center p-8 text-center"
+              >
+                <span className={`material-symbols-outlined text-4xl mb-4 transition-colors ${goalTarget === "finish" ? "text-primary" : "text-slate-400"}`}>
+                  check_circle
+                </span>
+                <span className="font-headline font-bold text-xl uppercase tracking-tight text-white">Just Finish</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-2">Endurance focus</span>
+              </SelectionBox>
+
+              {/* Specific Time */}
+              <SelectionBox
+                active={goalTarget === "time"}
+                onClick={() => setGoalTarget("time")}
+                className="flex-1 flex flex-col items-center justify-center p-8 text-center"
+              >
+                <span
+                  className={`material-symbols-outlined text-4xl mb-4 transition-colors ${goalTarget === "time" ? "text-primary" : "text-slate-400"}`}
+                  style={{ fontVariationSettings: '"FILL" 1' }}
+                >
+                  timer
+                </span>
+                <span className="font-headline font-bold text-xl uppercase tracking-tight text-white">Specific Time</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-2">Performance focus</span>
+              </SelectionBox>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-800 rounded-lg p-3">
-                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Race Date</div>
-                <div className="text-sm font-bold text-white">
-                  {targetDate
-                    ? new Date(targetDate + "T00:00:00").toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : "—"}
-                </div>
+            {/* Target Time Input */}
+            <div className={`flex flex-col justify-center transition-all duration-300 ${goalTarget === "finish" ? "opacity-20 pointer-events-none" : ""}`}>
+              <SectionLabel>Target Finish Time (HH:MM:SS)</SectionLabel>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="03:45:00"
+                  value={targetTime}
+                  onChange={(e) => setTargetTime(e.target.value)}
+                  className="w-full bg-slate-700/50 border border-white/10 rounded-xl px-6 py-5 text-white font-headline font-bold text-3xl placeholder:text-slate-500/20 focus:ring-1 focus:ring-primary focus:border-primary transition-all tracking-tight"
+                />
+                <span className="material-symbols-outlined absolute right-6 top-1/2 -translate-y-1/2 text-slate-500/40">edit</span>
               </div>
-              {targetTimeMinutes ? (
-                <div className="bg-slate-800 rounded-lg p-3">
-                  <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Target Time</div>
-                  <div className="text-sm font-bold text-white">
-                    {Math.floor(targetTimeMinutes / 60)}h {targetTimeMinutes % 60}min
-                  </div>
-                </div>
-              ) : null}
-              <div className="bg-slate-800 rounded-lg p-3">
-                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Priority</div>
-                <div className="text-sm font-bold text-white">
-                  {PRIORITIES.find((p) => p.value === priority)?.label}
-                </div>
+              <div className="mt-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
+                <p className="text-[12px] text-slate-400 font-medium">
+                  Based on your calibration, we'll suggest a challenging target once your plan is active.
+                </p>
               </div>
-              <div className="bg-slate-800 rounded-lg p-3">
-                <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Training Days</div>
-                <div className="text-sm font-bold text-white">{trainingDays} days/week</div>
+            </div>
+          </div>
+        </section>
+
+        {/* Row 4: Course Profile */}
+        <section className="pt-8 border-t border-white/5">
+          <SectionLabel optional>Course Profile</SectionLabel>
+          <div className="flex flex-wrap gap-3">
+            {COURSE_PROFILES.map((cp) => (
+              <SelectionBox
+                key={cp.value}
+                active={courseProfile === cp.value}
+                onClick={() => setCourseProfile(courseProfile === cp.value ? null : cp.value)}
+                className="px-8 py-4 flex items-center gap-3"
+              >
+                <span className={`material-symbols-outlined ${courseProfile === cp.value ? "text-primary" : "text-slate-400"}`}
+                  style={{ fontVariationSettings: courseProfile === cp.value ? '"FILL" 1' : '"FILL" 0' }}
+                >
+                  {cp.icon}
+                </span>
+                <span className="font-headline font-bold text-sm tracking-wide uppercase text-white">
+                  {cp.label}
+                </span>
+              </SelectionBox>
+            ))}
+          </div>
+        </section>
+
+        {/* Row 5: Sliders */}
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-8 border-t border-white/5">
+          {/* Weekly Training Days */}
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <SectionLabel optional>Weekly Training Days</SectionLabel>
+              <span className="font-headline font-bold text-primary text-3xl -mt-4">
+                {trainingDays} <span className="text-[11px] uppercase font-bold text-slate-400 ml-1">Days</span>
+              </span>
+            </div>
+            <div className="relative pt-2">
+              <input
+                type="range"
+                min={3}
+                max={7}
+                step={1}
+                value={trainingDays}
+                onChange={(e) => setTrainingDays(Number(e.target.value))}
+                className="w-full accent-primary cursor-pointer slider-green"
+              />
+              <div className="flex justify-between mt-4 px-1">
+                <span className="text-[11px] font-bold text-slate-500/60 uppercase tracking-widest">3 Days</span>
+                <span className="text-[11px] font-bold text-slate-500/60 uppercase tracking-widest">7 Days</span>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-between">
-            <button onClick={() => setStep("fitness")} className="flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-slate-900 rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-60"
-            >
-              {submitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-900"></div>
-                  Generating plan...
-                </>
-              ) : (
-                "Create Goal & Generate Plan"
-              )}
-            </button>
+          {/* Current Weekly Volume */}
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <SectionLabel optional>Current Weekly Volume</SectionLabel>
+              <span className="font-headline font-bold text-primary text-3xl -mt-4">
+                {weeklyVolume} <span className="text-[11px] uppercase font-bold text-slate-400 ml-1">KM/WK</span>
+              </span>
+            </div>
+            <div className="relative pt-2">
+              <input
+                type="range"
+                min={0}
+                max={150}
+                step={1}
+                value={weeklyVolume}
+                onChange={(e) => setWeeklyVolume(Number(e.target.value))}
+                className="w-full accent-primary cursor-pointer slider-green"
+              />
+              <div className="flex justify-between mt-4 px-1">
+                <span className="text-[11px] font-bold text-slate-500/60 uppercase tracking-widest">0 KM/WK</span>
+                <span className="text-[11px] font-bold text-slate-500/60 uppercase tracking-widest">150 KM/WK</span>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        </section>
+      </div>
+
+      {/* Footer Navigation */}
+      <footer className="flex flex-col md:flex-row justify-between items-center gap-8 pt-12 mt-12 border-t border-white/5">
+        <button
+          onClick={() => setStep("sport")}
+          className="font-headline font-bold text-[11px] uppercase tracking-[0.25em] text-slate-400 hover:text-white transition-colors flex items-center gap-3 group"
+        >
+          <span className="material-symbols-outlined text-[20px] group-hover:-translate-x-1 transition-transform">arrow_back</span>
+          Previous Step
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!canGenerate || submitting}
+          className="w-full md:w-auto px-16 py-5 rounded-2xl bg-primary hover:bg-[#2be06b] text-black font-headline font-bold text-sm uppercase tracking-widest shadow-[0_20px_40px_-10px_rgba(34,197,94,0.25)] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+        >
+          {submitting ? (
+            <span className="flex items-center gap-3">
+              <span className="animate-spin material-symbols-outlined text-lg" style={{ fontVariationSettings: '"FILL" 1' }}>progress_activity</span>
+              Generating Plan...
+            </span>
+          ) : (
+            "Generate Training Plan"
+          )}
+        </button>
+      </footer>
     </div>
   );
 }

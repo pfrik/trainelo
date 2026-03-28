@@ -28,6 +28,7 @@ export interface CreateGoalInput {
   target_time_minutes?: number;
   priority?: string;
   training_days_per_week?: number;
+  current_weekly_volume_km?: number;
 }
 
 interface PlanGenerationResult {

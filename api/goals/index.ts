@@ -42,6 +42,7 @@ const CreateGoalSchema = z.object({
   target_time_minutes: z.number().int().positive().optional(),
   priority: z.enum(["A", "B", "C"]).default("A"),
   training_days_per_week: z.number().int().min(3).max(7).default(5),
+  current_weekly_volume_km: z.number().min(0).max(300).optional(),
 });
 
 const UpdateGoalSchema = z.object({
@@ -145,6 +146,7 @@ export default async function handler(
           target_time_minutes: parsed.data.target_time_minutes ?? null,
           priority: parsed.data.priority,
           training_days_per_week: parsed.data.training_days_per_week,
+          current_weekly_volume_km: parsed.data.current_weekly_volume_km ?? null,
           plan_status: "draft",
         });
 

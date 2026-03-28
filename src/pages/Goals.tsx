@@ -1,11 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Target } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useGoals, type CreateGoalInput } from "@/hooks/useGoals";
 import { GoalCreationWizard } from "@/components/goals/GoalCreationWizard";
 import { GoalCard } from "@/components/goals/GoalCard";
@@ -27,6 +21,16 @@ export default function Goals() {
   const handleGeneratePlan = async (goalId: string) => {
     await generatePlan(goalId);
   };
+
+  // Prevent body scroll when wizard is open
+  useEffect(() => {
+    if (wizardOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [wizardOpen]);
 
   const activeGoals = goals.filter(
     (g) => g.status === "active" && g.plan_status === "active",
@@ -127,22 +131,41 @@ export default function Goals() {
         </div>
       </main>
 
-      {/* Creation wizard dialog */}
-      <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-dark-surface border-slate-700/50 text-slate-200">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <Target className="h-5 w-5 text-primary" />
-              New Training Goal
-            </DialogTitle>
-          </DialogHeader>
-          <GoalCreationWizard
-            onSubmit={handleCreate}
-            onGeneratePlan={handleGeneratePlan}
-            onClose={() => setWizardOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Goal Wizard — Full-viewport modal */}
+      {wizardOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-[#0B0E11]/80 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-4xl my-auto bg-slate-800 rounded-2xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] border border-white/10 overflow-hidden">
+            {/* Modal Header */}
+            <header className="h-16 px-8 flex justify-between items-center bg-slate-800 border-b border-white/5 sticky top-0 z-10">
+              <div className="flex items-center gap-4">
+                <span className="text-2xl font-bold text-white tracking-tight font-headline">Trainelo</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 border-l border-white/10 pl-4 font-headline opacity-60">
+                  Goal Wizard
+                </span>
+              </div>
+              <button
+                onClick={() => setWizardOpen(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <span className="material-symbols-outlined text-[24px]">close</span>
+              </button>
+            </header>
+
+            {/* Modal Content */}
+            <div className="p-8 md:p-12 max-h-[calc(100vh-8rem)] overflow-y-auto">
+              <GoalCreationWizard
+                onSubmit={handleCreate}
+                onGeneratePlan={handleGeneratePlan}
+                onClose={() => setWizardOpen(false)}
+              />
+            </div>
+          </div>
+
+          {/* Background Accents */}
+          <div className="fixed top-[-10%] right-[-5%] w-[50%] h-[70%] bg-primary/5 blur-[120px] rounded-full -z-10 pointer-events-none" />
+          <div className="fixed bottom-[-5%] left-[-5%] w-[40%] h-[50%] bg-primary/5 blur-[100px] rounded-full -z-10 pointer-events-none" />
+        </div>
+      )}
     </div>
   );
 }
