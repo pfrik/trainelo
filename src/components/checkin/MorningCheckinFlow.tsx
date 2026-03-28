@@ -27,6 +27,8 @@ interface MorningCheckinFlowProps {
   onSubmit: (payload: CheckinPayload) => Promise<void>;
   /** Wearable readiness from evidence, for "great" upgrade warning */
   wearableReadiness?: "red" | "yellow" | "green" | null;
+  /** If today's check-in already exists (from evidence), show saved state */
+  existingMood?: Mood | null;
 }
 
 type Step = "mood" | "protocol";
@@ -228,7 +230,7 @@ const SORENESS_OPTIONS = [
 // Main Component
 // ---------------------------------------------------------------------------
 
-export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheckinFlowProps) {
+export function MorningCheckinFlow({ onSubmit, wearableReadiness, existingMood }: MorningCheckinFlowProps) {
   const [step, setStep] = useState<Step>("mood");
   const [mood, setMood] = useState<Mood | null>(null);
 
@@ -286,6 +288,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   const [saved, setSaved] = useState(false);
   const [skipped, setSkipped] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -469,6 +472,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     try {
       await onSubmit(p);
       setSaved(true);
+      setEditing(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -564,6 +568,7 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
     try {
       await onSubmit(p);
       setSaved(true);
+      setEditing(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -575,12 +580,19 @@ export function MorningCheckinFlow({ onSubmit, wearableReadiness }: MorningCheck
   // Render: Saved
   // ---------------------------------------------------------------------------
 
-  if (saved) {
+  const effectiveMood = saved ? mood : existingMood;
+  if ((effectiveMood && !editing) || (saved && !editing)) {
     return (
       <div className="flex items-center gap-2 py-2">
         <span className="material-symbols-outlined text-green-400 text-xl" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
         <span className="text-green-400 text-sm font-medium">Check-in saved</span>
-        <span className="text-slate-500 text-sm capitalize">({mood})</span>
+        <span className="text-slate-500 text-sm capitalize">({effectiveMood})</span>
+        <button
+          onClick={() => setEditing(true)}
+          className="ml-auto text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          Update
+        </button>
       </div>
     );
   }
