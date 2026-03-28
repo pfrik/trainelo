@@ -832,13 +832,30 @@ export default async function handler(
     });
     const calMs = calTimer.elapsed();
 
-    // 6d. If user already trained today, promote rest_day to primary position
+    // 6d. If user already trained today, reframe around completion
     if (hasTrainedToday) {
+      // Build a "done for today" candidate from rest_day
       const restIdx = finalCandidates.findIndex((c) => c.candidate_id === "rest_day");
-      if (restIdx > 0) {
-        const [rest] = finalCandidates.splice(restIdx, 1);
-        rest.rationale = "You've already completed today's workout. Rest and recover.";
-        finalCandidates.unshift(rest);
+      if (restIdx >= 0) {
+        const durationMin = Math.round(todayDuration / 60);
+        finalCandidates[restIdx].label = "Done for Today";
+        finalCandidates[restIdx].rationale =
+          `You've already completed your workout today${durationMin > 0 ? ` (${durationMin} min)` : ""}. Focus on recovery for the rest of the day.`;
+        finalCandidates[restIdx].caution_level = "none";
+
+        // Move to primary position
+        if (restIdx > 0) {
+          const [rest] = finalCandidates.splice(restIdx, 1);
+          finalCandidates.unshift(rest);
+        }
+      }
+
+      // Remove workout candidates — they're moot after training
+      const keepIds = new Set(["rest_day"]);
+      for (let i = finalCandidates.length - 1; i >= 0; i--) {
+        if (!keepIds.has(finalCandidates[i].candidate_id)) {
+          finalCandidates.splice(i, 1);
+        }
       }
     }
 

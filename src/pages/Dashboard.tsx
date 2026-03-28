@@ -276,7 +276,14 @@ export default function Dashboard() {
                       <div className={`rounded-xl p-5 bg-gradient-to-r from-slate-800 to-slate-800/50 border border-primary/30 ${choiceState.status === "submitted" && choiceState.candidateId === topCandidate.candidate_id ? "ring-2 ring-primary" : ""}`}>
                         {/* Labels & caution */}
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded uppercase">Prescribed</span>
+                          {recommendation.evidence?.workout_completed_today ? (
+                            <span className="bg-green-500/20 text-green-400 text-xs font-bold px-2 py-0.5 rounded uppercase flex items-center gap-1">
+                              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+                              Completed
+                            </span>
+                          ) : (
+                            <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded uppercase">Prescribed</span>
+                          )}
                           {topCandidate.caution_level !== "none" && (() => {
                             const cautionStyles = getCautionStyles(topCandidate.caution_level);
                             return (
@@ -311,7 +318,12 @@ export default function Dashboard() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-3 mt-5">
-                          {choiceState.status === "idle" ? (
+                          {recommendation.evidence?.workout_completed_today ? (
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-lg text-green-400" style={{ fontVariationSettings: '"FILL" 1' }}>check_circle</span>
+                              <span className="text-sm font-medium text-green-400">Workout logged</span>
+                            </div>
+                          ) : choiceState.status === "idle" ? (
                             <>
                               {/* Primary: Confirm session */}
                               <button
