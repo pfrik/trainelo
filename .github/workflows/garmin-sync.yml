@@ -1,10 +1,11 @@
 name: Garmin Sync
 
 on:
-  schedule:
-    # Once daily at 05:00 UTC — reduced from every 6h to avoid
-    # Garmin's aggressive 429 rate limits on cloud IPs.
-    - cron: '0 5 * * *'
+  # Schedule disabled — Garmin permanently 429s all GitHub Actions
+  # cloud IPs (both OAuth exchange and SSO endpoints). Use local
+  # sync via Windows Task Scheduler instead.
+  # schedule:
+  #   - cron: '0 5 * * *'
   workflow_dispatch:
     inputs:
       full_sync:
