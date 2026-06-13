@@ -77,12 +77,43 @@ export interface EvidenceSummary {
   checkin_pain_flag?: boolean | null;
   /** Morning check-in: illness flag */
   checkin_illness_flag?: boolean | null;
-  /** Check-in impact: readiness delta applied */
+  /** Check-in impact: readiness delta applied (capped) */
   checkin_readiness_delta?: number | null;
-  /** Check-in impact: fatigue delta applied */
+  /** Check-in impact: fatigue delta applied (capped) */
   checkin_fatigue_delta?: number | null;
   /** Check-in impact: human-readable summary sentence */
   checkin_impact_note?: string | null;
+  /** Signal blending: objective baseline vs. subjective adjustment breakdown */
+  signal_contribution?: {
+    /** Objective baseline readiness (0-100) from wearable data only */
+    objective_score: number | null;
+    /** Objective fatigue (0-100) from wearable data only */
+    objective_fatigue?: number | null;
+    /** Per-signal objective components (0-100 each, null when missing) */
+    objective_components?: {
+      sleep: number | null;
+      hrv: number | null;
+      metrics: number | null;
+      load_penalty: number;
+      fitness_bonus: number;
+    } | null;
+    /** Applied (capped) readiness delta from the check-in */
+    subjective_delta: number;
+    /** Raw readiness delta before capping */
+    subjective_delta_raw: number;
+    /** Applied (capped) fatigue delta from the check-in */
+    subjective_fatigue_delta?: number | null;
+    /** Raw fatigue delta before capping */
+    subjective_fatigue_delta_raw?: number | null;
+    /** Final blended readiness (0-100) */
+    final_score: number | null;
+    /** Final blended fatigue (0-100) */
+    final_fatigue?: number | null;
+    /** True when objective and subjective signals strongly disagree */
+    conflict_flag: boolean;
+    /** User-facing explanation of the conflict */
+    conflict_description?: string | null;
+  } | null;
   /** Calibrator: traffic-light level */
   calibration_level?: "red" | "amber" | "green" | "upgrade" | null;
   /** Calibrator: intensity multiplier applied */

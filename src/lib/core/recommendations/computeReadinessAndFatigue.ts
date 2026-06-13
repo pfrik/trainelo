@@ -36,6 +36,8 @@ import {
   computeSignalValidityReport,
 } from "./computeSignalValidity.js";
 import type { SignalValidityReport } from "./computeSignalValidity.js";
+import { blendSubjectiveSignal } from "../checkin/calibrator.js";
+import type { SignalContribution } from "../checkin/calibrator.js";
 
 // ---------------------------------------------------------------------------
 // Input / Output types
@@ -95,6 +97,22 @@ export interface ReadinessAndFatigueInput {
   } | null;
 }
 
+/** Per-signal breakdown of the objective baseline plus the subjective blend. */
+export interface ReadinessSignalContribution extends SignalContribution {
+  objective_components: {
+    /** Sleep recovery signal (0-100), null when missing/invalid. */
+    sleep: number | null;
+    /** HRV recovery signal (0-100), null when missing/invalid. */
+    hrv: number | null;
+    /** Garmin recovery metric signal (0-100), null when missing/invalid. */
+    metrics: number | null;
+    /** Readiness points suppressed by accumulated training load. */
+    load_penalty: number;
+    /** Readiness points added from EWMA fitness. */
+    fitness_bonus: number;
+  };
+}
+
 export interface ReadinessAndFatigueOutput {
   /** 0-100 overall readiness to train. */
   readiness_score: number;
@@ -102,6 +120,8 @@ export interface ReadinessAndFatigueOutput {
   fatigue_score: number;
   /** Non-empty array of codes explaining the scores. */
   reason_codes: ReasonCode[];
+  /** Objective vs. subjective contribution breakdown (always present). */
+  signal_contribution: ReadinessSignalContribution;
   /** Multi-factor confidence breakdown (present when totalDataDays or latestDataTimestamp provided). */
   confidence?: ConfidenceBreakdown;
   /** User maturity mode (present when totalDataDays provided). */
@@ -368,19 +388,23 @@ export function computeReadinessAndFatigue(
   let readiness_score = Math.round(readinessNorm * 100);
 
   // --- Fitness bonus (only when EWMA has enough data) ---
+  let fitnessBonus = 0;
   if (ewma && !ewma.cold_start_fitness) {
-    const fitnessBonus = Math.round(
+    fitnessBonus = Math.round(
       (ewma.fitness_score / 100) * FITNESS_READINESS_WEIGHT * 100,
     );
     readiness_score = clamp0100(readiness_score + fitnessBonus);
   }
 
-  // --- Daily check-in adjustments ---
+  // --- Daily check-in: raw subjective deltas + reason codes ---
+  // The deltas are NOT applied here. They are blended onto the objective
+  // baseline (capped, conflict-aware) after confidence dampening, so the
+  // subjective check-in modulates the objective signal instead of
+  // overriding it.
   const checkin = input.dailyCheckin;
+  let readinessDelta = 0;
+  let fatigueDelta = 0;
   if (checkin) {
-    let readinessDelta = 0;
-    let fatigueDelta = 0;
-
     // Mood
     if (checkin.mood) {
       const adj = MOOD_ADJUSTMENTS[checkin.mood];
@@ -428,9 +452,6 @@ export function computeReadinessAndFatigue(
         reasons.push("FATIGUE_HIGH");
       }
     }
-
-    readiness_score = clamp0100(readiness_score + readinessDelta);
-    fatigue_score = clamp0100(fatigue_score + fatigueDelta);
   }
 
   // --- Baseline mode detection (needed before trend states) ---
@@ -561,12 +582,41 @@ export function computeReadinessAndFatigue(
   // With confidence 1.0: scores unchanged.
   // With confidence 0.3: scores blend 70% toward 50 (neutral).
   // This prevents extreme recommendations when data quality is poor.
+  // Applied to the objective scores only — the check-in is direct user
+  // input and is not subject to wearable data-quality uncertainty.
   if (confidence) {
     const c = confidence.overall;
     const NEUTRAL = 50;
     readiness_score = clamp0100(readiness_score * c + NEUTRAL * (1 - c));
     fatigue_score = clamp0100(fatigue_score * c + NEUTRAL * (1 - c));
   }
+
+  // --- Subjective blending: capped, conflict-aware ---
+  // Objective scores are final at this point; the check-in can only
+  // modulate them within the caps defined in the calibrator module.
+  const objectiveReadiness = readiness_score;
+  const objectiveFatigue = fatigue_score;
+  const blend = blendSubjectiveSignal(
+    objectiveReadiness,
+    objectiveFatigue,
+    readinessDelta,
+    fatigueDelta,
+  );
+  readiness_score = blend.final_score ?? objectiveReadiness;
+  fatigue_score = blend.final_fatigue ?? objectiveFatigue;
+
+  const signal_contribution: ReadinessSignalContribution = {
+    ...blend,
+    objective_components: {
+      sleep: sleepVal != null ? Math.round(sleepVal * 100) : null,
+      hrv: hrvVal != null ? Math.round(hrvVal * 100) : null,
+      metrics: metricsVal != null ? Math.round(metricsVal * 100) : null,
+      load_penalty:
+        Math.round(avgRecovery * 100) -
+        Math.round(avgRecovery * fatiguePenalty * 100),
+      fitness_bonus: fitnessBonus,
+    },
+  };
 
   // --- Guarantee non-empty reason_codes ---
   if (reasons.length === 0) {
@@ -581,6 +631,7 @@ export function computeReadinessAndFatigue(
     readiness_score,
     fatigue_score,
     reason_codes: reasons,
+    signal_contribution,
     ...(confidence !== undefined && { confidence }),
     ...(baseline_mode !== undefined && { baseline_mode }),
     ...(ewma !== undefined && { ewma }),

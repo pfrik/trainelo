@@ -5,6 +5,8 @@
 export {
   calibrateSession,
   computeCheckinDeltas,
+  blendSubjectiveSignal,
+  type SignalContribution,
   type Mood5,
   type WearableReadiness,
   type ReasonBucket,

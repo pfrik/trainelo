@@ -79,8 +79,12 @@ export interface CalibrationResult {
   rationale: string;
   applied_rules: string[];
   warnings: string[];
+  /** Raw (uncapped) check-in readiness delta — informational only. */
   checkin_readiness_delta: number;
+  /** Raw (uncapped) check-in fatigue delta — informational only. */
   checkin_fatigue_delta: number;
+  /** Objective vs. subjective blending breakdown (capped deltas, conflicts). */
+  signal_contribution: SignalContribution;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +361,139 @@ export function computeCheckinDeltas(checkin: CheckinInput): CheckinDeltas {
 }
 
 // ---------------------------------------------------------------------------
+// Subjective/objective signal blending
+// ---------------------------------------------------------------------------
+
+/**
+ * Caps on total subjective check-in influence on the 0-100 readiness/fatigue
+ * scales. Asymmetric by design: self-reported distress is meaningful clinical
+ * evidence (err conservative), while self-reported wellness is weak evidence
+ * prone to self-enhancement bias — it must never unlock more than the single
+ * mood bonus, and never stack.
+ *
+ * The negative cap (15) equals the largest single subjective signal (drained
+ * mood / pain flag), so any one signal keeps full weight but stacking cannot
+ * dominate days of objective data. 15 is also smaller than the 25-point tier
+ * band (readiness 65 → 40), so subjective input alone can never move the
+ * recommendation by more than one tier.
+ */
+export const SUBJECTIVE_READINESS_MAX_BOOST = 5;
+export const SUBJECTIVE_READINESS_MAX_PENALTY = 15;
+export const SUBJECTIVE_FATIGUE_MAX_INCREASE = 15;
+export const SUBJECTIVE_FATIGUE_MAX_RELIEF = 5;
+
+/** Conflict thresholds — aligned with the readiness tier boundaries (65/40). */
+export const CONFLICT_OBJECTIVE_HIGH = 65;
+export const CONFLICT_OBJECTIVE_LOW = 40;
+/** Raw subjective penalty magnitude that counts as strong disagreement. */
+export const CONFLICT_SUBJECTIVE_PENALTY = 10;
+
+/** Breakdown of how objective and subjective signals combined into the final score. */
+export interface SignalContribution {
+  /** Objective baseline readiness (0-100); null when no wearable score available. */
+  objective_score: number | null;
+  /** Objective fatigue (0-100); null when no wearable score available. */
+  objective_fatigue: number | null;
+  /** Applied (capped) readiness delta from the check-in. */
+  subjective_delta: number;
+  /** Raw readiness delta before capping/suppression. */
+  subjective_delta_raw: number;
+  /** Applied (capped) fatigue delta from the check-in. */
+  subjective_fatigue_delta: number;
+  /** Raw fatigue delta before capping/suppression. */
+  subjective_fatigue_delta_raw: number;
+  /** Final blended readiness (0-100); null when objective score unavailable. */
+  final_score: number | null;
+  /** Final blended fatigue (0-100); null when objective fatigue unavailable. */
+  final_fatigue: number | null;
+  /** True when objective and subjective signals strongly disagree. */
+  conflict_flag: boolean;
+  /** User-facing explanation of the conflict. */
+  conflict_description?: string;
+}
+
+/**
+ * Blend a subjective check-in delta onto an objective baseline.
+ *
+ * Rules:
+ * - Subjective influence is capped (see constants above) so it modulates the
+ *   objective baseline instead of replacing it.
+ * - Positive self-report cannot raise a low objective score: when objective
+ *   readiness is below the low tier boundary, positive deltas are suppressed
+ *   entirely and the conflict is surfaced.
+ * - Strongly negative self-report against a high objective score is applied
+ *   (capped) — erring conservative is safe — but the mismatch is flagged.
+ */
+export function blendSubjectiveSignal(
+  objectiveReadiness: number | null,
+  objectiveFatigue: number | null,
+  rawReadinessDelta: number,
+  rawFatigueDelta: number,
+): SignalContribution {
+  let appliedReadiness = clamp(
+    rawReadinessDelta,
+    -SUBJECTIVE_READINESS_MAX_PENALTY,
+    SUBJECTIVE_READINESS_MAX_BOOST,
+  );
+  let appliedFatigue = clamp(
+    rawFatigueDelta,
+    -SUBJECTIVE_FATIGUE_MAX_RELIEF,
+    SUBJECTIVE_FATIGUE_MAX_INCREASE,
+  );
+
+  let conflict_flag = false;
+  let conflict_description: string | undefined;
+
+  if (objectiveReadiness != null) {
+    if (
+      objectiveReadiness >= CONFLICT_OBJECTIVE_HIGH &&
+      rawReadinessDelta <= -CONFLICT_SUBJECTIVE_PENALTY
+    ) {
+      conflict_flag = true;
+      conflict_description =
+        "Your wearable data suggests strong recovery, but your check-in reports significant fatigue or discomfort. We've stayed conservative and applied your check-in (capped) to today's score.";
+    } else if (
+      objectiveReadiness < CONFLICT_OBJECTIVE_LOW &&
+      rawReadinessDelta > 0
+    ) {
+      conflict_flag = true;
+      conflict_description =
+        "Your check-in is positive, but your wearable data shows low recovery. A positive self-report can't raise readiness above what objective signals support.";
+      appliedReadiness = 0;
+      appliedFatigue = Math.max(0, appliedFatigue);
+    }
+  }
+
+  const final_score =
+    objectiveReadiness != null
+      ? Math.round(clamp(objectiveReadiness + appliedReadiness, 0, 100))
+      : null;
+  const final_fatigue =
+    objectiveFatigue != null
+      ? Math.round(clamp(objectiveFatigue + appliedFatigue, 0, 100))
+      : null;
+
+  return {
+    objective_score: objectiveReadiness,
+    objective_fatigue: objectiveFatigue,
+    subjective_delta:
+      final_score != null && objectiveReadiness != null
+        ? final_score - Math.round(objectiveReadiness)
+        : appliedReadiness,
+    subjective_delta_raw: rawReadinessDelta,
+    subjective_fatigue_delta:
+      final_fatigue != null && objectiveFatigue != null
+        ? final_fatigue - Math.round(objectiveFatigue)
+        : appliedFatigue,
+    subjective_fatigue_delta_raw: rawFatigueDelta,
+    final_score,
+    final_fatigue,
+    conflict_flag,
+    ...(conflict_description !== undefined && { conflict_description }),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -455,6 +592,14 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
   const wearableFatigue = wearable_signals?.fatigue_score ?? null;
   const wearableReadiness = wearable_signals?.readiness ?? null;
 
+  // --- Blend subjective deltas onto the objective baseline (capped) ---
+  const signal_contribution = blendSubjectiveSignal(
+    wearable_signals?.readiness_score ?? null,
+    wearableFatigue,
+    checkin_readiness_delta,
+    checkin_fatigue_delta,
+  );
+
   // --- Hard-stop check (safety overrides) ---
   const hardStop = isHardStop(morning_checkin, wearableFatigue);
   if (hardStop.triggered) {
@@ -483,6 +628,7 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
       warnings,
       checkin_readiness_delta,
       checkin_fatigue_delta,
+      signal_contribution,
     };
   }
 
@@ -652,6 +798,27 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
     }
   }
 
+  // --- Objective/subjective conflict handling ---
+  if (signal_contribution.conflict_flag) {
+    if (signal_contribution.subjective_delta_raw > 0) {
+      // Positive self-report against low objective readiness: the objective
+      // signal wins. Constrain the session and downgrade the level.
+      intensity_multiplier = Math.min(intensity_multiplier, 0.90);
+      duration_multiplier = Math.min(duration_multiplier, 0.95);
+      if (level === "green" || level === "upgrade") {
+        level = "amber";
+        headline = "Eased back — wearable data shows low recovery";
+        rationale =
+          "You feel good, but objective recovery signals are low. The session is kept with intensity trimmed to protect recovery.";
+      }
+      applied_rules.push("CONFLICT_POSITIVE_CHECKIN_CAPPED");
+      warnings.push("Positive check-in conflicts with low objective readiness — upgrade blocked, intensity capped");
+    } else {
+      applied_rules.push("CONFLICT_NEGATIVE_CHECKIN_FLAGGED");
+      warnings.push("Check-in reports fatigue despite strong objective recovery — staying conservative");
+    }
+  }
+
   // --- Elevated fatigue adjustments (from check-in deltas) ---
   if (morning_checkin) {
     if (
@@ -772,5 +939,6 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
     warnings,
     checkin_readiness_delta,
     checkin_fatigue_delta,
+    signal_contribution,
   };
 }
