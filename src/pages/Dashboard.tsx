@@ -11,7 +11,6 @@ import type { ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
 import { AppSidebar } from '@/components/navigation/AppSidebar';
 import { EvidencePanel } from '@/components/dashboard/EvidencePanel';
 import { WorkoutDetail } from '@/components/dashboard/WorkoutDetail';
-import { CalibrationBlock } from '@/components/dashboard/CalibrationBlock';
 import { getCautionStyles, formatReasonCode, sanitizeRationale } from '@/components/dashboard/dashboardUtils';
 
 export default function Dashboard() {
@@ -111,12 +110,8 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface rounded-full transition-colors relative">
+              <button className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-surface rounded-full transition-colors">
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: '"FILL" 1' }}>notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-light-base dark:border-dark-base"></span>
-              </button>
-              <button className="px-4 py-2 bg-slate-200 dark:bg-dark-surface text-slate-700 dark:text-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-300 dark:hover:bg-dark-surface-lighter transition-colors border border-transparent dark:border-slate-700">
-                Edit Profile
               </button>
             </div>
           </header>
@@ -320,9 +315,6 @@ export default function Dashboard() {
                           ))}
                         </div>
 
-                        {/* Calibration explainability */}
-                        {evidence && <CalibrationBlock evidence={evidence} />}
-
                         {/* Workout segments */}
                         {topCandidate.workout && <WorkoutDetail workout={topCandidate.workout} />}
 
@@ -495,7 +487,7 @@ export default function Dashboard() {
               {/* Recovery Score — driven by real API evidence */}
               {(() => {
                 const readiness = evidence
-                  ? Math.round(100 - (evidence.fatigue_score ?? 50))
+                  ? (evidence.signal_contribution?.final_score ?? Math.round(100 - (evidence.fatigue_score ?? 50)))
                   : null;
                 const confidence = evidence ? Math.round(evidence.confidence * 100) : null;
                 const circumference = 2 * Math.PI * 80; // ~502
@@ -598,29 +590,6 @@ export default function Dashboard() {
                 );
               })()}
 
-              {/* Action List */}
-              <div className="bg-light-surface dark:bg-dark-surface rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700/50">
-                <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-6">Action List</h3>
-                <div className="space-y-4">
-                  {[
-                    { title: "Post-workout Stretch", detail: "15 mins - Mobility focus", icon: "accessibility_new" },
-                    { title: "Hydration Goal", detail: "1.2L / 3.0L consumed", icon: "water_drop" },
-                    { title: "Log Nutrition", detail: "Lunch pending", icon: "restaurant" }
-                  ].map((action, i) => (
-                    <div key={i} className="group flex items-center justify-between p-3 -mx-3 rounded-xl hover:bg-slate-50 dark:hover:bg-dark-surface-lighter transition-colors cursor-pointer">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-6 h-6 rounded border-2 border-slate-300 dark:border-slate-500 group-hover:border-primary transition-colors flex items-center justify-center">
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-slate-900 dark:text-white text-sm">{action.title}</h4>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{action.detail}</p>
-                        </div>
-                      </div>
-                      <span className="material-symbols-outlined text-slate-400 dark:text-slate-600" style={{ fontVariationSettings: '"FILL" 1' }}>{action.icon}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
             </div>
           </div>
