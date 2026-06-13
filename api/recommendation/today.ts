@@ -38,6 +38,7 @@ import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
   type ReadinessAndFatigueOutput,
+  type ReadinessSignalContribution,
   type DailyCheckinInput,
 } from "../../src/lib/core/recommendations/computeReadinessAndFatigue.js";
 import type { DailyTssEntry } from "../../src/lib/core/recommendations/computeEwma.js";
@@ -340,72 +341,30 @@ function mapCheckin(row: DailyCheckinRow | null): DailyCheckinInput | null {
 }
 
 // ============================================================================
-// Check-in Impact Computation
+// Check-in Impact Note
 // ============================================================================
 
-/** Same constants as computeReadinessAndFatigue — mirrored here for evidence display. */
-const CHECKIN_MOOD_DELTAS: Record<string, { readiness: number; fatigue: number }> = {
-  drained: { readiness: -15, fatigue: 15 },
-  tired:   { readiness: -8,  fatigue: 8 },
-  okay:    { readiness: 0,   fatigue: 0 },
-  good:    { readiness: 5,   fatigue: -5 },
-  great:   { readiness: 5,   fatigue: -5 },
-};
-
-interface CheckinImpact {
-  readiness_delta: number;
-  fatigue_delta: number;
-  note: string;
-}
-
-function computeCheckinImpact(checkin: DailyCheckinRow): CheckinImpact {
-  let readinessDelta = 0;
-  let fatigueDelta = 0;
-
-  // Mood
-  if (VALID_MOODS.has(checkin.mood)) {
-    const adj = CHECKIN_MOOD_DELTAS[checkin.mood];
-    if (adj) {
-      readinessDelta += adj.readiness;
-      fatigueDelta += adj.fatigue;
-    }
-  }
-
-  // RPE >= 8
-  if (checkin.rpe != null && checkin.rpe >= 8) {
-    fatigueDelta += 8;
-  }
-
-  // Soreness >= 7
-  if (checkin.soreness != null && checkin.soreness >= 7) {
-    fatigueDelta += 8;
-  }
-
-  // Pain flag
-  if (checkin.pain_flag) {
-    readinessDelta += -15;
-    fatigueDelta += 12;
-  }
-
-  // Illness flag
-  if (checkin.illness_flag) {
-    readinessDelta += -20;
-    fatigueDelta += 15;
-  }
-
-  // Build note
+/** Build the human-readable impact note from the actual applied (capped) deltas. */
+function buildCheckinImpactNote(sc: ReadinessSignalContribution): string {
   const parts: string[] = [];
+  const fatigueDelta = sc.subjective_fatigue_delta;
+  const readinessDelta = sc.subjective_delta;
   if (fatigueDelta !== 0) {
     parts.push(`fatigue ${fatigueDelta > 0 ? "+" : ""}${fatigueDelta}`);
   }
   if (readinessDelta !== 0) {
     parts.push(`readiness ${readinessDelta > 0 ? "+" : ""}${readinessDelta}`);
   }
-  const note = parts.length > 0
+  let note = parts.length > 0
     ? `Check-in impact: ${parts.join(", ")}.`
     : "Check-in impact: none.";
-
-  return { readiness_delta: readinessDelta, fatigue_delta: fatigueDelta, note };
+  if (
+    readinessDelta !== sc.subjective_delta_raw ||
+    fatigueDelta !== sc.subjective_fatigue_delta_raw
+  ) {
+    note += " Subjective influence capped — objective data sets the baseline.";
+  }
+  return note;
 }
 
 // ============================================================================
@@ -445,7 +404,7 @@ function buildEvidence(
   anomaly: AnomalyResult | null,
   scheduledWorkout?: ScheduledWorkoutRow | null,
 ): EvidenceSummary {
-  const impact = checkin ? computeCheckinImpact(checkin) : null;
+  const sc = rfOutput.signal_contribution;
 
   return {
     fatigue_score: rfOutput.fatigue_score,
@@ -460,9 +419,10 @@ function buildEvidence(
     checkin_soreness: checkin?.soreness ?? null,
     checkin_pain_flag: checkin?.pain_flag ?? null,
     checkin_illness_flag: checkin?.illness_flag ?? null,
-    checkin_readiness_delta: impact?.readiness_delta ?? null,
-    checkin_fatigue_delta: impact?.fatigue_delta ?? null,
-    checkin_impact_note: impact?.note ?? null,
+    checkin_readiness_delta: checkin ? sc.subjective_delta : null,
+    checkin_fatigue_delta: checkin ? sc.subjective_fatigue_delta : null,
+    checkin_impact_note: checkin ? buildCheckinImpactNote(sc) : null,
+    signal_contribution: sc,
     calibration_level: calibration?.level ?? null,
     calibration_intensity_multiplier: calibration?.intensity_multiplier ?? null,
     calibration_duration_multiplier: calibration?.duration_multiplier ?? null,
@@ -562,12 +522,18 @@ function deriveWearableReadiness(
   return "green";
 }
 
-/** Build WearableSignalsInput from the R&F pipeline output. */
+/** Build WearableSignalsInput from the R&F pipeline output.
+ * Uses the OBJECTIVE scores (pre-check-in) so the calibrator's wearable
+ * gating cannot be influenced by the subjective check-in itself. */
 function buildWearableSignals(rfOutput: ReadinessAndFatigueOutput): WearableSignalsInput {
+  const objectiveReadiness =
+    rfOutput.signal_contribution.objective_score ?? rfOutput.readiness_score;
+  const objectiveFatigue =
+    rfOutput.signal_contribution.objective_fatigue ?? rfOutput.fatigue_score;
   return {
-    readiness: deriveWearableReadiness(rfOutput.readiness_score, rfOutput.fatigue_score),
-    readiness_score: rfOutput.readiness_score,
-    fatigue_score: rfOutput.fatigue_score,
+    readiness: deriveWearableReadiness(objectiveReadiness, objectiveFatigue),
+    readiness_score: objectiveReadiness,
+    fatigue_score: objectiveFatigue,
   };
 }
 

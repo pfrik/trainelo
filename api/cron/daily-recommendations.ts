@@ -331,11 +331,17 @@ function deriveWearableReadiness(
   return "green";
 }
 
+/** Uses the OBJECTIVE scores (pre-check-in) so the calibrator's wearable
+ * gating cannot be influenced by the subjective check-in itself. */
 function buildWearableSignals(rfOutput: ReadinessAndFatigueOutput): WearableSignalsInput {
+  const objectiveReadiness =
+    rfOutput.signal_contribution.objective_score ?? rfOutput.readiness_score;
+  const objectiveFatigue =
+    rfOutput.signal_contribution.objective_fatigue ?? rfOutput.fatigue_score;
   return {
-    readiness: deriveWearableReadiness(rfOutput.readiness_score, rfOutput.fatigue_score),
-    readiness_score: rfOutput.readiness_score,
-    fatigue_score: rfOutput.fatigue_score,
+    readiness: deriveWearableReadiness(objectiveReadiness, objectiveFatigue),
+    readiness_score: objectiveReadiness,
+    fatigue_score: objectiveFatigue,
   };
 }
 
@@ -608,6 +614,7 @@ async function computeForUser(
       readiness_score: rfOutput.readiness_score,
       fatigue_score: rfOutput.fatigue_score,
       reason_codes: rfOutput.reason_codes,
+      signal_contribution: rfOutput.signal_contribution,
       primary_candidate_id: primary.candidate_id,
       confidence,
       days_since_rest: row?.days_since_rest ?? null,
