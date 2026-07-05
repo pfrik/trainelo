@@ -9,8 +9,8 @@
  * No IO, fully testable.
  */
 
-import type { ComplianceMatchInput, ComplianceMatchResult, MatchStatus } from "./types.js";
-import { normalizeSport, type NormalizedSport } from "./normalizeSport.js";
+import type { ComplianceMatchInput, ComplianceMatchResult, MatchStatus, NormalizedSport } from "./types.js";
+import { normalizeSport } from "./normalizeSport.js";
 
 // ---------------------------------------------------------------------------
 // Scoring weights (must sum to 1.0)

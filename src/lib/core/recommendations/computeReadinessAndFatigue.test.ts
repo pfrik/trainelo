@@ -6,6 +6,10 @@ import {
   type DailyCheckinInput,
 } from "./computeReadinessAndFatigue";
 import type { ReasonCode } from "../contracts";
+import {
+  SUBJECTIVE_READINESS_MAX_PENALTY,
+  SUBJECTIVE_FATIGUE_MAX_INCREASE,
+} from "../checkin/calibrator";
 import type { DailyTssEntry } from "./computeEwma";
 import type {
   SleepSessionInput,
@@ -593,12 +597,23 @@ describe("computeReadinessAndFatigue", () => {
       expect(hasCode(result, "FATIGUE_HIGH")).toBe(true);
     });
 
-    it("combined pain + illness produces strong impact", () => {
+    it("combined pain + illness applies the full capped subjective penalty", () => {
       const result = computeReadinessAndFatigue(
         withCheckin({ pain_flag: true, illness_flag: true }),
       );
-      expect(result.readiness_score).toBeLessThan(baseline.readiness_score - 20);
-      expect(result.fatigue_score).toBeGreaterThan(baseline.fatigue_score + 20);
+      expect(result.readiness_score).toBe(
+        baseline.readiness_score - SUBJECTIVE_READINESS_MAX_PENALTY,
+      );
+      expect(result.fatigue_score).toBe(
+        baseline.fatigue_score + SUBJECTIVE_FATIGUE_MAX_INCREASE,
+      );
+      // The raw deltas exceed the caps — the blend must report both.
+      expect(result.signal_contribution.subjective_delta_raw).toBeLessThan(
+        -SUBJECTIVE_READINESS_MAX_PENALTY,
+      );
+      expect(result.signal_contribution.subjective_fatigue_delta_raw).toBeGreaterThan(
+        SUBJECTIVE_FATIGUE_MAX_INCREASE,
+      );
     });
 
     it("is deterministic with check-in input", () => {

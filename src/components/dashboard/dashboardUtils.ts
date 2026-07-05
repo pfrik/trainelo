@@ -38,6 +38,10 @@ const REASON_CODE_LABELS: Record<ReasonCode, string> = {
   ANOMALY_OVERTRAINING_RISK: "Overtraining risk",
   ANOMALY_LOW_CONFIDENCE: "Low confidence",
   RHR_ELEVATED: "Elevated resting HR",
+  UNPLANNED_LOAD_HIGH: "Unplanned load",
+  CROSS_SPORT_LOAD: "Cross-sport load",
+  PLAN_COMPLIANCE_LOW: "Low plan compliance",
+  LOAD_SURPLUS_RECOVERY: "Load surplus recovery",
 };
 
 /** Format reason code for display using label map */

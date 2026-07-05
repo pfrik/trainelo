@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { detectAnomalies, type AnomalyResult } from "./anomaly";
-import type { ReadinessAndFatigueOutput } from "../recommendations/computeReadinessAndFatigue";
+import type {
+  ReadinessAndFatigueOutput,
+  ReadinessSignalContribution,
+} from "../recommendations/computeReadinessAndFatigue";
 import type { TrendState } from "../recommendations/detectTrends";
 import type { ConfidenceBreakdown } from "../recommendations/computeConfidence";
 import type { NormalizedEwmaResult } from "../recommendations/computeEwma";
@@ -55,12 +58,38 @@ function makeEwma(formScore: number): NormalizedEwmaResult {
   };
 }
 
+/** Neutral objective-only blend (no check-in) for a given score pair. */
+function makeSignalContribution(
+  readiness: number,
+  fatigue: number,
+): ReadinessSignalContribution {
+  return {
+    objective_score: readiness,
+    objective_fatigue: fatigue,
+    subjective_delta: 0,
+    subjective_delta_raw: 0,
+    subjective_fatigue_delta: 0,
+    subjective_fatigue_delta_raw: 0,
+    final_score: readiness,
+    final_fatigue: fatigue,
+    conflict_flag: false,
+    objective_components: {
+      sleep: null,
+      hrv: null,
+      metrics: null,
+      load_penalty: 0,
+      fitness_bonus: 0,
+    },
+  };
+}
+
 /** Healthy baseline: no anomalies should fire. */
 function healthyInput(): ReadinessAndFatigueOutput {
   return {
     readiness_score: 75,
     fatigue_score: 30,
     reason_codes: ["RECOVERY_OPTIMAL"],
+    signal_contribution: makeSignalContribution(75, 30),
     confidence: makeConfidence(0.7),
     baseline_mode: "mature",
     ewma: makeEwma(10),
@@ -75,6 +104,7 @@ function dissociationInput(): ReadinessAndFatigueOutput {
     readiness_score: 70,
     fatigue_score: 30,
     reason_codes: ["RECOVERY_OPTIMAL"],
+    signal_contribution: makeSignalContribution(70, 30),
     confidence: makeConfidence(0.6),
     baseline_mode: "mature",
     ewma: makeEwma(10),
@@ -89,6 +119,7 @@ function overtrainingInput(): ReadinessAndFatigueOutput {
     readiness_score: 50,
     fatigue_score: 65,
     reason_codes: ["FATIGUE_ELEVATED"],
+    signal_contribution: makeSignalContribution(50, 65),
     confidence: makeConfidence(0.6),
     baseline_mode: "mature",
     ewma: makeEwma(-20),
@@ -103,6 +134,7 @@ function lowConfidenceInput(): ReadinessAndFatigueOutput {
     readiness_score: 60,
     fatigue_score: 40,
     reason_codes: ["RECOVERY_OPTIMAL"],
+    signal_contribution: makeSignalContribution(60, 40),
     confidence: makeConfidence(0.2),
     baseline_mode: "building",
     ewma: makeEwma(5),
@@ -173,6 +205,7 @@ describe("detectAnomalies — false-positive prevention", () => {
       readiness_score: 75,
       fatigue_score: 30,
       reason_codes: ["RECOVERY_OPTIMAL"],
+      signal_contribution: makeSignalContribution(75, 30),
     };
     expect(detectAnomalies(input)).toEqual(NONE_RESULT);
   });
@@ -310,6 +343,7 @@ describe("detectAnomalies — multi-rule merging", () => {
       readiness_score: 65,
       fatigue_score: 65,
       reason_codes: ["FATIGUE_ELEVATED"],
+      signal_contribution: makeSignalContribution(65, 65),
       confidence: makeConfidence(0.7),
       baseline_mode: "mature",
       ewma: makeEwma(-20),

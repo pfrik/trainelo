@@ -142,11 +142,13 @@ describe("POST /api/recommendation/today — check-in evidence", () => {
     expect(evidence.checkin_pain_flag).toBe(true);
     expect(evidence.checkin_illness_flag).toBe(false);
 
-    // Impact deltas: tired(-8,+8) + rpe>=8(+8 fatigue) + pain(-15,+12)
-    expect(evidence.checkin_readiness_delta).toBe(-23);
-    expect(evidence.checkin_fatigue_delta).toBe(28);
+    // Raw deltas: tired(-8,+8) + rpe>=8(+8 fatigue) + pain(-15,+12) = -23/+28,
+    // capped to the subjective influence limits (-15 readiness, +15 fatigue).
+    expect(evidence.checkin_readiness_delta).toBe(-15);
+    expect(evidence.checkin_fatigue_delta).toBe(15);
     expect(evidence.checkin_impact_note).toBe(
-      "Check-in impact: fatigue +28, readiness -23.",
+      "Check-in impact: fatigue +15, readiness -15." +
+        " Subjective influence capped — objective data sets the baseline.",
     );
   });
 

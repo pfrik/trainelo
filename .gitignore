@@ -42,8 +42,9 @@ scripts/**/.env.*
 __pycache__/
 *.pyc
 
-# Garmin OAuth tokens
+# Garmin OAuth tokens (never commit — live credentials)
 scripts/garmin-sync/.garmin_tokens/
+*tokens*.txt
 
 # Supabase Studio snippets
 supabase/snippets/

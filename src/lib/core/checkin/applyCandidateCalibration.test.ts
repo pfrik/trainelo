@@ -60,6 +60,17 @@ function makeCalibration(overrides: Partial<CalibrationResult> = {}): Calibratio
     warnings: [],
     checkin_readiness_delta: 5,
     checkin_fatigue_delta: -5,
+    signal_contribution: {
+      objective_score: null,
+      objective_fatigue: null,
+      subjective_delta: 5,
+      subjective_delta_raw: 5,
+      subjective_fatigue_delta: -5,
+      subjective_fatigue_delta_raw: -5,
+      final_score: null,
+      final_fatigue: null,
+      conflict_flag: false,
+    },
     ...overrides,
   };
 }
