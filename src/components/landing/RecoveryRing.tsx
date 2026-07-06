@@ -12,12 +12,13 @@ interface RecoveryRingProps {
 }
 
 export function RecoveryRing({ score, size = 128 }: RecoveryRingProps) {
+  const safeScore = Math.max(0, Math.min(100, Math.round(score)));
   const stroke = size >= 120 ? 10 : 8;
   const radius = size / 2 - stroke;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - score / 100);
+  const offset = circumference * (1 - safeScore / 100);
   const color =
-    score >= 70 ? "text-primary" : score >= 40 ? "text-amber-400" : "text-red-400";
+    safeScore >= 70 ? "text-primary" : safeScore >= 40 ? "text-amber-400" : "text-red-400";
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -45,7 +46,7 @@ export function RecoveryRing({ score, size = 128 }: RecoveryRingProps) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-black text-white leading-none">{score}%</span>
+        <span className="text-2xl font-black text-white leading-none tabular-nums">{safeScore}%</span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">
           Ready
         </span>

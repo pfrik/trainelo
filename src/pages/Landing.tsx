@@ -6,16 +6,72 @@
  * always matches the shipped product.
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { EvidencePanel } from "@/components/dashboard/EvidencePanel";
 import { RecoveryRing } from "@/components/landing/RecoveryRing";
+import { EngineDemo } from "@/components/landing/EngineDemo";
+import { useInView } from "@/hooks/useInView";
+import { useCountUp } from "@/hooks/useCountUp";
 import {
   DEMO_EVIDENCE,
   DEMO_HRV_WEEK,
   DEMO_HRV_BASELINE,
   DEMO_RECOMMENDATION,
 } from "@/lib/landing/demoData";
+
+/** Fade-up reveal once scrolled into view; instant with reduced motion. */
+function Reveal({
+  children,
+  delay = 0,
+  className = "",
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  const { ref, inView } = useInView<HTMLDivElement>();
+  return (
+    <div
+      ref={ref}
+      style={{ transitionDelay: `${delay}ms` }}
+      className={`transition-all duration-700 ease-out motion-reduce:transition-none ${
+        inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Slowly drifting HRV-style waveform behind the hero. Purely decorative. */
+function HeroWave() {
+  const segment =
+    "M0 80 L90 80 L114 66 L138 90 L162 80 L300 80 L324 96 L348 40 L372 104 L396 80 L560 80 L584 70 L608 88 L632 80 L720 80";
+  return (
+    <div
+      className="absolute inset-x-0 top-36 h-40 overflow-hidden pointer-events-none"
+      aria-hidden
+    >
+      <svg
+        className="h-full w-[200%] motion-safe:animate-drift"
+        viewBox="0 0 1440 160"
+        preserveAspectRatio="none"
+        fill="none"
+      >
+        <path d={segment} stroke="#1e293b" strokeWidth="1.5" />
+        <path d={segment} transform="translate(720 0)" stroke="#1e293b" strokeWidth="1.5" />
+        <path d={segment} transform="translate(1440 0)" stroke="#1e293b" strokeWidth="1.5" />
+      </svg>
+    </div>
+  );
+}
+
+/** Hero ring that draws itself and counts up on load. */
+function HeroRing() {
+  const value = useCountUp(64);
+  return <RecoveryRing score={value} size={88} />;
+}
 
 // ---------------------------------------------------------------------------
 // Small pieces
@@ -144,7 +200,7 @@ function HeroProductCard() {
 
       {/* Floating recovery ring chip — overlaps the card's empty top-right corner */}
       <div className="absolute -right-3 -top-12 sm:-right-8 bg-dark-surface rounded-2xl border border-slate-700/60 shadow-xl p-3">
-        <RecoveryRing score={64} size={88} />
+        <HeroRing />
       </div>
     </div>
   );
@@ -223,13 +279,14 @@ export default function Landing() {
       </nav>
 
       {/* Hero */}
-      <header className="max-w-6xl mx-auto px-6 pt-10 pb-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <div>
+      <header className="relative max-w-6xl mx-auto px-6 pt-10 pb-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        <HeroWave />
+        <div className="relative">
           <span className="inline-flex items-center gap-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
             Deterministic, evidence-based training
           </span>
-          <h1 className="font-headline text-4xl sm:text-5xl font-bold tracking-tight text-white leading-[1.1] mb-6">
+          <h1 className="font-headline text-5xl sm:text-6xl font-bold tracking-tight text-white leading-[1.05] mb-6">
             The right workout for today.
             <br />
             <span className="text-primary">Backed by evidence.</span>
@@ -241,10 +298,10 @@ export default function Landing() {
           </p>
           <div className="flex flex-wrap items-center gap-3 mb-8">
             <a
-              href="#how-it-works"
+              href="#try-it"
               className="px-6 py-3 rounded-lg font-semibold bg-primary hover:bg-primary-hover text-slate-900 transition-colors"
             >
-              See how it works
+              Try the engine
             </a>
             <Link
               to="/auth"
@@ -263,41 +320,70 @@ export default function Landing() {
         </div>
       </header>
 
+      {/* Interactive engine demo */}
+      <section id="try-it" className="border-y border-slate-800/80 bg-slate-900/40 scroll-mt-8">
+        <div className="max-w-6xl mx-auto px-6 py-20">
+          <Reveal>
+            <h2 className="font-headline text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">
+              Tell it how you feel.
+              <br />
+              <span className="text-primary">Watch it think.</span>
+            </h2>
+            <p className="text-slate-400 max-w-2xl mb-10">
+              No account, no mock-up — this demo runs Trainelo's production
+              calibration engine in your browser. Move the check-in and watch
+              today's session recalibrate.
+            </p>
+          </Reveal>
+          <Reveal delay={120}>
+            <EngineDemo />
+          </Reveal>
+        </div>
+      </section>
+
       {/* The morning loop */}
       <section id="how-it-works" className="max-w-6xl mx-auto px-6 py-20 scroll-mt-8">
-        <h2 className="font-headline text-3xl font-bold text-white tracking-tight mb-3">
-          One calm decision, every morning
-        </h2>
-        <p className="text-slate-400 max-w-2xl mb-10">
-          No feeds, no streaks, no noise. Trainelo exists to answer a single
-          question well: <span className="text-slate-200">what should I do today?</span>
-        </p>
+        <Reveal>
+          <h2 className="font-headline text-3xl font-bold text-white tracking-tight mb-3">
+            One calm decision, every morning
+          </h2>
+          <p className="text-slate-400 max-w-2xl mb-10">
+            No feeds, no streaks, no noise. Trainelo exists to answer a single
+            question well: <span className="text-slate-200">what should I do today?</span>
+          </p>
+        </Reveal>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <StepCard
-            step="01"
-            icon="bedtime"
-            title="While you sleep"
-            body="Your watch records HRV, sleep and resting heart rate. It syncs server-side — the data is waiting before you're awake."
-          />
-          <StepCard
-            step="02"
-            icon="edit_note"
-            title="When you wake"
-            body="A 60-second check-in: mood, soreness, yesterday's effort. Your body gets a vote the sensors can't cast."
-          />
-          <StepCard
-            step="03"
-            icon="task_alt"
-            title="Before you train"
-            body="A deterministic engine blends both into one calibrated session — never changing more than the evidence supports."
-          />
+          <Reveal delay={0}>
+            <StepCard
+              step="01"
+              icon="bedtime"
+              title="While you sleep"
+              body="Your watch records HRV, sleep and resting heart rate. It syncs server-side — the data is waiting before you're awake."
+            />
+          </Reveal>
+          <Reveal delay={120}>
+            <StepCard
+              step="02"
+              icon="edit_note"
+              title="When you wake"
+              body="A 60-second check-in: mood, soreness, yesterday's effort. Your body gets a vote the sensors can't cast."
+            />
+          </Reveal>
+          <Reveal delay={240}>
+            <StepCard
+              step="03"
+              icon="task_alt"
+              title="Before you train"
+              body="A deterministic engine blends both into one calibrated session — never changing more than the evidence supports."
+            />
+          </Reveal>
         </div>
       </section>
 
       {/* Show the why */}
       <section className="border-y border-slate-800/80 bg-slate-900/40">
         <div className="max-w-6xl mx-auto px-6 py-20 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-          <div>
+          <Reveal>
             <h2 className="font-headline text-3xl font-bold text-white tracking-tight mb-4">
               Every recommendation
               <br />
@@ -327,14 +413,16 @@ export default function Landing() {
                 </li>
               ))}
             </ul>
-          </div>
-          <EvidenceShowcase />
+          </Reveal>
+          <Reveal delay={120}>
+            <EvidenceShowcase />
+          </Reveal>
         </div>
       </section>
 
       {/* Calm under caution */}
       <section className="max-w-6xl mx-auto px-6 py-20 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-        <div className="order-2 lg:order-1">
+        <Reveal delay={120} className="order-2 lg:order-1">
           <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 flex items-start gap-3 max-w-md">
             <span
               className="material-symbols-outlined text-orange-400 text-xl mt-0.5"
@@ -367,8 +455,8 @@ export default function Landing() {
               </span>
             </div>
           </div>
-        </div>
-        <div className="order-1 lg:order-2">
+        </Reveal>
+        <Reveal className="order-1 lg:order-2">
           <h2 className="font-headline text-3xl font-bold text-white tracking-tight mb-4">
             Calm under caution
           </h2>
@@ -380,12 +468,12 @@ export default function Landing() {
               keep the plan unless strong evidence says otherwise.
             </span>
           </p>
-        </div>
+        </Reveal>
       </section>
 
       {/* Under the hood */}
       <section className="border-t border-slate-800/80">
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <Reveal className="max-w-6xl mx-auto px-6 py-16">
           <h2 className="font-headline text-xl font-bold text-white tracking-tight mb-8">
             Under the hood
           </h2>
@@ -405,7 +493,7 @@ export default function Landing() {
           <p className="text-sm text-slate-500">
             Designed and built end-to-end by one engineer — from data pipeline to pixels.
           </p>
-        </div>
+        </Reveal>
       </section>
 
       {/* Footer */}
