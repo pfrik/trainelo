@@ -1,9 +1,8 @@
 /**
  * Transform an intervals.icu activity into a canonical workouts row.
  *
- * Uses the same canonical activity_type vocabulary as the Garmin scraper
- * (scripts/garmin-sync/transformers/activities.py) so downstream sport
- * normalization and compliance matching behave identically.
+ * Uses the canonical activity_type vocabulary shared across the pipeline so
+ * downstream sport normalization and compliance matching behave identically.
  */
 
 import type { IntervalsActivity } from "./types.js";

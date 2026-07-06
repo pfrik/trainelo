@@ -1,19 +1,19 @@
 # Trainelo
 
-Deterministic daily training recommendation engine powered by Garmin wearable data. Ingests HRV, sleep, training load, and recovery signals to produce personalized workout recommendations with full confidence scoring and audit trail.
+Deterministic daily training recommendation engine powered by wearable data. Ingests HRV, sleep, training load, and recovery signals to produce personalized workout recommendations with full confidence scoring and audit trail.
 
 ## Architecture
 
 - **Frontend**: React + Vite + Tailwind CSS + shadcn/ui
 - **Backend**: Vercel serverless functions (TypeScript)
 - **Database**: Supabase (PostgreSQL + RLS)
-- **Data sync**: Garmin Connect via GitHub Actions (every 6 hours)
-- **Cron**: Daily recommendation generation (5:00 UTC), Garmin sync trigger (4:00 UTC)
+- **Data sync**: intervals.icu (official Garmin/Polar/etc. server-side integration) via Vercel cron
+- **Cron**: intervals.icu sync (4:00 UTC), daily recommendation generation (5:00 UTC)
 
 ## Core Pipeline
 
 ```
-Garmin Sync → DB Ingestion → Readiness/Fatigue Scoring → Anomaly Detection
+intervals.icu Sync → DB Ingestion → Readiness/Fatigue Scoring → Anomaly Detection
 → Candidate Generation → Session Calibration → Anomaly Enforcement
 → Workout Template Resolution → API Response
 ```
@@ -39,15 +39,22 @@ npm run test        # Run all tests
 npm run test:watch  # Watch mode
 ```
 
-## Garmin Sync
+## Data Sync (intervals.icu)
 
-Tokens are managed automatically — each successful sync refreshes the `GARMIN_TOKENS_BASE64` GitHub secret. Manual token refresh if needed:
+Wellness (HRV, sleep, resting HR, steps) and activities flow server-side:
+Garmin watch → Garmin Connect → intervals.icu → `/api/cron/intervals-sync`
+→ Supabase canonical tables. Requires `INTERVALS_ICU_ATHLETE_ID`,
+`INTERVALS_ICU_API_KEY`, and `TRAINELO_USER_ID` env vars.
+
+Manual sync / backfill:
 
 ```sh
-cd scripts/garmin-sync
-python sync.py --days 1
-python export_tokens.py
+npx tsx scripts/intervals-backfill.ts --days 7            # last week
+npx tsx scripts/intervals-backfill.ts --days 30 --dry-run # preview
 ```
+
+The legacy local Garmin scraper (unofficial API + Windows Task Scheduler) has
+been retired and removed; intervals.icu is now the sole data source.
 
 ## Deployment
 

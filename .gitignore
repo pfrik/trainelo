@@ -42,8 +42,7 @@ scripts/**/.env.*
 __pycache__/
 *.pyc
 
-# Garmin OAuth tokens (never commit — live credentials)
-scripts/garmin-sync/.garmin_tokens/
+# OAuth token files (never commit — live credentials)
 *tokens*.txt
 
 # Supabase Studio snippets
@@ -57,16 +56,11 @@ NUL
 **/NUL
 
 
-# Local Garmin sync env
-scripts/garmin-sync/.env
-
-
-# Python cache
-__pycache__/
-*.pyc
-
 
 # Claude local settings
 .claude/settings.local.json
 
 UI/
+
+# Personal account files (never commit)
+Vercel/

@@ -6,9 +6,8 @@
  *   npx tsx scripts/intervals-backfill.ts --days 30       # last 30 days
  *   npx tsx scripts/intervals-backfill.ts --days 5 --dry-run
  *
- * Reads SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / INTERVALS_ICU_* from
- * .env.local and TRAINELO_USER_ID from scripts/garmin-sync/.env (falls back
- * to .env.local if set there).
+ * Reads SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / INTERVALS_ICU_* /
+ * TRAINELO_USER_ID from .env.local.
  */
 
 import { config } from "dotenv";
@@ -16,7 +15,6 @@ import { createClient } from "@supabase/supabase-js";
 import { runIntervalsSync } from "../src/lib/sync/intervalsSync.js";
 
 config({ path: ".env.local" });
-config({ path: "scripts/garmin-sync/.env" });
 
 function getArg(flag: string): string | null {
   const index = process.argv.indexOf(flag);
