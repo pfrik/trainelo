@@ -1,48 +1,65 @@
-## Design Context
+# Trainelo
 
-### Users
-Athletes and fitness enthusiasts who use Garmin wearable devices and want data-driven, personalized training recommendations. They open Trainelo each morning to check in (mood, soreness, RPE) and receive an AI-calibrated workout for the day. They value knowing *why* a recommendation was made and trust the system to adapt when their body signals say so. The unique differentiator is the morning check-in loop: hardware data + subjective user input + AI reasoning = the right workout for today's goal.
+Deterministic daily training-recommendation engine: Garmin/intervals.icu wellness data + morning check-in + AI reasoning → today's calibrated workout, always with an evidence trail. Stack: Vite + React + TypeScript, Vercel serverless functions (`api/`), Supabase (Postgres + auth), intervals.icu sync, Anthropic SDK for optional explanation text.
 
-### Brand Personality
-**Precise, Calm, Trusted.** Trainelo is the quiet, confident coach who always has the data to back up the call. It speaks with clarity, never overwhelms, and earns trust through transparency. Every recommendation comes with an evidence trail — not because users demand proof, but because visible reasoning builds confidence over time.
+## Commands
 
-**Emotional goal:** When an athlete opens Trainelo in the morning, they should feel *calm and trust* — "My training is in good hands." No anxiety, no second-guessing, just a clear path forward.
+- `npm run dev:full` — local dev (Vite on 127.0.0.1:8080 + Express API server on :3001; Vite proxies `/api/*`). **Never use `vercel dev`** — a Windows MIME-type bug breaks Vite module loading (see CONTRIBUTING.md).
+- `npm run typecheck` — `tsc` over both `tsconfig.app.json` (frontend, non-strict) and `tsconfig.api.json` (api/, strict).
+- `npm run test` / `test:watch` — Vitest, default config (no vitest.config file).
+- `npm run lint` — ESLint.
+- Backfills: see `/backfill` skill (`scripts/intervals-backfill.ts`, `scripts/backfill-ewma.ts`).
 
-### Aesthetic Direction
-- **Visual tone:** Dark-first, data-rich but never cluttered. Clean cards with generous whitespace. Information density is high but visual noise is low.
-- **Color system:** Green (#22C55E) for primary actions and positive signals. Orange (#f97316) as accent for warmth and attention. Red for caution/safety states only. The palette should feel athletic but not aggressive.
-- **Typography:** Inter for clarity and readability at all sizes. Space Grotesk for brand moments (logo, hero headings). Tight tracking on headlines, comfortable line-height on body text.
-- **References:** Draws from the calm data visualization of Oura, the performance seriousness of Whoop, and the structured planning of TrainingPeaks — but with a warmer, more approachable personality than any of them.
-- **Anti-references:** Not gamified or social (not Strava). Not clinical or overwhelming (not a medical dashboard). Not flashy or trend-chasing.
-- **Theme:** Dark mode is the default and primary experience. Light mode is supported but secondary.
+## Architecture
 
-### Design Principles
+Authority order for docs: **CLAUDE.md → docs/**. `AGENTS.md` (cross-tool entry point) and `PROMPT.md` (protocol details) defer to this file.
 
-1. **Calm confidence over hype.** The interface should reassure, not excite. Muted transitions, steady rhythms, no gratuitous animation. Motion is purposeful — it guides attention, never distracts.
+- `api/**` — Vercel serverless functions, **integration only** (DB, vendor APIs, LLM calls). ⚠️ **Vercel Hobby plan caps deployments at 12 functions and we are at exactly 12.** Every non-test `.ts` file under `api/` becomes a function (`.vercelignore` excludes `api/**/*.test.ts`). Before adding one, use the `/new-endpoint` skill — it checks the cap.
+- `src/lib/core/**` — **pure business logic: no Supabase, no fetch, no React, no IO.** Deterministic and unit-tested. This boundary is strict.
+- `src/lib/db/` — server-side data access (service-role Supabase). `src/lib/api/resolveUser.ts` — canonical JWT→userId auth helper.
+- `src/lib/core/contracts/` — Zod schemas + types (`ReasonCode`, `SchemaVersion`, `CautionLevel`). **Reason codes are DB constants: append-only, never rename.** Frontend validates API responses against these schemas.
+- `src/lib/sync/intervalsSync.ts` — intervals.icu wellness ingest (raw JSON stored to blob via `src/lib/db/blobStore.ts` *before* parsing; tolerant parsing, never reject unknown fields).
 
-2. **Show the why.** Every recommendation, score, and signal should be traceable. Evidence panels, reason codes, and confidence percentages aren't optional — they're core UX. Transparency is the trust mechanism.
+Recommendation pipeline (all pure, under `src/lib/core/`), wired together by `api/recommendation/today.ts` and reused by `api/cron/daily-recommendations.ts`:
+scoring (`recommendations/computeReadinessAndFatigue.ts`) → anomaly detection (`safety/anomaly.ts` + escalation) → candidate generation (`recommendations/generateDailyRecommendation.ts`) → session calibration (`checkin/calibrator.ts`) → anomaly restrictions → templates (`templates/resolveTemplate.ts`) → evidence → optional LLM explanation (`recommendations/generateExplanation.ts`, non-fatal, enriches rationale only).
 
-3. **Least intervention.** Default to keeping the planned workout unless strong evidence says otherwise. The UI should reflect this philosophy: stable, predictable layouts that don't shift unexpectedly. Changes are deliberate and clearly communicated.
+## API handler conventions
 
-4. **Data-rich, visually quiet.** High information density with low cognitive load. Use hierarchy, spacing, and color coding to let users scan quickly. Cards group related data. Color signals (green/yellow/red) provide at-a-glance status without requiring deep reading.
+- Default-export `handler(req: VercelRequest, res: VercelResponse)` from `@vercel/node`; gate methods with `res.status(405)`.
+- **`.js` extensions on relative TS imports** (NodeNext ESM), e.g. `import { x } from "../../src/lib/db/queries.js"`.
+- Auth: `Bearer <supabase JWT>` → `resolveUserId()` from `src/lib/api/resolveUser.ts`. Cron endpoints instead use `Bearer <CRON_SECRET>`.
+- Treat env vars as dirty: read through `cleanEnvValue()` (values may carry quotes/control characters).
+- Logging: `createLogger(route, generateRequestId())` from `src/lib/core/observability/log.js`; log a completion line with `timing_ms`.
+- Non-fatal error pattern: downgrade non-critical failures (LLM, EWMA persist, anomaly persist) to `log.warn` and continue — the recommendation endpoint must always return deterministic candidates + evidence.
+- **Register every new handler in `scripts/dev/apiRoutes.ts`** or it 404s in local dev (prod is unaffected).
 
-5. **Mobile-first, morning-first.** The primary use case is a quick morning check-in on a phone. Every interaction should be optimized for that context: large touch targets, minimal scrolling to reach today's recommendation, fast load times.
+## Frontend conventions
 
-### Accessibility
-- Target WCAG AA compliance across all components
-- Ensure sufficient color contrast ratios (4.5:1 for normal text, 3:1 for large text)
-- Keyboard navigation support for all interactive elements
-- Focus indicators visible in both light and dark themes
-- Color is never the sole indicator of state — always pair with icons or text labels
-- Respect reduced-motion preferences via `prefers-reduced-motion`
+- Data hooks (`src/hooks/`) are hand-rolled `useState`/`useEffect`/`fetch` with the `Authorization` header from `useAuth()`. **react-query is provided in App.tsx but NOT used for data fetching** — don't model new hooks on it.
+- Validate API responses with the contract Zod schemas (`safeParse`).
+- Routing: react-router v6 in `src/App.tsx` with `ProtectedRoute`/`AuthRoute` wrappers.
+- shadcn/ui in `src/components/ui/` (49 components), `cn()` from `src/lib/utils.ts`, CVA for variants, Lucide icons, Recharts, Sonner toasts. Alias `@` → `src/`.
+- Browser Supabase client (`src/integrations/supabase/client.ts`) is intentionally untyped (`as any`, TODO to restore typed DB).
 
-### Component Conventions
-- **Component library:** shadcn/ui (49 components) with Radix UI primitives
-- **Class composition:** `cn()` utility (clsx + tailwind-merge) for all conditional styling
-- **Variants:** CVA (class-variance-authority) for button, input, and badge variants
-- **Icons:** Lucide React (primary) + Material Symbols Outlined (secondary)
-- **Charts:** Recharts with custom theme colors (orange, blue, teal, purple)
-- **Loading states:** Skeleton loaders with `animate-pulse`
-- **Notifications:** Sonner toast library
-- **Spacing rhythm:** 4px Tailwind scale — cards use p-3/p-4/p-6, panels use p-6/p-8
-- **Border radius:** 8px (lg), 6px (md), 4px (sm) via CSS custom property `--radius`
+## Testing
+
+- Vitest, colocated `*.test.ts` next to source. Core modules (`src/lib/core/**`) always get unit tests; API route tests only if trivial or requested.
+- Mock IO with `vi.mock()` for db modules and `@supabase/supabase-js`; fake Vercel req/res via hand-rolled `makeReq()`/`makeRes()`.
+- Write behavioral assertions ("fatigue decays faster than fitness"), not magic numbers. Required cases: cold start (empty DB), missing data, low confidence, persistence gating.
+
+## Naming traps & gotchas
+
+- `src/lib/core/recommendation/` (singular) = response builders; `src/lib/core/recommendations/` (plural) = the pipeline.
+- `src/lib/core/checkin/calibrator.ts` = per-session calibration from the morning check-in; `src/lib/core/calibration/` = passive personal-threshold detection (HR max, resting HR, HRV baseline). Two unrelated "calibration" concepts.
+- LLM never invents workouts: it selects candidates by ID; UI renders deterministic `template_ref` templates, never LLM text. LLM output: validate → repair once → fallback to template.
+- Strict TypeScript in api/ and core: no `any`, explicit return types on core functions.
+- Repo is Vite (PROMPT.md's Next.js mention is historical) — do not introduce Next.js folders.
+
+## Design Context (condensed — full version in `.impeccable.md`)
+
+- **Brand:** Precise, Calm, Trusted. The quiet coach with data to back every call. Morning emotional goal: calm and trust, never anxiety.
+- **Visual:** dark-first, data-rich but visually quiet; clean cards, generous whitespace. Green `#22C55E` = primary/positive, orange `#f97316` = accent, red = caution only.
+- **Type:** Inter (body/UI), Space Grotesk (brand moments).
+- **Principles:** calm confidence over hype (purposeful motion only); show the why (evidence panels, reason codes, confidence are core UX); least intervention (stable, predictable layouts); data-rich, visually quiet; mobile-first, morning-first (today's recommendation reachable with minimal scrolling).
+- **Accessibility:** WCAG AA; 4.5:1 contrast (3:1 large text); keyboard nav + visible focus in both themes; color never the sole state indicator; respect `prefers-reduced-motion`.
+- **Component conventions:** shadcn/ui + Radix, `cn()` composition, CVA variants, skeleton loaders with `animate-pulse`, 4px spacing rhythm (cards p-3/p-4/p-6), radius via `--radius` (8/6/4px).

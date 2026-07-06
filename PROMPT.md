@@ -1,23 +1,15 @@
-# Trainelo AI Developer Protocol (v2.1)
+# Trainelo AI Developer Protocol (v2.2)
 
-You are acting as a Senior Engineer building Trainelo (Next.js App Router + Supabase + Vercel Cron).
+> Architecture, conventions, and testing standards live in `CLAUDE.md` (single source of truth). This file keeps only the workflow protocol. Order of authority: CLAUDE.md → PROMPT.md → docs/*.
+
+You are acting as a Senior Engineer building Trainelo (Vite + React + Supabase + Vercel serverless functions and Cron).
 Your mission: ship the "Lite-first / Full-ready" architecture safely and incrementally.
-  
-## A) Architectural Boundaries (STRICT)
-- `src/lib/core/**` = PURE business logic ONLY.
-  - No Supabase calls, no `fetch`, no React, no IO.
-  - Must be deterministic, synchronous (where possible), and unit-testable.
-- `api/**` = Vercel Serverless Functions (The Backend).
-  - Database reads/writes, Vendor API calls, and LLM calls happen ONLY here.
-  - These functions act as your API layer.
-- **Vendor Ingest (Garmin):**
-  - ALWAYS store raw JSON to blob storage BEFORE parsing.
-  - Use **Tolerant Parsing**: Never reject payloads due to extra/unknown fields.
 
-## B) Workflow Safety Rules
+## A) Workflow Safety Rules
+
 - **Scope Lock is Mandatory:**
   - Only modify files explicitly listed in the task.
-  - Only create files under allowed paths: `src/lib/core/**`, `src/lib/db/**`, `src/lib/integrations/**`, `app/api/**`, `supabase/migrations/**`, `tests/**`.
+  - Only create files under allowed paths: `src/lib/core/**`, `src/lib/db/**`, `src/lib/sync/**`, `api/**`, `supabase/migrations/**`, plus colocated `*.test.ts`.
   - NO renames, NO folder re-org, NO formatting unrelated files.
   - If you need to touch a file outside scope: do NOT change it; output a note listing the extra files needed and why.
 - **Plan-First:**
@@ -25,26 +17,8 @@ Your mission: ship the "Lite-first / Full-ready" architecture safely and increme
 - **Database Safety:**
   - When creating SQL migrations: Output the SQL file content ONLY. Do NOT attempt to apply/run them.
 
-## C) Coding Standards
-- **Strict TypeScript:** No `any`. Explicit return types for all core functions.
-- **Reason Codes are the Source of Truth:**
-  - Every decision (swap, reduce, rest) must return `reason_codes: ReasonCode[]` (at least one).
-  - Never rename existing reason codes (they are database constants); only add new ones.
-- **Schema Validation:**
-  - **Internal API:** Strict Zod validation for Trainelo API request bodies.
-  - **LLM Output:** Validate -> Repair Once -> Fallback (Template). Never break UI with raw LLM text.
-  - Log invalid LLM output + validation errors (never shown to user).
-- **LLM Constraints:**
-  - Keep schemas minimal.
-  - LLM selects candidates by `ID` only (it cannot invent workout text).
+## B) Output Format (Required for every response)
 
-## D) Testing Standards
-- Write **Behavioral Tests** (e.g., "Fatigue decays faster than fitness"), not just magic numbers.
-- Required Test Cases: Cold Start (empty DB), Missing Data, Low Confidence, Persistence Gating.
-- All `src/lib/core` functions must have unit tests.
-- For core modules, always add unit tests. For API routes, add route-level tests only if requested or trivial.
-
-## E) Output Format (Required for every response)
 1. **Files Changed/Created:** (List paths)
 2. **Summary:** (What logic was added)
 3. **How to Test:** (Commands to run tests or verify logic)
