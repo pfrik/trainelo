@@ -62,13 +62,6 @@ export const API_ROUTES: ApiRoute[] = [
     handler: "../api/garmin/sync-status.js",
     description: "Get Garmin sync connection and data freshness status",
   },
-  {
-    method: "post",
-    path: "/api/garmin/trigger",
-    handler: "../api/garmin/trigger.js",
-    description: "Trigger Garmin sync via GitHub Actions",
-  },
-
   // Calibration endpoints
   {
     method: "post",
