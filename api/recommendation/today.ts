@@ -447,9 +447,9 @@ function buildEvidence(
     anomaly_caution_level: anomaly?.caution_level ?? null,
     anomaly_restrictions: anomaly?.restrictions.length ? anomaly.restrictions : null,
     anomaly_question_key: anomaly?.question_key ?? null,
-    anomaly_escalation_note: (anomaly as Record<string, unknown>)?.escalation_note as string | null ?? null,
-    anomaly_streak_days: (anomaly as Record<string, unknown>)?.streak_days as number | null ?? null,
-    anomaly_resolved_today: (anomaly as Record<string, unknown>)?.resolved_today as string[] | null ?? null,
+    anomaly_escalation_note: (anomaly as unknown as Record<string, unknown>)?.escalation_note as string | null ?? null,
+    anomaly_streak_days: (anomaly as unknown as Record<string, unknown>)?.streak_days as number | null ?? null,
+    anomaly_resolved_today: (anomaly as unknown as Record<string, unknown>)?.resolved_today as string[] | null ?? null,
     // Goal context
     goal_id: scheduledWorkout?.goal_id ?? null,
     goal_title: scheduledWorkout?.goal_title ?? null,

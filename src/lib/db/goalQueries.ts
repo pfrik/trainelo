@@ -17,6 +17,8 @@ export interface ScheduledWorkoutRow {
   week_number: number;
   target_date: string;
   planned_workout_id: string;
+  sport: string | null;
+  target_tss: number | null;
 }
 
 export interface GoalRow {
@@ -125,6 +127,8 @@ export async function getPlannedWorkoutForDate(
       training_phase,
       week_number,
       goal_id,
+      sport,
+      target_tss,
       goals!inner (
         id,
         title,
@@ -186,6 +190,8 @@ export async function getPlannedWorkoutForDate(
     week_number: Number(winner.week_number ?? 1),
     target_date: targetDate,
     planned_workout_id: String(winner.id ?? ""),
+    sport: winner.sport != null ? String(winner.sport) : null,
+    target_tss: winner.target_tss != null ? Number(winner.target_tss) : null,
   };
 }
 

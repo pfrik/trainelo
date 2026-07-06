@@ -887,7 +887,7 @@ export async function GET(request: Request): Promise<Response> {
       const yesterdayIso = yesterday.toISOString().slice(0, 10);
 
       // Group planned workouts by user for batch processing
-      const { data: planned } = await supabase
+      const { data: planned } = await client
         .from("planned_workouts")
         .select("id, user_id, goal_id, week_number, sport, template_ref, planned_duration_minutes, intensity_level, target_tss")
         .eq("planned_date", yesterdayIso)
@@ -1019,7 +1019,7 @@ export async function GET(request: Request): Promise<Response> {
         for (const goalId of goalIds) {
           const weekNums = [...new Set(planned.filter((pw) => pw.goal_id === goalId).map((pw) => pw.week_number).filter(Boolean))];
           for (const wn of weekNums) {
-            const { data: ww } = await supabase
+            const { data: ww } = await client
               .from("planned_workouts")
               .select("status, match_score")
               .eq("goal_id", goalId)
@@ -1029,7 +1029,7 @@ export async function GET(request: Request): Promise<Response> {
               const completed = ww.filter((w) => w.status === "completed").length;
               const partial = ww.filter((w) => w.status === "partial").length;
               const pct = Math.round(((completed + partial * 0.5) / ww.length) * 100);
-              await supabase.from("training_plan_weeks").update({ compliance_pct: pct }).eq("goal_id", goalId).eq("week_number", wn);
+              await client.from("training_plan_weeks").update({ compliance_pct: pct }).eq("goal_id", goalId).eq("week_number", wn);
             }
           }
         }
