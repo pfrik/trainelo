@@ -5,6 +5,8 @@ import { PmcChart } from '@/components/dashboard/PmcChart';
 import { useProfile } from '@/hooks/useProfile';
 import { useLocation } from '@/hooks/useLocation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSyncOnOpen } from '@/hooks/useSyncOnOpen';
+import { DataFreshness } from '@/components/dashboard/DataFreshness';
 import { MorningCheckinFlow, type CheckinPayload } from '@/components/checkin/MorningCheckinFlow';
 import { GarminSyncCard } from '@/components/garmin/GarminSyncCard';
 import type { ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
@@ -26,6 +28,10 @@ export default function Dashboard() {
     choiceError,
   } = useTodayRecommendation();
   const { session } = useAuth();
+  // Sync-on-open: pull today's wellness from intervals.icu if the morning
+  // cron ran before the watch synced; refetch the recommendation when new
+  // data arrives.
+  const { syncing: dataSyncing, freshness: dataFreshness } = useSyncOnOpen(recRefetch);
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [choiceState, setChoiceState] = useState<{
     status: "idle" | "submitted";
@@ -107,6 +113,9 @@ export default function Dashboard() {
                     <span>{locationCity}</span>
                   </>
                 )}
+              </div>
+              <div className="mt-1.5">
+                <DataFreshness syncing={dataSyncing} freshness={dataFreshness} />
               </div>
             </div>
             <div className="flex items-center space-x-4">

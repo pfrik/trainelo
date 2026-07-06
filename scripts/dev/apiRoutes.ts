@@ -62,6 +62,12 @@ export const API_ROUTES: ApiRoute[] = [
     handler: "../api/garmin/sync-status.js",
     description: "Get Garmin sync connection and data freshness status",
   },
+  {
+    method: "post",
+    path: "/api/sync/refresh",
+    handler: "../api/sync/refresh.js",
+    description: "Sync-on-open: pull today's wellness from intervals.icu if stale",
+  },
   // Calibration endpoints
   {
     method: "post",
