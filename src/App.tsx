@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Landing from "./pages/Landing";
+import Engineering from "./pages/Engineering";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
@@ -70,16 +71,17 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Hide the install prompt on the public landing page. */
+/** Hide the install prompt on the public marketing pages. */
 function InstallPromptGate() {
   const { pathname } = useLocation();
-  if (pathname === "/") return null;
+  if (pathname === "/" || pathname === "/engineering") return null;
   return <PWAInstallPrompt />;
 }
 
 const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<LandingRoute />} />
+    <Route path="/engineering" element={<Engineering />} />
     <Route
       path="/auth"
       element={

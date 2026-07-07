@@ -2,25 +2,25 @@
  * Public landing page — shown at "/" for logged-out visitors.
  *
  * Light, editorial canvas (warm white, slate ink, Trainelo green as the
- * accent) with the product shown as dark app windows — the app is
+ * accent) with the product shown as phone-framed dark screens — the app is
  * dark-first, so product visuals stay true while popping off the page.
- * Product visuals are real components (EvidencePanel, recovery ring,
- * the production calibration engine in EngineDemo) fed with demo data.
+ * Copy is deliberately plain-language; the technical story lives on
+ * /engineering. The engine demo runs the real calibration function.
  */
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { EvidencePanel } from "@/components/dashboard/EvidencePanel";
-import { RecoveryRing } from "@/components/landing/RecoveryRing";
 import { EngineDemo } from "@/components/landing/EngineDemo";
-import { useInView } from "@/hooks/useInView";
-import { useCountUp } from "@/hooks/useCountUp";
+import { AppWindow } from "@/components/landing/AppWindow";
 import {
-  DEMO_EVIDENCE,
-  DEMO_HRV_WEEK,
-  DEMO_HRV_BASELINE,
-  DEMO_RECOMMENDATION,
-} from "@/lib/landing/demoData";
+  PhoneFrame,
+  TodayPhoneScreen,
+  CheckinPhoneScreen,
+  EvidencePhoneScreen,
+  TrendsPhoneScreen,
+} from "@/components/landing/PhoneScreens";
+import { useInView } from "@/hooks/useInView";
+import { DEMO_HRV_WEEK, DEMO_HRV_BASELINE } from "@/lib/landing/demoData";
 
 // ---------------------------------------------------------------------------
 // Building blocks
@@ -73,16 +73,10 @@ function Eyebrow({ n, children }: { n: string; children: ReactNode }) {
   );
 }
 
-/** Hero ring that draws itself and counts up on load. */
-function HeroRing() {
-  const value = useCountUp(64);
-  return <RecoveryRing score={value} size={88} />;
-}
-
 /** Single-series sparkline: 7 nights of HRV with a dashed baseline. */
 function HrvSparkline() {
-  const w = 132;
-  const h = 40;
+  const w = 108;
+  const h = 34;
   const pad = 4;
   const min = Math.min(...DEMO_HRV_WEEK, DEMO_HRV_BASELINE) - 4;
   const max = Math.max(...DEMO_HRV_WEEK, DEMO_HRV_BASELINE) + 4;
@@ -115,85 +109,33 @@ function HrvSparkline() {
   );
 }
 
-/** The hero product visual: dark recommendation card + floating ring chip. */
-function HeroProductCard() {
+/** Hero visual: phone with the Today screen + floating live chips. */
+function HeroPhone() {
   return (
-    <div className="relative w-full max-w-md">
-      {/* Soft green glow lifting the dark card off the light canvas */}
+    <div className="relative inline-block">
+      {/* Soft green glow lifting the dark phone off the light canvas */}
       <div
-        className="absolute -inset-10 rounded-[3rem] bg-primary/15 blur-3xl"
+        className="absolute -inset-10 rounded-[4rem] bg-primary/15 blur-3xl"
         aria-hidden
       />
+      <PhoneFrame className="relative">
+        <TodayPhoneScreen />
+      </PhoneFrame>
 
-      {/* Recommendation card — the real product, dark */}
-      <div className="relative w-full bg-dark-surface rounded-2xl border border-slate-700/60 shadow-2xl p-6 text-left">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="bg-primary text-slate-900 text-xs font-black px-2.5 py-1 rounded uppercase tracking-wide">
-            Today's Focus
-          </span>
-          <span className="bg-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-bold px-2 py-0.5 rounded uppercase">
-            {DEMO_RECOMMENDATION.badge}
-          </span>
-        </div>
-
-        <h3 className="text-xl font-bold text-white mb-2">{DEMO_RECOMMENDATION.title}</h3>
-        <p className="text-sm text-slate-300 leading-relaxed mb-4">
-          {DEMO_RECOMMENDATION.rationale}
-        </p>
-
-        <div className="flex flex-wrap gap-1.5 mb-5">
-          {DEMO_RECOMMENDATION.reasons.map((reason) => (
-            <span
-              key={reason}
-              className="bg-slate-700/50 text-slate-400 text-xs px-2 py-0.5 rounded"
-            >
-              {reason}
-            </span>
-          ))}
-        </div>
-
-        <div className="space-y-2 mb-4">
-          {DEMO_RECOMMENDATION.segments.map((seg) => (
-            <div
-              key={seg.label}
-              className="flex items-center justify-between bg-slate-800/60 rounded-lg px-3 py-2"
-            >
-              <span className="text-sm font-semibold text-slate-200">{seg.label}</span>
-              <span className="text-xs text-slate-400">{seg.detail}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between border-t border-slate-700/50 pt-3 mb-4">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              HRV · 7 nights
-            </div>
-            <div className="text-xs text-slate-400">
-              49 ms <span className="text-slate-500">· baseline 51</span>
-            </div>
-          </div>
-          <HrvSparkline />
-        </div>
-
-        <Link
-          to="/auth"
-          className="flex items-center justify-center gap-2 w-full px-5 py-2.5 rounded-lg font-semibold bg-primary hover:bg-primary-hover text-slate-900 transition-colors"
-        >
-          <span
-            className="material-symbols-outlined text-lg"
-            style={{ fontVariationSettings: '"FILL" 1' }}
-            aria-hidden
-          >
-            check_circle
-          </span>
-          Confirm session
-        </Link>
+      {/* Floating sync chip */}
+      <div className="absolute -right-8 top-14 sm:-right-20 bg-dark-surface rounded-xl border border-slate-700/60 shadow-xl px-3 py-2 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
+        <span className="text-[11px] font-semibold text-slate-300 whitespace-nowrap">
+          Synced while you slept
+        </span>
       </div>
 
-      {/* Floating recovery ring chip */}
-      <div className="absolute -right-3 -top-12 sm:-right-10 bg-dark-surface rounded-2xl border border-slate-700/60 shadow-xl p-3">
-        <HeroRing />
+      {/* Floating HRV chip */}
+      <div className="absolute -left-6 bottom-16 sm:-left-20 bg-dark-surface rounded-xl border border-slate-700/60 shadow-xl px-3 py-2.5">
+        <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500 mb-1">
+          HRV · 7 nights
+        </div>
+        <HrvSparkline />
       </div>
     </div>
   );
@@ -227,47 +169,58 @@ function StepCard({ step, icon, title, body }: StepCardProps) {
   );
 }
 
-/** Dark app-window frame for real product components on the light canvas. */
-function AppWindow({ title, children }: { title: string; children: ReactNode }) {
+/** Phone screen + caption for the app showcase. */
+function ScreenCard({
+  title,
+  body,
+  delay,
+  children,
+}: {
+  title: string;
+  body: string;
+  delay: number;
+  children: ReactNode;
+}) {
   return (
-    <div className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-2xl overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800 bg-dark-surface/60">
-        <span className="flex gap-1.5" aria-hidden>
-          <span className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-          <span className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-          <span className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-        </span>
-        <span className="text-xs text-slate-500 font-medium mx-auto pr-8">{title}</span>
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
+    <Reveal delay={delay} className="flex flex-col items-center">
+      <PhoneFrame className="mb-6">
+        {/* Equal screen heights so the three captions align */}
+        <div className="min-h-[372px]">{children}</div>
+      </PhoneFrame>
+      <h3 className="text-lg font-bold text-slate-900 mb-1.5 text-center">{title}</h3>
+      <p className="text-sm text-slate-600 leading-relaxed text-center max-w-[260px]">
+        {body}
+      </p>
+    </Reveal>
   );
 }
 
-/** The real EvidencePanel, expanded, inside an app window. */
-function EvidenceShowcase() {
-  const [expanded, setExpanded] = useState(true);
-  const morning = new Date();
-  morning.setHours(7, 4, 0, 0);
-  const sync = new Date();
-  sync.setHours(6, 51, 0, 0);
-
+/** Roadmap card with a status pill. */
+function RoadmapCard({
+  title,
+  body,
+  status,
+}: {
+  title: string;
+  body: string;
+  status: "In development" | "Planned";
+}) {
   return (
-    <AppWindow title="Trainelo — Today's evidence">
-      <div className="flex items-center gap-2">
-        <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded uppercase">
-          Prescribed
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+        <span
+          className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+            status === "In development"
+              ? "bg-primary/10 border-green-600/40 text-green-700"
+              : "bg-slate-50 border-slate-200 text-slate-500"
+          }`}
+        >
+          {status}
         </span>
-        <span className="text-sm font-bold text-white">{DEMO_RECOMMENDATION.title}</span>
       </div>
-      <EvidencePanel
-        evidence={DEMO_EVIDENCE}
-        generatedAt={morning.toISOString()}
-        lastGarminSync={sync.toISOString()}
-        expanded={expanded}
-        onToggle={() => setExpanded(!expanded)}
-      />
-    </AppWindow>
+      <p className="text-sm text-slate-600 leading-relaxed">{body}</p>
+    </div>
   );
 }
 
@@ -285,7 +238,7 @@ export default function Landing() {
       />
 
       {/* Floating pill nav */}
-      <nav className="sticky top-4 z-40 max-w-5xl mx-auto px-4">
+      <nav className="sticky top-4 z-40 max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between bg-white/80 backdrop-blur border border-slate-200 rounded-full pl-6 pr-2 py-2 shadow-sm">
           <Wordmark />
           <Link
@@ -297,54 +250,68 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* Hero — centered, editorial */}
-      <header className="relative max-w-5xl mx-auto px-6 pt-16 sm:pt-20 pb-16 text-center">
-        <span className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-1.5 rounded-full mb-8 shadow-sm">
-          <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
-          Deterministic, evidence-based training
-        </span>
-        <h1 className="font-headline text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05] mb-6 max-w-4xl mx-auto">
-          The right workout for today.
-          <br />
-          <span className="text-green-600">Backed by evidence.</span>
-        </h1>
-        <p className="text-lg sm:text-xl text-slate-600 leading-relaxed mb-9 max-w-2xl mx-auto">
-          Trainelo fuses overnight HRV, sleep and training load with a 60-second
-          morning check-in — and turns them into today's session, with the
-          reasoning attached.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
-          <a
-            href="#try-it"
-            className="px-7 py-3.5 rounded-full font-semibold bg-primary hover:bg-primary-hover text-slate-900 transition-colors shadow-sm"
-          >
-            Try the engine
-          </a>
-          <Link
-            to="/auth"
-            className="px-7 py-3.5 rounded-full font-semibold text-slate-700 bg-white border border-slate-200 hover:border-slate-400 transition-colors"
-          >
-            Sign in
-          </Link>
+      {/* Hero — split: words left, product right */}
+      <header className="relative max-w-6xl mx-auto px-6 pt-12 sm:pt-16 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-8 items-center">
+        <div className="text-center lg:text-left">
+          <span className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-1.5 rounded-full mb-7 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
+            Your morning training coach
+          </span>
+          <h1 className="font-headline text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05] mb-6">
+            The right workout for today.{" "}
+            <span className="text-green-600 block">Backed by evidence.</span>
+          </h1>
+          <p className="text-lg sm:text-xl text-slate-600 leading-relaxed mb-8 max-w-xl mx-auto lg:mx-0">
+            Trainelo reads your night — sleep, recovery, training load — asks
+            how you feel, and hands you one clear session. Push when you're
+            ready. Back off when you're not.
+          </p>
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-7">
+            <a
+              href="#try-it"
+              className="px-7 py-3.5 rounded-full font-semibold bg-primary hover:bg-primary-hover text-slate-900 transition-colors shadow-sm"
+            >
+              Try the live demo
+            </a>
+            <Link
+              to="/auth"
+              className="px-7 py-3.5 rounded-full font-semibold text-slate-700 bg-white border border-slate-200 hover:border-slate-400 transition-colors"
+            >
+              Sign in
+            </Link>
+          </div>
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
+            <span className="text-xs text-slate-500 mr-1">Works with</span>
+            {["Garmin", "Polar", "Suunto", "COROS"].map((brand) => (
+              <span
+                key={brand}
+                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full"
+              >
+                <span
+                  className="material-symbols-outlined text-sm text-green-700"
+                  aria-hidden
+                >
+                  watch
+                </span>
+                {brand}
+              </span>
+            ))}
+          </div>
         </div>
-        <p className="text-xs text-slate-500 mb-16">
-          Works with Garmin, Polar, Suunto &amp; Coros — synced server-side via intervals.icu
-        </p>
 
-        {/* Product visual, centered */}
-        <div className="flex justify-center">
-          <HeroProductCard />
+        <div className="flex justify-center lg:justify-end lg:pr-14">
+          <HeroPhone />
         </div>
       </header>
 
-      {/* Stat band */}
+      {/* Stat band — real numbers from real use */}
       <section className="border-y border-slate-200 bg-white">
         <div className="max-w-5xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
+            ["1,150+", "activities synced"],
+            ["2+ years", "of training history"],
             ["60 sec", "morning check-in"],
-            ["4 signals", "fused every morning"],
-            ["1 answer", "today's session"],
-            ["700+", "automated tests"],
+            ["1", "clear answer, every day"],
           ].map(([n, label]) => (
             <div key={label} className="text-center md:text-left">
               <div className="font-headline text-3xl font-bold text-slate-900">{n}</div>
@@ -357,13 +324,16 @@ export default function Landing() {
       {/* 01 — The morning loop */}
       <section id="how-it-works" className="max-w-5xl mx-auto px-6 py-24 scroll-mt-8">
         <Reveal>
-          <Eyebrow n="01">The morning loop</Eyebrow>
+          <Eyebrow n="01">How it works</Eyebrow>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
-            One calm decision, every morning
+            One clear answer, every morning
           </h2>
           <p className="text-slate-600 max-w-2xl mb-10">
-            No feeds, no streaks, no noise. Trainelo exists to answer a single
-            question well: <span className="text-slate-900 font-semibold">what should I do today?</span>
+            No feeds, no streaks, no noise. Trainelo answers a single question
+            well:{" "}
+            <span className="text-slate-900 font-semibold">
+              what should I do today?
+            </span>
           </p>
         </Reveal>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -372,7 +342,7 @@ export default function Landing() {
               step="01"
               icon="bedtime"
               title="While you sleep"
-              body="Your watch records HRV, sleep and resting heart rate. It syncs server-side — the data is waiting before you're awake."
+              body="Your watch tracks sleep, heart rate and recovery — and syncs on its own. Nothing to upload, nothing to remember."
             />
           </Reveal>
           <Reveal delay={120}>
@@ -380,7 +350,7 @@ export default function Landing() {
               step="02"
               icon="edit_note"
               title="When you wake"
-              body="A 60-second check-in: mood, soreness, yesterday's effort. Your body gets a vote the sensors can't cast."
+              body="Three quick questions: how you feel, how sore you are, how hard yesterday was. Your body gets a vote."
             />
           </Reveal>
           <Reveal delay={240}>
@@ -388,67 +358,67 @@ export default function Landing() {
               step="03"
               icon="task_alt"
               title="Before you train"
-              body="A deterministic engine blends both into one calibrated session — never changing more than the evidence supports."
+              body="Trainelo blends both into today's session — what to do, how hard, and for how long. Confirm and go."
             />
           </Reveal>
         </div>
       </section>
 
-      {/* 02 — Interactive engine demo */}
-      <section id="try-it" className="border-y border-slate-200 bg-white scroll-mt-8">
-        <div className="max-w-5xl mx-auto px-6 py-24">
+      {/* 02 — App screens showcase */}
+      <section className="border-y border-slate-200 bg-white">
+        <div className="max-w-6xl mx-auto px-6 py-24">
           <Reveal>
-            <Eyebrow n="02">Try it yourself</Eyebrow>
+            <Eyebrow n="02">The app</Eyebrow>
             <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
-              Tell it how you feel.{" "}
-              <span className="text-green-600">Watch it think.</span>
+              Your morning, in three screens
             </h2>
-            <p className="text-slate-600 max-w-2xl mb-10">
-              No account, no mock-up — this demo runs Trainelo's production
-              calibration engine in your browser. Move the check-in and watch
-              today's session recalibrate.
+            <p className="text-slate-600 max-w-2xl mb-14">
+              Everything happens before your first coffee — and nothing is
+              hidden behind a score you have to take on faith.
             </p>
           </Reveal>
-          <Reveal delay={120}>
-            <EngineDemo />
-          </Reveal>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-6">
+            <ScreenCard
+              title="Check in"
+              body="Five taps from bed. Mood, soreness, illness — done in about a minute."
+              delay={0}
+            >
+              <CheckinPhoneScreen />
+            </ScreenCard>
+            <ScreenCard
+              title="Get today's session"
+              body="One workout, sized to the morning you actually had. Confirm and go train."
+              delay={120}
+            >
+              <TodayPhoneScreen />
+            </ScreenCard>
+            <ScreenCard
+              title="See the why"
+              body="Every recommendation traces back to your own numbers. No black box."
+              delay={240}
+            >
+              <EvidencePhoneScreen />
+            </ScreenCard>
+          </div>
         </div>
       </section>
 
-      {/* 03 — Show the why */}
-      <section className="max-w-5xl mx-auto px-6 py-24 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+      {/* 03 — Interactive engine demo */}
+      <section id="try-it" className="max-w-5xl mx-auto px-6 py-24 scroll-mt-8">
         <Reveal>
-          <Eyebrow n="03">Transparency</Eyebrow>
-          <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-            Every recommendation shows its why
+          <Eyebrow n="03">Try it yourself</Eyebrow>
+          <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+            Tell it how you feel.{" "}
+            <span className="text-green-600">Watch it think.</span>
           </h2>
-          <p className="text-slate-600 leading-relaxed mb-6 max-w-lg">
-            No black box. Readiness traces back to each signal — what the
-            wearable said, what you said, and how much each was allowed to move
-            the plan. Confidence is scored, capped inputs are labeled, and when
-            signals disagree, Trainelo says so.
+          <p className="text-slate-600 max-w-2xl mb-10">
+            No account needed — this is the real Trainelo engine, running in
+            your browser. Change how the morning feels and watch today's
+            workout adapt.
           </p>
-          <ul className="space-y-3 text-sm text-slate-700">
-            {[
-              "Per-signal breakdown: sleep, HRV, recovery, training load",
-              "Subjective input is capped — wearable data sets the baseline",
-              "Session calibration with explicit intensity & duration changes",
-            ].map((item) => (
-              <li key={item} className="flex items-start gap-2.5">
-                <span
-                  className="material-symbols-outlined text-lg text-green-600 mt-[-1px]"
-                  style={{ fontVariationSettings: '"FILL" 1' }}
-                  aria-hidden
-                >
-                  check_circle
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
         </Reveal>
         <Reveal delay={120}>
-          <EvidenceShowcase />
+          <EngineDemo />
         </Reveal>
       </section>
 
@@ -492,42 +462,68 @@ export default function Landing() {
             </AppWindow>
           </Reveal>
           <Reveal className="order-1 lg:order-2">
-            <Eyebrow n="04">Safety</Eyebrow>
+            <Eyebrow n="04">Safety first</Eyebrow>
             <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-4">
               Calm under caution
             </h2>
             <p className="text-slate-600 leading-relaxed max-w-lg">
-              When HRV drops or load spikes, Trainelo doesn't shout. It caps
-              intensity, suggests rest when warranted, and names the exact signal
-              that tripped — following one principle:{" "}
+              When your body waves a flag — a rough night, too many hard days
+              in a row — Trainelo doesn't shout at you. It eases today's
+              session and tells you exactly why.{" "}
               <span className="text-slate-900 font-semibold">
-                keep the plan unless strong evidence says otherwise.
+                The plan holds unless real evidence says otherwise.
               </span>
             </p>
           </Reveal>
         </div>
       </section>
 
-      {/* Under the hood */}
-      <section className="max-w-5xl mx-auto px-6 py-20">
+      {/* 05 — What's next */}
+      <section className="max-w-6xl mx-auto px-6 py-24">
         <Reveal>
-          <h2 className="font-headline text-xl font-bold tracking-tight mb-8">
-            Under the hood
+          <Eyebrow n="05">What's next</Eyebrow>
+          <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+            Where Trainelo is heading
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {[
-              ["Deterministic engine", "same inputs, same answer — fully auditable"],
-              ["700+ automated tests", "the scoring core is pure and testable"],
-              ["Multi-signal fusion", "objective data capped against subjective input"],
-              ["TypeScript, end to end", "React · Supabase · Vercel"],
-            ].map(([title, sub]) => (
-              <div key={title} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                <div className="text-sm font-bold text-slate-900 mb-1">{title}</div>
-                <div className="text-xs text-slate-500 leading-relaxed">{sub}</div>
-              </div>
-            ))}
-          </div>
+          <p className="text-slate-600 max-w-2xl mb-14">
+            Trainelo is used — and built — every day. This is what's on the
+            bench right now.
+          </p>
         </Reveal>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+          <Reveal delay={120} className="flex flex-col items-center">
+            <div className="relative">
+              <PhoneFrame>
+                <TrendsPhoneScreen />
+              </PhoneFrame>
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary/10 border border-green-600/40 text-green-700 text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap backdrop-blur">
+                In development
+              </span>
+            </div>
+            <p className="text-sm text-slate-600 text-center max-w-[280px] mt-6">
+              <span className="font-bold text-slate-900">Fitness you can see.</span>{" "}
+              Fitness, fatigue and form charted over months — watch a training
+              block actually work.
+            </p>
+          </Reveal>
+          <Reveal className="space-y-5">
+            <RoadmapCard
+              title="Plans that aim at a goal"
+              body="Pick a race or a target. Trainelo lays out the weeks that get you there — and adjusts them as you go."
+              status="In development"
+            />
+            <RoadmapCard
+              title="Daily load targets"
+              body="Not just how ready you are — how much today's training should hold, in one number."
+              status="Planned"
+            />
+            <RoadmapCard
+              title="A plan that adapts to life"
+              body="Missed a week? Snuck in an unplanned ride? The plan reroutes itself instead of guilt-tripping you."
+              status="Planned"
+            />
+          </Reveal>
+        </div>
       </section>
 
       {/* Closing CTA band */}
@@ -542,7 +538,7 @@ export default function Landing() {
               Tomorrow morning, know exactly what to do.
             </h2>
             <p className="relative text-slate-400 mb-8 max-w-xl mx-auto">
-              Connect your watch once. Check in for 60 seconds. Train with the
+              Connect your watch once. Check in for a minute. Train with the
               evidence on your side.
             </p>
             <Link
@@ -551,17 +547,32 @@ export default function Landing() {
             >
               Get started
             </Link>
+            <p className="relative text-sm text-slate-500 mt-6">
+              Curious how it works under the hood?{" "}
+              <Link
+                to="/engineering"
+                className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"
+              >
+                Read the engineering story
+              </Link>
+            </p>
           </div>
         </Reveal>
       </section>
 
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <Wordmark />
-          <p className="text-xs text-slate-500">
-            Built by Pascal · © {new Date().getFullYear()} Trainelo
-          </p>
+          <div className="flex items-center gap-6 text-xs text-slate-500">
+            <Link to="/engineering" className="hover:text-slate-900 transition-colors">
+              Engineering
+            </Link>
+            <Link to="/auth" className="hover:text-slate-900 transition-colors">
+              Sign in
+            </Link>
+            <span>Built by Pascal · © {new Date().getFullYear()} Trainelo</span>
+          </div>
         </div>
       </footer>
     </div>

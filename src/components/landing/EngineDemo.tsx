@@ -130,8 +130,8 @@ export function EngineDemo() {
         </div>
 
         <p className="text-xs text-slate-500 mt-8 leading-relaxed">
-          The wearable baseline is fixed for this demo: readiness 72, fatigue 38 —
-          a decent night. Your check-in is the variable.
+          For this demo, the night is fixed — decent sleep, readiness 72.
+          You're the variable.
         </p>
       </div>
 
@@ -198,8 +198,8 @@ export function EngineDemo() {
         )}
 
         <p className="text-xs text-slate-500 mt-auto pt-6">
-          This is not a mock-up — you're running Trainelo's production calibration
-          engine, the same pure function the pipeline executes every morning.
+          Not a mock-up — this is the same engine that plans every Trainelo
+          morning.
         </p>
       </div>
     </div>

@@ -46,10 +46,18 @@ export function RecoveryRing({ score, size = 128 }: RecoveryRingProps) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-black text-white leading-none tabular-nums">{safeScore}%</span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">
-          Ready
+        <span
+          className={`${
+            size >= 100 ? "text-2xl" : size >= 80 ? "text-lg" : "text-sm"
+          } font-black text-white leading-none tabular-nums`}
+        >
+          {safeScore}%
         </span>
+        {size >= 80 && (
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">
+            Ready
+          </span>
+        )}
       </div>
     </div>
   );
