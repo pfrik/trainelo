@@ -1,10 +1,11 @@
 /**
  * Phone-framed product screens for the landing page.
  *
- * These are presentational React renders of Trainelo screens (dark theme,
- * real design tokens) inside a CSS phone bezel — bevel.health-style product
- * imagery without resorting to static screenshots. The trends screen is a
- * preview of the in-development fitness chart.
+ * DeviceFrame is a realistic phone mockup (fixed 9:19.5 screen, dynamic
+ * island, status bar, side buttons, home indicator) and each screen is a
+ * full-height presentational React render of a Trainelo screen in the
+ * app's dark theme — bevel.health-style product imagery without static
+ * screenshots. The trends screen previews the in-development fitness chart.
  */
 
 import { type ReactNode } from "react";
@@ -12,11 +13,98 @@ import { RecoveryRing } from "@/components/landing/RecoveryRing";
 import { DEMO_RECOMMENDATION } from "@/lib/landing/demoData";
 
 // ---------------------------------------------------------------------------
-// Frame
+// Device frame
 // ---------------------------------------------------------------------------
 
-/** CSS phone bezel with status bar; children render as the dark screen. */
-export function PhoneFrame({
+/** Realistic phone mockup; children fill the screen below the status bar. */
+export function DeviceFrame({
+  children,
+  className = "",
+  tilt = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Subtle 3D tilt for hero placement. */
+  tilt?: boolean;
+}) {
+  return (
+    <div
+      className={`relative w-[280px] ${className}`}
+      style={
+        tilt
+          ? { transform: "perspective(1400px) rotateY(-7deg) rotateX(1.5deg)" }
+          : undefined
+      }
+    >
+      {/* Body */}
+      <div className="relative rounded-[3rem] bg-slate-950 p-[10px] shadow-[0_60px_120px_-24px_rgba(2,6,23,0.55),0_24px_48px_-20px_rgba(2,6,23,0.4)]">
+        {/* Metallic edge highlight */}
+        <div
+          className="absolute inset-0 rounded-[3rem] ring-1 ring-inset ring-white/20 pointer-events-none"
+          aria-hidden
+        />
+        <div
+          className="absolute inset-[3px] rounded-[2.85rem] ring-1 ring-inset ring-black/60 pointer-events-none"
+          aria-hidden
+        />
+        {/* Side buttons */}
+        <div className="absolute -left-[2.5px] top-[104px] h-7 w-[3px] rounded-l-md bg-slate-800" aria-hidden />
+        <div className="absolute -left-[2.5px] top-[142px] h-11 w-[3px] rounded-l-md bg-slate-800" aria-hidden />
+        <div className="absolute -left-[2.5px] top-[194px] h-11 w-[3px] rounded-l-md bg-slate-800" aria-hidden />
+        <div className="absolute -right-[2.5px] top-[160px] h-16 w-[3px] rounded-r-md bg-slate-800" aria-hidden />
+
+        {/* Screen */}
+        <div className="relative aspect-[9/19.5] rounded-[2.4rem] bg-dark-base overflow-hidden flex flex-col">
+          {/* Dynamic island */}
+          <div
+            className="absolute left-1/2 top-[11px] -translate-x-1/2 w-[84px] h-[24px] rounded-full bg-black ring-1 ring-slate-900 z-10 flex items-center justify-end pr-2"
+            aria-hidden
+          >
+            <span className="w-[9px] h-[9px] rounded-full bg-slate-900 ring-1 ring-slate-800/80" />
+          </div>
+
+          {/* Status bar */}
+          <div className="flex items-center justify-between px-7 pt-[15px] pb-1 text-[11px] font-semibold text-slate-200">
+            <span className="tabular-nums">07:04</span>
+            <span className="flex items-center gap-1 text-slate-300" aria-hidden>
+              <span className="material-symbols-outlined text-[13px]">signal_cellular_alt</span>
+              <span className="material-symbols-outlined text-[13px]">wifi</span>
+              <span
+                className="material-symbols-outlined text-[15px] rotate-90"
+                style={{ fontVariationSettings: '"FILL" 1' }}
+              >
+                battery_5_bar
+              </span>
+            </span>
+          </div>
+
+          {/* App content */}
+          <div className="flex-1 flex flex-col px-4 pt-2 pb-1 min-h-0">{children}</div>
+
+          {/* Home indicator */}
+          <div className="flex justify-center pb-2 pt-1" aria-hidden>
+            <span className="w-28 h-1 rounded-full bg-slate-600/80" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared bits
+// ---------------------------------------------------------------------------
+
+function ScreenHeader({ kicker, title }: { kicker: string; title: string }) {
+  return (
+    <div className="mb-3">
+      <div className="text-[10px] text-slate-500 mb-0.5">{kicker}</div>
+      <div className="text-[17px] font-bold text-white leading-tight">{title}</div>
+    </div>
+  );
+}
+
+function Card({
   children,
   className = "",
 }: {
@@ -25,42 +113,25 @@ export function PhoneFrame({
 }) {
   return (
     <div
-      className={`w-[270px] rounded-[2.6rem] bg-slate-900 p-[9px] shadow-2xl ring-1 ring-slate-900/10 ${className}`}
+      className={`bg-dark-surface rounded-2xl border border-slate-700/50 ${className}`}
     >
-      <div className="relative rounded-[2rem] bg-dark-base overflow-hidden">
-        {/* Dynamic-island notch */}
-        <div
-          className="absolute top-2.5 left-1/2 -translate-x-1/2 w-20 h-5 rounded-full bg-slate-900 z-10"
-          aria-hidden
-        />
-        {/* Status bar */}
-        <div className="flex items-center justify-between px-6 pt-3 pb-1 text-[10px] font-semibold text-slate-400">
-          <span className="tabular-nums">07:04</span>
-          <span className="flex items-center gap-1" aria-hidden>
-            <span className="material-symbols-outlined text-[12px]">signal_cellular_alt</span>
-            <span className="material-symbols-outlined text-[12px]">wifi</span>
-            <span className="material-symbols-outlined text-[12px]">battery_full</span>
-          </span>
-        </div>
-        <div className="px-4 pb-5 pt-2">{children}</div>
-      </div>
+      {children}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Screens
+// Screens (each fills the full device height)
 // ---------------------------------------------------------------------------
 
-/** Today screen: greeting, readiness ring, the prescribed session. */
+/** Today screen: greeting, readiness, the prescribed session. */
 export function TodayPhoneScreen() {
   return (
-    <div>
-      <div className="text-[11px] text-slate-500 mb-0.5">Tuesday, Jul 7</div>
-      <div className="text-base font-bold text-white mb-4">Good morning 👋</div>
+    <div className="flex flex-col h-full">
+      <ScreenHeader kicker="Tuesday, Jul 7" title="Good morning 👋" />
 
-      <div className="flex items-center gap-4 bg-dark-surface rounded-2xl border border-slate-700/50 p-3.5 mb-3">
-        <RecoveryRing score={64} size={64} />
+      <Card className="flex items-center gap-3.5 p-3.5 mb-3">
+        <RecoveryRing score={64} size={62} />
         <div className="min-w-0">
           <span className="inline-block bg-orange-500/15 text-orange-400 border border-orange-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase mb-1">
             Modified
@@ -69,13 +140,13 @@ export function TodayPhoneScreen() {
             A little worn — today builds you up, not down.
           </div>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-dark-surface rounded-2xl border border-slate-700/50 p-3.5">
+      <Card className="p-3.5">
         <div className="text-[9px] font-black uppercase tracking-wide text-primary mb-1.5">
           Today's focus
         </div>
-        <div className="text-sm font-bold text-white mb-2.5">
+        <div className="text-[15px] font-bold text-white mb-2.5">
           {DEMO_RECOMMENDATION.title}
         </div>
         <div className="space-y-1.5 mb-3">
@@ -99,25 +170,41 @@ export function TodayPhoneScreen() {
           </span>
           Confirm session
         </div>
-      </div>
+      </Card>
+
+      <Card className="mt-auto flex items-center justify-between px-3.5 py-2.5">
+        <div className="min-w-0">
+          <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+            HRV overnight
+          </div>
+          <div className="text-[11px] text-slate-300 font-semibold whitespace-nowrap">
+            49 ms <span className="text-slate-500 font-normal">· bl. 51</span>
+          </div>
+        </div>
+        <span className="text-[11px] font-semibold text-primary flex items-center whitespace-nowrap">
+          See why
+          <span className="material-symbols-outlined text-sm" aria-hidden>
+            chevron_right
+          </span>
+        </span>
+      </Card>
     </div>
   );
 }
 
-/** Morning check-in screen: mood, soreness, illness — static render. */
+/** Morning check-in screen: mood, soreness, effort, illness. */
 export function CheckinPhoneScreen() {
   const moods = ["🥵", "😮‍💨", "😐", "🙂", "😤"];
   const selected = 3; // "good"
   return (
-    <div>
-      <div className="text-[11px] text-slate-500 mb-0.5">Morning check-in</div>
-      <div className="text-base font-bold text-white mb-4">How do you feel?</div>
+    <div className="flex flex-col h-full">
+      <ScreenHeader kicker="Morning check-in · 1 of 1" title="How do you feel?" />
 
-      <div className="flex justify-between gap-1.5 mb-5">
+      <div className="grid grid-cols-5 gap-1.5 mb-1.5">
         {moods.map((emoji, i) => (
           <span
             key={emoji}
-            className={`flex items-center justify-center w-10 h-10 rounded-xl text-lg border ${
+            className={`flex items-center justify-center h-11 rounded-xl text-lg border ${
               i === selected
                 ? "bg-primary/15 border-primary/60"
                 : "bg-dark-surface border-slate-700/50"
@@ -127,26 +214,51 @@ export function CheckinPhoneScreen() {
           </span>
         ))}
       </div>
+      <div className="text-center text-[10px] font-semibold text-primary mb-3">Good</div>
 
-      <div className="bg-dark-surface rounded-2xl border border-slate-700/50 p-3.5 mb-3">
+      <Card className="p-3.5 mb-2.5">
         <div className="flex items-center justify-between mb-2.5">
-          <span className="text-xs font-semibold text-slate-200">Muscle soreness</span>
-          <span className="text-xs font-bold text-white tabular-nums">3/10</span>
+          <span className="text-[11px] font-semibold text-slate-200">Muscle soreness</span>
+          <span className="text-[11px] font-bold text-white tabular-nums">3/10</span>
         </div>
         <div className="relative h-1.5 rounded-full bg-slate-700">
           <div className="absolute inset-y-0 left-0 w-[30%] rounded-full bg-primary" />
           <div className="absolute top-1/2 left-[30%] -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white shadow" />
         </div>
-      </div>
+        <div className="flex justify-between mt-1.5 text-[9px] text-slate-500">
+          <span>Fresh</span>
+          <span>Wrecked</span>
+        </div>
+      </Card>
 
-      <div className="flex items-center justify-between bg-dark-surface rounded-2xl border border-slate-700/50 p-3.5 mb-4">
-        <span className="text-xs font-semibold text-slate-200">Feeling ill?</span>
+      <Card className="p-3.5 mb-2.5">
+        <div className="text-[11px] font-semibold text-slate-200 mb-2">
+          Yesterday's effort
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {["Easy", "Moderate", "Hard"].map((label) => (
+            <span
+              key={label}
+              className={`text-center text-[10px] font-semibold py-1.5 rounded-lg border ${
+                label === "Moderate"
+                  ? "bg-primary/15 border-primary/60 text-primary"
+                  : "bg-slate-800/60 border-slate-700/50 text-slate-400"
+              }`}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="flex items-center justify-between px-3.5 py-2.5">
+        <span className="text-[11px] font-semibold text-slate-200">Feeling ill?</span>
         <span className="relative inline-block w-9 h-5 rounded-full bg-slate-700" aria-hidden>
           <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-slate-400" />
         </span>
-      </div>
+      </Card>
 
-      <div className="flex items-center justify-center w-full py-2.5 rounded-lg font-semibold bg-primary text-slate-900 text-xs">
+      <div className="mt-auto flex items-center justify-center w-full py-2.5 rounded-lg font-semibold bg-primary text-slate-900 text-xs">
         Done — that took 42 seconds
       </div>
     </div>
@@ -162,25 +274,23 @@ export function EvidencePhoneScreen() {
     { label: "Training load", value: "-6", pct: 40, tone: "low" },
   ];
   return (
-    <div>
-      <div className="text-[11px] text-slate-500 mb-0.5">Today's evidence</div>
-      <div className="text-base font-bold text-white mb-4">Why this session?</div>
+    <div className="flex flex-col h-full">
+      <ScreenHeader kicker="Today's evidence" title="Why this session?" />
 
-      <div className="bg-dark-surface rounded-2xl border border-slate-700/50 p-3.5 mb-3">
+      <Card className="p-3.5 mb-2.5">
         <div className="flex items-baseline justify-between mb-1">
-          <span className="text-xs text-slate-400">Readiness</span>
-          <span className="text-sm font-bold text-white tabular-nums">
+          <span className="text-[11px] text-slate-400">Readiness</span>
+          <span className="text-[12px] font-bold text-white tabular-nums">
             72 <span className="text-slate-500 font-normal">wearable</span>{" "}
-            <span className="text-orange-400">→ 64</span>{" "}
-            <span className="text-slate-500 font-normal">after check-in</span>
+            <span className="text-orange-400">→ 64</span>
           </span>
         </div>
-        <div className="text-[10px] text-slate-500">
+        <div className="text-[10px] text-slate-500 leading-snug">
           Your soreness moved the number — capped at what the data supports.
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-dark-surface rounded-2xl border border-slate-700/50 p-3.5 mb-3 space-y-2.5">
+      <Card className="p-3.5 mb-2.5 space-y-2.5">
         {signals.map((s) => (
           <div key={s.label}>
             <div className="flex items-center justify-between mb-1">
@@ -203,12 +313,26 @@ export function EvidencePhoneScreen() {
             </div>
           </div>
         ))}
-      </div>
+      </Card>
 
-      <div className="flex items-center justify-between bg-dark-surface rounded-2xl border border-slate-700/50 px-3.5 py-2.5">
+      <Card className="p-3.5 mb-2.5">
+        <div className="text-[11px] font-semibold text-slate-200 mb-1.5">
+          Session calibration
+        </div>
+        <div className="flex gap-1.5">
+          <span className="bg-orange-500/10 text-orange-400 text-[10px] font-semibold px-2 py-0.5 rounded">
+            Intensity 85%
+          </span>
+          <span className="bg-orange-500/10 text-orange-400 text-[10px] font-semibold px-2 py-0.5 rounded">
+            Duration 90%
+          </span>
+        </div>
+      </Card>
+
+      <Card className="mt-auto flex items-center justify-between px-3.5 py-2.5">
         <span className="text-[11px] text-slate-400">Confidence</span>
         <span className="text-[11px] font-bold text-primary tabular-nums">85%</span>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -221,9 +345,9 @@ export function TrendsPhoneScreen() {
   const fatigue = [40, 50, 45, 56, 48, 60, 52, 58, 64, 54, 62, 55, 46, 40, 36, 34];
 
   const w = 238;
-  const h = 118;
+  const h = 132;
   const padL = 6;
-  const plotR = 190; // leave room for direct labels on the right
+  const plotR = 194; // leave room for direct labels on the right
   const lo = 28;
   const hi = 70;
   const x = (i: number) => padL + (i * (plotR - padL)) / (fitness.length - 1);
@@ -231,22 +355,40 @@ export function TrendsPhoneScreen() {
   const line = (vals: number[]) => vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
 
   return (
-    <div>
-      <div className="text-[11px] text-slate-500 mb-0.5">Trends</div>
-      <div className="text-base font-bold text-white mb-3">Last 16 weeks</div>
+    <div className="flex flex-col h-full">
+      <ScreenHeader kicker="Trends" title="Your training block" />
 
-      {/* Legend */}
-      <div className="flex items-center gap-3 mb-2 text-[10px] font-semibold text-slate-400">
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-primary" aria-hidden /> Fitness
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-orange-400" aria-hidden /> Fatigue
-        </span>
+      <div className="flex gap-1.5 mb-3">
+        {["4 weeks", "16 weeks", "Year"].map((label) => (
+          <span
+            key={label}
+            className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border ${
+              label === "16 weeks"
+                ? "bg-primary/15 border-primary/60 text-primary"
+                : "bg-dark-surface border-slate-700/50 text-slate-400"
+            }`}
+          >
+            {label}
+          </span>
+        ))}
       </div>
 
-      <div className="bg-dark-surface rounded-2xl border border-slate-700/50 p-3 mb-3">
-        <svg width="100%" viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Fitness rising and fatigue falling over a 16-week block">
+      <Card className="p-3 mb-2.5">
+        {/* Legend */}
+        <div className="flex items-center gap-3 mb-2 text-[10px] font-semibold text-slate-400">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-primary" aria-hidden /> Fitness
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-orange-400" aria-hidden /> Fatigue
+          </span>
+        </div>
+        <svg
+          width="100%"
+          viewBox={`0 0 ${w} ${h}`}
+          role="img"
+          aria-label="Fitness rising and fatigue falling over a 16-week block"
+        >
           {[40, 50, 60].map((v) => (
             <line
               key={v}
@@ -283,11 +425,30 @@ export function TrendsPhoneScreen() {
             34
           </text>
         </svg>
-      </div>
+      </Card>
 
-      <div className="flex items-center justify-between bg-dark-surface rounded-2xl border border-slate-700/50 px-3.5 py-2.5">
+      <Card className="flex items-center justify-between px-3.5 py-2.5 mb-2.5">
         <span className="text-[11px] text-slate-400">Form today</span>
         <span className="text-[11px] font-bold text-primary">Fresh — ready to peak</span>
+      </Card>
+
+      <div className="mt-auto grid grid-cols-2 gap-2">
+        <Card className="px-3 py-2.5">
+          <div className="text-[9px] uppercase tracking-wide text-slate-500 mb-0.5">
+            Fitness
+          </div>
+          <div className="text-sm font-bold text-white tabular-nums">
+            60 <span className="text-[10px] font-semibold text-primary">+18</span>
+          </div>
+        </Card>
+        <Card className="px-3 py-2.5">
+          <div className="text-[9px] uppercase tracking-wide text-slate-500 mb-0.5">
+            Fatigue
+          </div>
+          <div className="text-sm font-bold text-white tabular-nums">
+            34 <span className="text-[10px] font-semibold text-slate-400">taper</span>
+          </div>
+        </Card>
       </div>
     </div>
   );

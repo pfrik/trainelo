@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import { EngineDemo } from "@/components/landing/EngineDemo";
 import { AppWindow } from "@/components/landing/AppWindow";
 import {
-  PhoneFrame,
+  DeviceFrame,
   TodayPhoneScreen,
   CheckinPhoneScreen,
   EvidencePhoneScreen,
@@ -62,21 +62,8 @@ function Wordmark({ light = false }: { light?: boolean }) {
   );
 }
 
-/** Small numbered eyebrow label above section headings. */
-function Eyebrow({ n, children }: { n: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-green-700 mb-4">
-      <span>{n}</span>
-      <span className="w-6 h-px bg-green-700/40" aria-hidden />
-      <span>{children}</span>
-    </div>
-  );
-}
-
 /** Single-series sparkline: 7 nights of HRV with a dashed baseline. */
-function HrvSparkline() {
-  const w = 108;
-  const h = 34;
+function HrvSparkline({ w = 108, h = 34 }: { w?: number; h?: number }) {
   const pad = 4;
   const min = Math.min(...DEMO_HRV_WEEK, DEMO_HRV_BASELINE) - 4;
   const max = Math.max(...DEMO_HRV_WEEK, DEMO_HRV_BASELINE) + 4;
@@ -109,7 +96,7 @@ function HrvSparkline() {
   );
 }
 
-/** Hero visual: phone with the Today screen + floating live chips. */
+/** Hero visual: tilted device with the Today screen + floating live chips. */
 function HeroPhone() {
   return (
     <div className="relative inline-block">
@@ -118,12 +105,12 @@ function HeroPhone() {
         className="absolute -inset-10 rounded-[4rem] bg-primary/15 blur-3xl"
         aria-hidden
       />
-      <PhoneFrame className="relative">
+      <DeviceFrame className="relative" tilt>
         <TodayPhoneScreen />
-      </PhoneFrame>
+      </DeviceFrame>
 
       {/* Floating sync chip */}
-      <div className="absolute -right-8 top-14 sm:-right-20 bg-dark-surface rounded-xl border border-slate-700/60 shadow-xl px-3 py-2 flex items-center gap-2">
+      <div className="absolute -right-8 top-24 sm:-right-20 bg-dark-surface rounded-xl border border-slate-700/60 shadow-xl px-3 py-2 flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
         <span className="text-[11px] font-semibold text-slate-300 whitespace-nowrap">
           Synced while you slept
@@ -131,7 +118,7 @@ function HeroPhone() {
       </div>
 
       {/* Floating HRV chip */}
-      <div className="absolute -left-6 bottom-16 sm:-left-20 bg-dark-surface rounded-xl border border-slate-700/60 shadow-xl px-3 py-2.5">
+      <div className="absolute -left-6 bottom-28 sm:-left-20 bg-dark-surface rounded-xl border border-slate-700/60 shadow-xl px-3 py-2.5">
         <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500 mb-1">
           HRV · 7 nights
         </div>
@@ -141,30 +128,122 @@ function HeroPhone() {
   );
 }
 
-interface StepCardProps {
-  step: string;
-  icon: string;
+/** One overnight signal: dark UI visual on top, benefit copy below. */
+function SignalBlock({
+  title,
+  body,
+  delay,
+  children,
+}: {
   title: string;
   body: string;
+  delay: number;
+  children: ReactNode;
+}) {
+  return (
+    <Reveal delay={delay} className="h-full">
+      <div className="flex flex-col h-full">
+        <div className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-xl p-5 mb-5 flex-1">
+          {children}
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-1.5">{title}</h3>
+        <p className="text-sm text-slate-600 leading-relaxed">{body}</p>
+      </div>
+    </Reveal>
+  );
 }
 
-function StepCard({ step, icon, title, body }: StepCardProps) {
+/** Sleep visual: score + stages bar, app-styled. */
+function SleepVisual() {
+  const stages = [
+    { label: "Deep", pct: 22, cls: "bg-primary" },
+    { label: "REM", pct: 21, cls: "bg-primary/50" },
+    { label: "Light", pct: 47, cls: "bg-slate-600" },
+    { label: "Awake", pct: 10, cls: "bg-slate-800" },
+  ];
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 h-full">
-      <div className="flex items-center justify-between mb-5">
-        <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10">
-          <span
-            className="material-symbols-outlined text-2xl text-green-700"
-            style={{ fontVariationSettings: '"FILL" 1' }}
-            aria-hidden
-          >
-            {icon}
-          </span>
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          Sleep
         </span>
-        <span className="font-headline text-sm font-bold text-slate-300">{step}</span>
+        <span className="text-[11px] text-slate-400">7 h 32 m</span>
       </div>
-      <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
-      <p className="text-sm text-slate-600 leading-relaxed">{body}</p>
+      <div className="text-3xl font-black text-white tabular-nums mb-4">
+        81<span className="text-base font-bold text-slate-500">/100</span>
+      </div>
+      <div className="flex h-2.5 rounded-full overflow-hidden gap-[2px] mb-2">
+        {stages.map((s) => (
+          <span key={s.label} className={`${s.cls} h-full`} style={{ width: `${s.pct}%` }} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1">
+        {stages.map((s) => (
+          <span key={s.label} className="flex items-center gap-1 text-[10px] text-slate-400">
+            <span className={`w-1.5 h-1.5 rounded-full ${s.cls}`} aria-hidden />
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** HRV visual: overnight rMSSD vs 28-day baseline. */
+function HrvVisual() {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          HRV · overnight
+        </span>
+        <span className="text-[11px] text-slate-400">7 nights</span>
+      </div>
+      <div className="text-3xl font-black text-white tabular-nums mb-4">
+        49<span className="text-base font-bold text-slate-500"> ms</span>
+      </div>
+      <HrvSparkline w={196} h={48} />
+      <div className="text-[10px] text-slate-400 mt-2">
+        2 ms under your 28-day baseline — worth a gentler day
+      </div>
+    </div>
+  );
+}
+
+/** Training-load visual: fitness vs fatigue bars. */
+function LoadVisual() {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          Training load
+        </span>
+        <span className="text-[11px] text-slate-400">42-day model</span>
+      </div>
+      <div className="space-y-3 mb-4">
+        {[
+          { label: "Fitness", value: 58, cls: "bg-primary" },
+          { label: "Fatigue", value: 42, cls: "bg-orange-400" },
+        ].map((row) => (
+          <div key={row.label}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-semibold text-slate-300">{row.label}</span>
+              <span className="text-[11px] font-bold text-slate-200 tabular-nums">
+                {row.value}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-slate-700/70">
+              <div
+                className={`h-full rounded-full ${row.cls}`}
+                style={{ width: `${row.value}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-slate-400">
+        Fresh enough to absorb quality work — 2 days since rest
+      </div>
     </div>
   );
 }
@@ -183,10 +262,7 @@ function ScreenCard({
 }) {
   return (
     <Reveal delay={delay} className="flex flex-col items-center">
-      <PhoneFrame className="mb-6">
-        {/* Equal screen heights so the three captions align */}
-        <div className="min-h-[372px]">{children}</div>
-      </PhoneFrame>
+      <DeviceFrame className="mb-7">{children}</DeviceFrame>
       <h3 className="text-lg font-bold text-slate-900 mb-1.5 text-center">{title}</h3>
       <p className="text-sm text-slate-600 leading-relaxed text-center max-w-[260px]">
         {body}
@@ -321,54 +397,78 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* 01 — The morning loop */}
-      <section id="how-it-works" className="max-w-5xl mx-auto px-6 py-24 scroll-mt-8">
+      {/* Overnight signals */}
+      <section id="how-it-works" className="max-w-6xl mx-auto px-6 py-24 scroll-mt-8">
         <Reveal>
-          <Eyebrow n="01">How it works</Eyebrow>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
-            One clear answer, every morning
+            Start the day knowing
           </h2>
-          <p className="text-slate-600 max-w-2xl mb-10">
-            No feeds, no streaks, no noise. Trainelo answers a single question
-            well:{" "}
-            <span className="text-slate-900 font-semibold">
-              what should I do today?
-            </span>
+          <p className="text-slate-600 max-w-2xl mb-12">
+            While you slept, your watch was taking notes. Trainelo scores the
+            three signals that decide what today should look like — then asks
+            you the one thing sensors can't measure:{" "}
+            <span className="text-slate-900 font-semibold">how you feel.</span>
           </p>
         </Reveal>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <Reveal delay={0}>
-            <StepCard
-              step="01"
-              icon="bedtime"
-              title="While you sleep"
-              body="Your watch tracks sleep, heart rate and recovery — and syncs on its own. Nothing to upload, nothing to remember."
-            />
-          </Reveal>
-          <Reveal delay={120}>
-            <StepCard
-              step="02"
-              icon="edit_note"
-              title="When you wake"
-              body="Three quick questions: how you feel, how sore you are, how hard yesterday was. Your body gets a vote."
-            />
-          </Reveal>
-          <Reveal delay={240}>
-            <StepCard
-              step="03"
-              icon="task_alt"
-              title="Before you train"
-              body="Trainelo blends both into today's session — what to do, how hard, and for how long. Confirm and go."
-            />
-          </Reveal>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 mb-14">
+          <SignalBlock
+            title="Sleep, scored"
+            body="Duration and quality, weighed against your own norm — not a population average."
+            delay={0}
+          >
+            <SleepVisual />
+          </SignalBlock>
+          <SignalBlock
+            title="Your nervous system gets a vote"
+            body="Overnight HRV against your 28-day baseline — the earliest signal that today should be easier."
+            delay={120}
+          >
+            <HrvVisual />
+          </SignalBlock>
+          <SignalBlock
+            title="The training you've already banked"
+            body="Fitness builds slowly, fatigue fades fast. Trainelo tracks both, so hard days land when you can absorb them."
+            delay={240}
+          >
+            <LoadVisual />
+          </SignalBlock>
         </div>
+        <Reveal>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-sm font-semibold text-slate-700">
+            {[
+              ["bedtime", "Synced while you sleep"],
+              ["edit_note", "60-second check-in"],
+              ["task_alt", "One calibrated session"],
+            ].map(([icon, label], i) => (
+              <span key={label} className="flex items-center gap-4">
+                {i > 0 && (
+                  <span
+                    className="material-symbols-outlined text-slate-300 rotate-90 sm:rotate-0"
+                    aria-hidden
+                  >
+                    arrow_forward
+                  </span>
+                )}
+                <span className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm">
+                  <span
+                    className="material-symbols-outlined text-lg text-green-700"
+                    style={{ fontVariationSettings: '"FILL" 1' }}
+                    aria-hidden
+                  >
+                    {icon}
+                  </span>
+                  {label}
+                </span>
+              </span>
+            ))}
+          </div>
+        </Reveal>
       </section>
 
-      {/* 02 — App screens showcase */}
+      {/* App screens showcase */}
       <section className="border-y border-slate-200 bg-white">
         <div className="max-w-6xl mx-auto px-6 py-24">
           <Reveal>
-            <Eyebrow n="02">The app</Eyebrow>
             <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
               Your morning, in three screens
             </h2>
@@ -403,10 +503,9 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* 03 — Interactive engine demo */}
+      {/* Interactive engine demo */}
       <section id="try-it" className="max-w-5xl mx-auto px-6 py-24 scroll-mt-8">
         <Reveal>
-          <Eyebrow n="03">Try it yourself</Eyebrow>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Tell it how you feel.{" "}
             <span className="text-green-600">Watch it think.</span>
@@ -462,7 +561,6 @@ export default function Landing() {
             </AppWindow>
           </Reveal>
           <Reveal className="order-1 lg:order-2">
-            <Eyebrow n="04">Safety first</Eyebrow>
             <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-4">
               Calm under caution
             </h2>
@@ -478,10 +576,9 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* 05 — What's next */}
+      {/* What's next */}
       <section className="max-w-6xl mx-auto px-6 py-24">
         <Reveal>
-          <Eyebrow n="05">What's next</Eyebrow>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Where Trainelo is heading
           </h2>
@@ -493,10 +590,10 @@ export default function Landing() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
           <Reveal delay={120} className="flex flex-col items-center">
             <div className="relative">
-              <PhoneFrame>
+              <DeviceFrame>
                 <TrendsPhoneScreen />
-              </PhoneFrame>
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary/10 border border-green-600/40 text-green-700 text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap backdrop-blur">
+              </DeviceFrame>
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-green-600/40 text-green-700 text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-sm">
                 In development
               </span>
             </div>
