@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTodayRecommendation } from '@/hooks/useTodayRecommendation';
 import { CalendarWidget } from '@/components/dashboard/CalendarWidget';
 import { PmcChart } from '@/components/dashboard/PmcChart';
@@ -8,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSyncOnOpen } from '@/hooks/useSyncOnOpen';
 import { DataFreshness } from '@/components/dashboard/DataFreshness';
 import { MorningCheckinFlow, type CheckinPayload } from '@/components/checkin/MorningCheckinFlow';
+import { MorningCheckin, type CheckinSubmitResult } from '@/components/checkin/MorningCheckin';
 import { GarminSyncCard } from '@/components/garmin/GarminSyncCard';
 import type { ReasonCode, EvidenceSummary } from '@/lib/core/contracts';
 import { AppSidebar } from '@/components/navigation/AppSidebar';
@@ -39,38 +41,51 @@ export default function Dashboard() {
     action?: "accept" | "reject";
   }>({ status: "idle" });
 
-  // Check-in submission handler — posts to /api/user-flags, then refetches recommendation
-  const handleCheckinSubmit = useCallback(async (payload: CheckinPayload) => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (session?.access_token) {
-      headers.Authorization = `Bearer ${session.access_token}`;
-    }
+  // Legacy check-in flow stays reachable for comparison at ?checkin=legacy
+  const [searchParams] = useSearchParams();
+  const useLegacyCheckin = searchParams.get("checkin") === "legacy";
 
-    const response = await fetch("/api/user-flags", {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
+  // Check-in submission handler — posts to /api/user-flags, returns the
+  // calibration result for inline display, then refetches the recommendation.
+  const handleCheckinSubmit = useCallback(
+    async (payload: CheckinPayload): Promise<CheckinSubmitResult> => {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
 
-    if (!response.ok) {
-      throw new Error(`Request failed: ${response.status}`);
-    }
+      const response = await fetch("/api/user-flags", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
 
-    // Refetch recommendation so calibrated session updates immediately
-    recRefetch();
-  }, [session?.access_token, recRefetch]);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+
+      const body = (await response.json().catch(() => null)) as CheckinSubmitResult | null;
+
+      // Refetch recommendation so calibrated session updates immediately
+      recRefetch();
+      return { calibration: body?.calibration ?? null };
+    },
+    [session?.access_token, recRefetch],
+  );
 
   // Derive top prescribed candidate
   const topCandidate = recommendation?.candidates?.[0] ?? null;
   const evidence = recommendation?.evidence ?? null;
 
-  // Derive wearable readiness for check-in component
+  // Derive wearable readiness for the check-in component from the objective
+  // (pre-check-in) scores — same thresholds as the API's deriveWearableReadiness.
   const wearableReadiness = (() => {
-    if (!evidence?.fatigue_score && !evidence?.fitness_score) return null;
-    const fatigue = evidence?.fatigue_score ?? 0;
-    const readiness = evidence?.fitness_score ?? 50;
-    if (fatigue >= 75 || readiness < 40) return "red" as const;
-    if (fatigue >= 50 || readiness < 65) return "yellow" as const;
+    const sc = evidence?.signal_contribution;
+    const readiness = sc?.objective_score ?? null;
+    const fatigue = sc?.objective_fatigue ?? null;
+    if (readiness == null && fatigue == null) return null;
+    if ((fatigue ?? 0) >= 75 || (readiness ?? 100) < 40) return "red" as const;
+    if ((fatigue ?? 0) >= 50 || (readiness ?? 100) < 65) return "yellow" as const;
     return "green" as const;
   })();
 
@@ -145,11 +160,19 @@ export default function Dashboard() {
                   ? "Your check-in is calibrating today's recommendation."
                   : "How are you feeling right now? Your input helps calibrate today's recommended intensity and recovery scores."}
               </p>
-              <MorningCheckinFlow
-                onSubmit={handleCheckinSubmit}
-                wearableReadiness={wearableReadiness}
-                existingMood={recommendation?.evidence?.checkin_mood ?? null}
-              />
+              {useLegacyCheckin ? (
+                <MorningCheckinFlow
+                  onSubmit={async (p) => { await handleCheckinSubmit(p); }}
+                  wearableReadiness={wearableReadiness}
+                  existingMood={recommendation?.evidence?.checkin_mood ?? null}
+                />
+              ) : (
+                <MorningCheckin
+                  onSubmit={handleCheckinSubmit}
+                  wearableReadiness={wearableReadiness}
+                  existingMood={recommendation?.evidence?.checkin_mood ?? null}
+                />
+              )}
             </div>
           </div>
 

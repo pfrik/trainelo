@@ -228,15 +228,15 @@ describe("calibrateSession — mood-based levels", () => {
     expect(result.applied_rules).toContain("RPE_HIGH_REDUCTION");
   });
 
-  it("okay => amber with near-baseline multipliers", () => {
+  it("okay => green, train as planned (neutral is not caution)", () => {
     const result = calibrateSession(
       makeInput({
         morning_checkin: makeCheckin({ mood: "okay" }),
       }),
     );
-    expect(result.level).toBe("amber");
-    expect(result.intensity_multiplier).toBe(0.95);
-    expect(result.duration_multiplier).toBe(0.95);
+    expect(result.level).toBe("green");
+    expect(result.intensity_multiplier).toBe(1.0);
+    expect(result.duration_multiplier).toBe(1.0);
     expect(result.swap_to).toBe("as_planned");
   });
 

@@ -671,12 +671,14 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
     rationale = "You reported feeling tired. Reducing intensity keeps you on track without overreaching.";
     applied_rules.push("MOOD_TIRED");
   } else if (mood === "okay") {
-    level = "amber";
-    intensity_multiplier = 0.95;
-    duration_multiplier = 0.95;
+    // Neutral is the modal morning: least intervention, no caution language.
+    // Reported drivers/scales below can still trim the session.
+    level = "green";
+    intensity_multiplier = 1.0;
+    duration_multiplier = 1.0;
     swap_to = "as_planned";
-    headline = "Proceed with slight caution";
-    rationale = "You feel okay — proceed as planned with a small buffer for accumulated fatigue.";
+    headline = "Train as planned";
+    rationale = "You feel okay and nothing is flagged. Execute your planned session.";
     applied_rules.push("MOOD_OKAY");
   } else if (mood === "great") {
     // Upgrade path — gated by wearable readiness

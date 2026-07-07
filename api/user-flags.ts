@@ -35,6 +35,7 @@ import {
   type WearableReadiness,
   type Mood5,
   type ReasonBucket,
+  type UpgradeType,
 } from "../src/lib/core/checkin/calibrator.js";
 import type {
   SleepSessionInput,
@@ -248,6 +249,7 @@ async function resolveUserIdFromAuthHeader(
 
 const VALID_MOODS = new Set(["drained", "tired", "okay", "good", "great"]);
 const VALID_REASON_BUCKETS = new Set(["sick", "hurt", "fried", "none"]);
+const VALID_UPGRADE_TYPES = new Set(["intensity", "volume"]);
 
 function mapSleep(row: DailyUserStateRow, date: string): SleepSessionInput | null {
   if (row.sleep_score == null || row.sleep_seconds == null) return null;
@@ -303,6 +305,8 @@ async function runPostPersistCalibration(
     motivation?: number;
     life_stress?: number;
     time_constraint_minutes?: number;
+    reason_tags?: string[];
+    upgrade_type?: string;
   },
 ): Promise<CalibrationResult | null> {
   try {
@@ -324,6 +328,11 @@ async function runPostPersistCalibration(
       motivation: checkinPayload.motivation ?? null,
       life_stress: checkinPayload.life_stress ?? null,
       time_constraint_minutes: checkinPayload.time_constraint_minutes ?? null,
+      reason_tags: checkinPayload.reason_tags ?? null,
+      upgrade_type:
+        checkinPayload.upgrade_type && VALID_UPGRADE_TYPES.has(checkinPayload.upgrade_type)
+          ? (checkinPayload.upgrade_type as UpgradeType)
+          : null,
     };
 
     // Fetch wearable signals from R&F pipeline
@@ -513,6 +522,7 @@ export default async function handler(
   log.info("check-in recorded", { user_id: userId, date, mood: payload.mood });
 
   // Run calibrator (non-fatal — persistence already succeeded)
+  const rawUpgrade = payloadObj.upgrade_type;
   const calibration = await runPostPersistCalibration(userId, date, {
     mood: payload.mood,
     rpe: payload.rpe,
@@ -527,6 +537,8 @@ export default async function handler(
     motivation,
     life_stress: lifeStress,
     time_constraint_minutes: payload.time_constraint_minutes,
+    reason_tags: payload.reason_tags,
+    upgrade_type: typeof rawUpgrade === "string" ? rawUpgrade : undefined,
   });
 
   if (calibration) {
