@@ -879,7 +879,8 @@ export interface SyncStateRow {
 
 /**
  * Fetch per-data-type sync statuses for a user from the sync_state table.
- * Filters to provider='garmin'.
+ * Covers both the legacy local Garmin scraper ('garmin') and the
+ * intervals.icu cron sync ('intervals_icu').
  */
 export async function getSyncStatuses(
   userId: string,
@@ -890,14 +891,26 @@ export async function getSyncStatuses(
     .from("sync_state")
     .select("data_type, last_sync_completed_at, sync_status, last_sync_records_fetched")
     .eq("user_id", userId)
-    .eq("provider", "garmin");
+    .in("provider", ["garmin", "intervals_icu"]);
 
   if (error) {
     console.error("[db] Error fetching sync_state:", error.message);
     return [];
   }
 
-  return (data as SyncStateRow[]) || [];
+  // Both providers may report the same data_type (e.g. activities);
+  // keep the most recently completed row per type.
+  const byType = new Map<string, SyncStateRow>();
+  for (const row of (data as SyncStateRow[]) || []) {
+    const existing = byType.get(row.data_type);
+    if (
+      !existing ||
+      (row.last_sync_completed_at ?? "") > (existing.last_sync_completed_at ?? "")
+    ) {
+      byType.set(row.data_type, row);
+    }
+  }
+  return Array.from(byType.values());
 }
 
 // ============================================================================

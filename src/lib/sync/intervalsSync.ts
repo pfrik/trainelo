@@ -88,6 +88,31 @@ async function fetchIntervals<T>(
   return (await response.json()) as T;
 }
 
+/**
+ * True when a workout from another source starts within ±2 minutes.
+ * Catches the same session arriving via two upload paths with different
+ * IDs (e.g. a trainer ride pushed to Garmin Connect and to Dropbox).
+ */
+async function overlappingWorkoutExists(
+  supabase: SupabaseClient,
+  userId: string,
+  startedAt: string,
+): Promise<boolean> {
+  const startMs = Date.parse(startedAt);
+  const windowStart = new Date(startMs - 120_000).toISOString();
+  const windowEnd = new Date(startMs + 120_000).toISOString();
+  const { data, error } = await supabase
+    .from("workouts")
+    .select("id")
+    .eq("user_id", userId)
+    .neq("source", INTERVALS_SOURCE)
+    .gte("started_at", windowStart)
+    .lte("started_at", windowEnd)
+    .limit(1);
+  if (error) throw new Error(`workouts overlap check failed: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
 /** True when a row with this (user, source, source_ref) already exists. */
 async function recordExists(
   supabase: SupabaseClient,
@@ -338,6 +363,21 @@ export async function runIntervalsSync(
         ) {
           stats.activities.deduped++;
           log("activity deduped against garmin row", { id: activity.id, garmin_ref: garminRef });
+          continue;
+        }
+
+        // Same-session-different-path dedupe: only for NEW rows (an existing
+        // intervals row must keep receiving updates)
+        if (
+          !dryRun &&
+          !(await recordExists(supabase, "workouts", userId, INTERVALS_SOURCE, activity.id)) &&
+          (await overlappingWorkoutExists(supabase, userId, String(row.started_at)))
+        ) {
+          stats.activities.deduped++;
+          log("activity deduped against overlapping workout", {
+            id: activity.id,
+            started_at: row.started_at,
+          });
           continue;
         }
 

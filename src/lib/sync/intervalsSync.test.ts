@@ -18,6 +18,8 @@ interface FakeStore {
   existing: Set<string>;
   /** Rows returned for the hrv_nights history query. */
   hrvHistory: Array<{ date: string; hrv_rmssd: number; updated_at: string }>;
+  /** When true, the time-overlap workout query finds a match. */
+  hasOverlappingWorkout?: boolean;
 }
 
 /**
@@ -36,6 +38,7 @@ function makeFakeSupabase(store: FakeStore): SupabaseClient {
     select() { this.op = "select"; return this; }
     update(row: Record<string, unknown>) { this.op = "update"; this.row = row; return this; }
     eq(key: string, value: unknown) { this.filters[key] = value; return this; }
+    neq() { return this; }
     gte() { this.ranged = true; return this; }
     lte() { this.ranged = true; return this; }
     order() { return this; }
@@ -62,6 +65,11 @@ function makeFakeSupabase(store: FakeStore): SupabaseClient {
       // History query (date-ranged select on hrv_nights)
       if (this.table === "hrv_nights" && this.ranged) {
         return Promise.resolve({ data: store.hrvHistory, error: null }).then(resolve);
+      }
+      // Time-overlap workout query (started_at-ranged select on workouts)
+      if (this.table === "workouts" && this.ranged) {
+        const data = store.hasOverlappingWorkout ? [{ id: "overlap-row" }] : [];
+        return Promise.resolve({ data, error: null }).then(resolve);
       }
       // Existence check keyed on source + source_ref
       const key = `${this.table}|${String(this.filters.source)}|${String(this.filters.source_ref)}`;
@@ -179,6 +187,33 @@ describe("runIntervalsSync", () => {
       activity_type: "swim_pool",
       training_stress_score: 16,
     });
+  });
+
+  it("skips new activities overlapping a workout from another source", async () => {
+    const store = emptyStore();
+    store.hasOverlappingWorkout = true;
+    // Dropbox-sourced ride: no Garmin ref, but a garmin workout started
+    // at the same moment (same session via a different upload path)
+    const dropboxRide: IntervalsActivity = {
+      ...GARMIN_ACTIVITY,
+      id: "i-dropbox",
+      source: "DROPBOX",
+      external_id: "ride.fit",
+    };
+    const stats = await runSync(store, [], [dropboxRide]);
+
+    expect(stats.activities).toMatchObject({ fetched: 1, upserted: 0, deduped: 1 });
+    expect(store.writes.filter((w) => w.table === "workouts")).toHaveLength(0);
+  });
+
+  it("still updates an existing intervals row despite an overlapping workout", async () => {
+    const store = emptyStore();
+    store.hasOverlappingWorkout = true;
+    store.existing.add("workouts|intervals_icu|i161742359");
+    const stats = await runSync(store, [], [GARMIN_ACTIVITY]);
+
+    expect(stats.activities).toMatchObject({ upserted: 1, deduped: 0 });
+    expect(store.writes.find((w) => w.table === "workouts")?.op).toBe("update");
   });
 
   it("updates in place when the intervals row already exists", async () => {
