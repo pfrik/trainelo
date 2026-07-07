@@ -81,14 +81,14 @@ export function EngineDemo() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-      {/* Controls */}
-      <div className="bg-dark-surface rounded-2xl border border-slate-700/50 p-6 sm:p-8">
-        <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-6">
+      {/* Controls — light, "the real world" side */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+        <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-6">
           Your morning check-in
         </div>
 
         <div className="mb-8">
-          <div className="text-sm font-semibold text-slate-200 mb-3">How do you feel?</div>
+          <div className="text-sm font-semibold text-slate-900 mb-3">How do you feel?</div>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Mood">
             {MOODS.map((m) => (
               <button
@@ -98,8 +98,8 @@ export function EngineDemo() {
                 onClick={() => setMood(m.value)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                   mood === m.value
-                    ? "bg-primary/15 border-primary/50 text-primary"
-                    : "bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-500"
+                    ? "bg-primary/10 border-green-600/60 text-green-700"
+                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
                 }`}
               >
                 <span aria-hidden>{m.emoji}</span>
@@ -111,8 +111,8 @@ export function EngineDemo() {
 
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-slate-200">Muscle soreness</span>
-            <span className="text-sm font-bold text-white tabular-nums">{soreness}/10</span>
+            <span className="text-sm font-semibold text-slate-900">Muscle soreness</span>
+            <span className="text-sm font-bold text-slate-900 tabular-nums">{soreness}/10</span>
           </div>
           <Slider
             value={[soreness]}
@@ -125,7 +125,7 @@ export function EngineDemo() {
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-200">Feeling ill</span>
+          <span className="text-sm font-semibold text-slate-900">Feeling ill</span>
           <Switch checked={illness} onCheckedChange={setIllness} aria-label="Feeling ill" />
         </div>
 
@@ -135,8 +135,8 @@ export function EngineDemo() {
         </p>
       </div>
 
-      {/* Live output */}
-      <div className="bg-dark-surface rounded-2xl border border-slate-700/50 p-6 sm:p-8 flex flex-col">
+      {/* Live output — dark, "the product answers" side */}
+      <div className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-2xl p-6 sm:p-8 flex flex-col">
         <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-6">
           Today's calibrated session
         </div>
