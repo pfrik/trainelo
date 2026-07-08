@@ -930,6 +930,19 @@ export function calibrateSession(input: CalibratorInput): CalibrationResult {
   intensity_multiplier = clamp(intensity_multiplier, INTENSITY_MIN, INTENSITY_MAX);
   duration_multiplier = clamp(duration_multiplier, DURATION_MIN, DURATION_MAX);
 
+  // --- Headline coherence: a green "as planned" whose caps actually fired
+  // must not claim nothing is flagged ---
+  if (
+    level === "green" &&
+    swap_to === "as_planned" &&
+    (intensity_multiplier < 0.99 || duration_multiplier < 0.99)
+  ) {
+    headline = "Mostly as planned — trimmed a touch";
+    rationale =
+      "Your check-in flagged some drag, so today keeps its structure with a small trim to intensity or duration.";
+    applied_rules.push("GREEN_TRIM_NOTED");
+  }
+
   return {
     level,
     intensity_multiplier,

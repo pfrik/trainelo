@@ -1,19 +1,20 @@
 /**
- * Morning check-in v3 — one calm screen, always saveable.
+ * Morning check-in v3.2 — one calm screen, always saveable.
  *
- * Design principles (vs. the legacy MorningCheckinFlow, kept for comparison
- * at /dashboard?checkin=legacy):
- * - Every path persists the mood: there is no "skip" that silently discards
- *   what the user already told us.
- * - Progressive disclosure only where it changes the engine's answer:
- *   drained requires a reason (API contract), pain requires severity.
- * - Plain, calm language — no protocols, no diagnosis, no alarms.
- * - After saving, the calibration result is shown right here: what changed
- *   and why.
+ * Instrument design (informed by athlete-monitoring research: Hooper Index /
+ * McLean wellness questionnaire; Saw et al. 2016 on subjective measures):
+ * - Fixed core items every day (mood + soreness) so answers are baselineable.
+ * - Exception-based detail: "anything below normal" chips expand a short
+ *   verbal severity that maps to the engine's real 1-5 scale deltas.
+ * - Verbal anchors instead of sliders; 0-10 NRS kept for pain only (the
+ *   validated pain instrument).
+ * - Red-flag triage (illness / pain) is the only true branching.
+ * - Every question traces to a calibrator input; log-only fields say so.
+ *
+ * The legacy flow is kept for comparison at /dashboard?checkin=legacy.
  */
 
 import { useMemo, useState } from "react";
-import { Slider } from "@/components/ui/slider";
 import type { CheckinPayload } from "@/components/checkin/MorningCheckinFlow";
 import type { CalibrationResult } from "@/lib/core/checkin/calibrator";
 
@@ -43,19 +44,41 @@ const MOODS: { value: Mood; label: string; icon: string }[] = [
   { value: "great", label: "Great", icon: "sentiment_very_satisfied" },
 ];
 
-const EFFORT_OPTIONS: { label: string; rpe: number | null }[] = [
-  { label: "Rest day", rpe: null },
-  { label: "Easy", rpe: 3 },
-  { label: "Moderate", rpe: 6 },
-  { label: "Hard", rpe: 8 },
+/** Verbal rating scale for soreness; values chosen so "Heavy"+ crosses the
+ * engine's >=7 threshold (fatigue delta + intensity cap). */
+const SORENESS_LEVELS: { label: string; value: number }[] = [
+  { label: "None", value: 0 },
+  { label: "Light", value: 2 },
+  { label: "Moderate", value: 5 },
+  { label: "Heavy", value: 7 },
+  { label: "Severe", value: 9 },
 ];
 
-const TIME_OPTIONS: { label: string; minutes: number | null }[] = [
-  { label: "As planned", minutes: null },
-  { label: "30 min", minutes: 30 },
-  { label: "45 min", minutes: 45 },
-  { label: "60 min", minutes: 60 },
+/**
+ * Exception-reporting chips. Each id is a calibrator driver (duration bias +
+ * compound caps); scaled chips also feed the 1-5 wellness scale deltas via
+ * three verbal severity levels. "life_stress" uses the engine's inverted
+ * scale (higher = worse), hence its ascending severity values.
+ */
+interface DragOption {
+  id: string;
+  label: string;
+  scaleField?: "sleep_quality" | "perceived_energy" | "motivation" | "life_stress";
+  /** Scale values for severity levels [a little, noticeably, a lot]. */
+  severityValues?: [number, number, number];
+}
+
+const DRAG_OPTIONS: DragOption[] = [
+  { id: "poor_sleep", label: "Slept badly", scaleField: "sleep_quality", severityValues: [3, 2, 1] },
+  { id: "low_energy", label: "Low energy", scaleField: "perceived_energy", severityValues: [3, 2, 1] },
+  { id: "life_stress", label: "Stressed", scaleField: "life_stress", severityValues: [3, 4, 5] },
+  { id: "motivation", label: "Low motivation", scaleField: "motivation", severityValues: [3, 2, 1] },
+  // Only RPE >= 8 changes anything in the engine, so yesterday's effort is
+  // one honest chip instead of a four-option placebo row.
+  { id: "hard_yesterday", label: "Yesterday was brutal" },
 ];
+
+const SEVERITY_LABELS = ["A little", "Noticeably", "A lot"] as const;
 
 const DRAINED_REASONS: { value: "sick" | "hurt" | "fried"; label: string; icon: string }[] = [
   { value: "sick", label: "I'm sick", icon: "sick" },
@@ -72,21 +95,11 @@ const PAIN_LOCATIONS = [
   { id: "other", label: "Other" },
 ];
 
-/** Optional "what's dragging" tags — map to calibrator driver rules. */
-const DRAG_TAGS: Record<"tired" | "okay", { id: string; label: string }[]> = {
-  tired: [
-    { id: "poor_sleep", label: "Poor sleep" },
-    { id: "heavy_legs", label: "Heavy legs" },
-    { id: "low_energy", label: "Low energy" },
-    { id: "mental_fog", label: "Mental fog" },
-  ],
-  okay: [
-    { id: "life_stress", label: "Life stress" },
-    { id: "motivation", label: "Low motivation" },
-    { id: "minor_stiffness", label: "A bit stiff" },
-    { id: "low_energy", label: "Low energy" },
-  ],
-};
+const TIME_OPTIONS: { label: string; minutes: number }[] = [
+  { label: "30 min", minutes: 30 },
+  { label: "45 min", minutes: 45 },
+  { label: "60 min", minutes: 60 },
+];
 
 const LEVEL_BADGES: Record<string, { cls: string; label: string }> = {
   red: { cls: "bg-red-500/10 text-red-400 border-red-500/30", label: "Recovery" },
@@ -133,6 +146,74 @@ function Chip({
   );
 }
 
+/** Full-width segmented control with verbal anchors. */
+function Segments({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { label: string; value: number }[];
+  value: number;
+  onChange: (v: number) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      className="grid gap-1 p-1 bg-slate-800/50 rounded-lg border border-slate-700"
+      style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}
+      role="radiogroup"
+      aria-label={ariaLabel}
+    >
+      {options.map((o) => (
+        <button
+          key={o.label}
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`py-2 rounded-md text-xs font-semibold transition-colors ${
+            value === o.value
+              ? "bg-primary text-slate-900"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Collapsible row for the quiet, optional tier. */
+function Disclosure({
+  open,
+  onToggle,
+  label,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-sm font-semibold text-slate-400 hover:text-white transition-colors py-1"
+      >
+        <span className="material-symbols-outlined text-lg" aria-hidden>
+          {open ? "expand_less" : "expand_more"}
+        </span>
+        {label}
+      </button>
+      {open && <div className="mt-3 space-y-4 border-l-2 border-slate-700 pl-4">{children}</div>}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -144,13 +225,15 @@ export function MorningCheckin({
 }: MorningCheckinProps) {
   const [mood, setMood] = useState<Mood | null>(null);
   const [soreness, setSoreness] = useState(0);
-  const [effortLabel, setEffortLabel] = useState<string | null>(null);
-  const [timeMinutes, setTimeMinutes] = useState<number | null>(null);
   const [dragTags, setDragTags] = useState<string[]>([]);
+  /** Severity index (0-2) per selected drag tag; null = tag only. */
+  const [dragSeverity, setDragSeverity] = useState<Record<string, number | null>>({});
   const [drainedReason, setDrainedReason] = useState<"sick" | "hurt" | "fried" | null>(null);
   const [painOpen, setPainOpen] = useState(false);
   const [painSeverity, setPainSeverity] = useState<number | null>(null);
   const [painLocations, setPainLocations] = useState<string[]>([]);
+  const [timeOpen, setTimeOpen] = useState(false);
+  const [timeMinutes, setTimeMinutes] = useState<number | null>(null);
   const [upgradeType, setUpgradeType] = useState<"intensity" | "volume" | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -166,7 +249,9 @@ export function MorningCheckin({
   // hard-stop rule; locations drive the swap suggestion).
   const painActive = painOpen || drainedReason === "hurt";
 
-  const dragOptions = mood === "tired" || mood === "okay" ? DRAG_TAGS[mood] : null;
+  // The exception chips are the same instrument every day for non-drained
+  // moods; drained has its own triage and the engine skips driver rules there.
+  const showDragChips = mood != null && mood !== "drained";
 
   const canSave = useMemo(() => {
     if (!mood || saving) return false;
@@ -178,15 +263,20 @@ export function MorningCheckin({
   const selectMood = (m: Mood) => {
     setMood(m);
     setValidationError(null);
-    // Reset mood-specific answers; keep logistics (soreness/effort/time).
+    // Reset mood-specific answers; keep core items (soreness) and logistics.
     setDrainedReason(null);
-    setDragTags([]);
     setUpgradeType(null);
-    if (m !== "drained") setPainOpen(false);
+    if (m === "drained") {
+      setDragTags([]);
+      setDragSeverity({});
+    } else {
+      setPainOpen(false);
+    }
   };
 
   const toggleTag = (id: string) => {
     setDragTags((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+    setDragSeverity((prev) => ({ ...prev, [id]: null }));
   };
 
   const toggleLocation = (id: string) => {
@@ -202,7 +292,7 @@ export function MorningCheckin({
       return;
     }
     if (painActive && (painSeverity == null || painLocations.length === 0)) {
-      setValidationError("For pain, pick a severity and at least one location.");
+      setValidationError("For pain, pick where it is and how bad it feels.");
       return;
     }
 
@@ -212,8 +302,6 @@ export function MorningCheckin({
 
     const p: CheckinPayload = { mood };
     if (soreness > 0) p.soreness = soreness;
-    const effortRpe = EFFORT_OPTIONS.find((o) => o.label === effortLabel)?.rpe ?? null;
-    if (effortRpe != null) p.rpe = effortRpe;
     if (timeMinutes != null) p.time_constraint_minutes = timeMinutes;
     if (notes.trim()) p.notes = notes.trim();
 
@@ -221,19 +309,43 @@ export function MorningCheckin({
       p.reason_bucket = drainedReason;
       if (drainedReason === "sick") p.illness_flag = true;
     }
-    if (dragTags.length > 0) p.reason_tags = dragTags;
+
+    if (dragTags.length > 0) {
+      p.reason_tags = dragTags;
+      // Scaled chips: map chosen verbal severity onto the engine's 1-5 scales.
+      const scales: Record<string, unknown> = {};
+      for (const opt of DRAG_OPTIONS) {
+        if (!dragTags.includes(opt.id)) continue;
+        if (opt.id === "hard_yesterday") {
+          p.rpe = 8;
+          continue;
+        }
+        const sevIdx = dragSeverity[opt.id];
+        if (opt.scaleField && opt.severityValues && sevIdx != null) {
+          scales[opt.scaleField] = opt.severityValues[sevIdx];
+        }
+      }
+      if (Object.keys(scales).length > 0) {
+        p.payload = { ...(p.payload ?? {}), ...scales };
+      }
+    }
+
     if (painActive && painSeverity != null) {
       p.pain_flag = true;
       p.pain_severity = painSeverity;
       p.pain_locations = painLocations;
     }
     if (mood === "great" && upgradeType) {
-      p.payload = { upgrade_type: upgradeType };
+      p.payload = { ...(p.payload ?? {}), upgrade_type: upgradeType };
     }
 
     try {
       const res = await onSubmit(p);
-      setResult(res && "calibration" in (res as CheckinSubmitResult) ? (res as CheckinSubmitResult).calibration : null);
+      setResult(
+        res && "calibration" in (res as CheckinSubmitResult)
+          ? (res as CheckinSubmitResult).calibration
+          : null,
+      );
       setSaved(true);
       setEditing(false);
     } catch (err) {
@@ -310,7 +422,7 @@ export function MorningCheckin({
 
   return (
     <div className="space-y-6">
-      {/* Mood */}
+      {/* Mood — core item 1 */}
       <div>
         <div className="grid grid-cols-5 gap-2 sm:gap-3" role="radiogroup" aria-label="Mood">
           {MOODS.map((m) => {
@@ -351,7 +463,7 @@ export function MorningCheckin({
 
       {mood && (
         <>
-          {/* Drained: what's behind it (required by the engine) */}
+          {/* Drained: red-flag triage (required by the engine) */}
           {mood === "drained" && (
             <div>
               <FieldLabel>What's behind it?</FieldLabel>
@@ -424,72 +536,73 @@ export function MorningCheckin({
             </div>
           )}
 
-          {/* Optional drag tags for tired / okay */}
-          {dragOptions && (
+          {/* Soreness — core item 2, verbal rating scale */}
+          <div>
+            <FieldLabel>Muscle soreness</FieldLabel>
+            <Segments
+              options={SORENESS_LEVELS}
+              value={soreness}
+              onChange={setSoreness}
+              ariaLabel="Muscle soreness"
+            />
+          </div>
+
+          {/* Exception chips — same instrument every day */}
+          {showDragChips && (
             <div>
-              <FieldLabel hint="optional">Anything dragging?</FieldLabel>
+              <FieldLabel hint="optional">Anything below normal?</FieldLabel>
               <div className="flex flex-wrap gap-2">
-                {dragOptions.map((t) => (
-                  <Chip key={t.id} selected={dragTags.includes(t.id)} onClick={() => toggleTag(t.id)}>
+                {DRAG_OPTIONS.map((t) => (
+                  <Chip
+                    key={t.id}
+                    selected={dragTags.includes(t.id)}
+                    onClick={() => toggleTag(t.id)}
+                  >
                     {t.label}
                   </Chip>
                 ))}
               </div>
+
+              {/* Inline severity per selected scaled chip */}
+              {DRAG_OPTIONS.filter(
+                (t) => dragTags.includes(t.id) && t.severityValues,
+              ).map((t) => (
+                <div key={t.id} className="mt-3 flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-28 shrink-0">
+                    {t.label} — how much?
+                  </span>
+                  <div className="flex gap-1.5 flex-1">
+                    {SEVERITY_LABELS.map((label, idx) => (
+                      <button
+                        key={label}
+                        type="button"
+                        aria-pressed={dragSeverity[t.id] === idx}
+                        onClick={() =>
+                          setDragSeverity((prev) => ({
+                            ...prev,
+                            [t.id]: prev[t.id] === idx ? null : idx,
+                          }))
+                        }
+                        className={`flex-1 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
+                          dragSeverity[t.id] === idx
+                            ? "bg-primary text-slate-900 border-primary"
+                            : "bg-slate-800/50 border-slate-700 text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Soreness */}
-          <div>
-            <FieldLabel hint={soreness > 0 ? `${soreness}/10` : "0 — none"}>
-              Muscle soreness
-            </FieldLabel>
-            <Slider
-              value={[soreness]}
-              onValueChange={([v]) => setSoreness(v)}
-              min={0}
-              max={10}
-              step={1}
-              aria-label="Muscle soreness"
-            />
-          </div>
-
-          {/* Yesterday's effort */}
-          <div>
-            <FieldLabel hint="optional">Yesterday's effort</FieldLabel>
-            <div className="flex flex-wrap gap-2">
-              {EFFORT_OPTIONS.map((o) => (
-                <Chip
-                  key={o.label}
-                  selected={effortLabel === o.label}
-                  onClick={() => setEffortLabel(effortLabel === o.label ? null : o.label)}
-                >
-                  {o.label}
-                </Chip>
-              ))}
-            </div>
-          </div>
-
-          {/* Time available */}
-          <div>
-            <FieldLabel>Time today</FieldLabel>
-            <div className="flex flex-wrap gap-2">
-              {TIME_OPTIONS.map((o) => (
-                <Chip
-                  key={o.label}
-                  selected={timeMinutes === o.minutes}
-                  onClick={() => setTimeMinutes(o.minutes)}
-                >
-                  {o.label}
-                </Chip>
-              ))}
-            </div>
-          </div>
-
-          {/* Pain (available in every mood; required details when open) */}
-          <div>
-            <button
-              type="button"
-              onClick={() => {
+          {/* Quiet tier: pain, time, notes */}
+          <div className="space-y-2 pt-1">
+            <Disclosure
+              open={painActive}
+              onToggle={() => {
                 if (drainedReason === "hurt") return; // required, can't dismiss
                 setPainOpen(!painOpen);
                 if (painOpen) {
@@ -497,94 +610,105 @@ export function MorningCheckin({
                   setPainLocations([]);
                 }
               }}
-              className="flex items-center gap-1.5 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
-              aria-expanded={painActive}
+              label={painActive ? "Pain or injury" : "Pain or injury?"}
             >
-              <span className="material-symbols-outlined text-lg text-slate-400" aria-hidden>
-                {painActive ? "expand_less" : "expand_more"}
-              </span>
-              {painActive ? "Pain or injury" : "Pain or injury?"}
-            </button>
-
-            {painActive && (
-              <div className="mt-3 space-y-4 border-l-2 border-slate-700 pl-4">
-                <div>
-                  <FieldLabel
-                    hint={painSeverity != null ? `${painSeverity}/10` : "1 mild — 10 severe"}
-                  >
-                    How bad?
-                  </FieldLabel>
-                  <div className="flex gap-1.5 flex-wrap" role="radiogroup" aria-label="Pain severity">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
-                      <button
-                        key={v}
-                        role="radio"
-                        aria-checked={painSeverity === v}
-                        onClick={() => {
-                          setPainSeverity(v);
-                          setValidationError(null);
-                        }}
-                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
-                          painSeverity === v
-                            ? "bg-primary text-slate-900"
-                            : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:border-slate-500"
-                        }`}
-                      >
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-                  {painSeverity != null && painSeverity >= 7 && (
-                    <p className="text-xs text-orange-300/90 mt-2">
-                      At this level the engine will recommend injury-safe movement only.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <FieldLabel hint="pick all that apply">Where?</FieldLabel>
-                  <div className="flex flex-wrap gap-2">
-                    {PAIN_LOCATIONS.map((loc) => (
-                      <Chip
-                        key={loc.id}
-                        selected={painLocations.includes(loc.id)}
-                        onClick={() => {
-                          toggleLocation(loc.id);
-                          setValidationError(null);
-                        }}
-                      >
-                        {loc.label}
-                      </Chip>
-                    ))}
-                  </div>
+              <div>
+                <FieldLabel hint="pick all that apply">Where?</FieldLabel>
+                <div className="flex flex-wrap gap-2">
+                  {PAIN_LOCATIONS.map((loc) => (
+                    <Chip
+                      key={loc.id}
+                      selected={painLocations.includes(loc.id)}
+                      onClick={() => {
+                        toggleLocation(loc.id);
+                        setValidationError(null);
+                      }}
+                    >
+                      {loc.label}
+                    </Chip>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
+              <div>
+                <FieldLabel
+                  hint={painSeverity != null ? `${painSeverity}/10` : "1 mild — 10 severe"}
+                >
+                  How bad?
+                </FieldLabel>
+                <div
+                  className="flex gap-1.5 flex-wrap"
+                  role="radiogroup"
+                  aria-label="Pain severity"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
+                    <button
+                      key={v}
+                      role="radio"
+                      aria-checked={painSeverity === v}
+                      onClick={() => {
+                        setPainSeverity(v);
+                        setValidationError(null);
+                      }}
+                      className={`w-10 h-10 rounded-lg text-sm font-bold transition-colors ${
+                        painSeverity === v
+                          ? "bg-primary text-slate-900"
+                          : "bg-slate-800/50 text-slate-400 border border-slate-700 hover:border-slate-500"
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+                {painSeverity != null && painSeverity >= 7 && (
+                  <p className="text-xs text-orange-300/90 mt-2">
+                    At this level the engine will recommend injury-safe movement only.
+                  </p>
+                )}
+              </div>
+            </Disclosure>
 
-          {/* Notes */}
-          <div>
-            {!notesOpen ? (
-              <button
-                type="button"
-                onClick={() => setNotesOpen(true)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-slate-400 hover:text-white transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg" aria-hidden>
-                  add
-                </span>
-                Add a note
-              </button>
-            ) : (
-              <input
-                type="text"
-                maxLength={500}
-                autoFocus
-                placeholder="Anything else worth knowing…"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary"
-              />
-            )}
+            <Disclosure
+              open={timeOpen}
+              onToggle={() => {
+                setTimeOpen(!timeOpen);
+                if (timeOpen) setTimeMinutes(null);
+              }}
+              label="Short on time?"
+            >
+              <div className="flex flex-wrap gap-2">
+                {TIME_OPTIONS.map((o) => (
+                  <Chip
+                    key={o.label}
+                    selected={timeMinutes === o.minutes}
+                    onClick={() =>
+                      setTimeMinutes(timeMinutes === o.minutes ? null : o.minutes)
+                    }
+                  >
+                    {o.label}
+                  </Chip>
+                ))}
+              </div>
+            </Disclosure>
+
+            <Disclosure
+              open={notesOpen}
+              onToggle={() => setNotesOpen(!notesOpen)}
+              label="Add a note"
+            >
+              <div>
+                <input
+                  type="text"
+                  maxLength={500}
+                  placeholder="Anything else worth knowing…"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary"
+                />
+                <p className="text-xs text-slate-500 mt-1.5">
+                  For your log — doesn't change today's session.
+                </p>
+              </div>
+            </Disclosure>
           </div>
 
           {/* Save */}
