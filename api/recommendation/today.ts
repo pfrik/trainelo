@@ -26,6 +26,7 @@ import {
 import {
   getPlannedWorkoutForDate,
   upsertEwmaDaily,
+  getLatestEwmaState,
   upsertAnomalyLog,
   getRecentAnomalyHistory,
   getDailyComplianceLog,
@@ -620,7 +621,7 @@ export default async function handler(
   try {
     // 1. Fetch from DB views in parallel
     const dbTimer = timer();
-    const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes, thresholdsRes] = await Promise.all([
+    const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes, thresholdsRes, ewmaSeedRes] = await Promise.all([
       getDailyUserState(userId, date),
       getTrainingLoad7Days(userId, date),
       getDailyCheckin(userId, date),
@@ -629,6 +630,7 @@ export default async function handler(
       getPriorChronicLoad(userId, date).catch(() => ({ data: null, error: "fetch_failed" as string | null })),
       getTrainingLoadHistory(userId, date, 63).catch(() => ({ data: [], error: "fetch_failed" as string | null })),
       getPersonalThresholds(userId).catch(() => ({ data: { hrv_baseline: null, hr_max: null, resting_hr: null }, error: "fetch_failed" as string | null })),
+      getLatestEwmaState(userId, date).catch(() => null),
     ]);
 
     const dbMs = dbTimer.elapsed();
@@ -670,6 +672,14 @@ export default async function handler(
       currentTimestamp: generatedAt,
       dailyTssHistory,
       targetDate: date,
+      ewmaSeed: ewmaSeedRes
+        ? {
+            date: ewmaSeedRes.date,
+            fitness: ewmaSeedRes.fitness_raw,
+            fatigue: ewmaSeedRes.fatigue_raw,
+            data_days: ewmaSeedRes.data_days,
+          }
+        : null,
       personalThresholds: thresholdsRes.error ? null : thresholdsRes.data,
     };
     const rfOutput = computeReadinessAndFatigue(rfInput);
@@ -841,10 +851,21 @@ export default async function handler(
       evidence.source_attribution = yesterdayLoadSurplus.source_attribution;
     }
 
-    // 7b. Persist EWMA state (non-fatal)
+    // 7b. Persist EWMA state (non-fatal). data_days must be persisted so the
+    // row is usable as tomorrow's seed (rows with data_days=0 are skipped).
     if (rfOutput.ewma?.fitness_raw != null && rfOutput.ewma?.fatigue_raw != null) {
       try {
-        await upsertEwmaDaily(userId, date, rfOutput.ewma.fitness_raw, rfOutput.ewma.fatigue_raw);
+        const todayTss = (dailyTssHistory ?? [])
+          .filter((e) => e.date === date)
+          .reduce((sum, e) => sum + e.total_tss, 0);
+        await upsertEwmaDaily(
+          userId,
+          date,
+          rfOutput.ewma.fitness_raw,
+          rfOutput.ewma.fatigue_raw,
+          todayTss,
+          rfOutput.ewma.data_days,
+        );
       } catch {
         // Non-fatal — don't break recommendations if EWMA persist fails
       }

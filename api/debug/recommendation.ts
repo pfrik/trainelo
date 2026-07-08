@@ -21,6 +21,7 @@ import {
   type TrainingLoadRow,
   type DailyCheckinRow,
 } from "../../src/lib/db/queries.js";
+import { getLatestEwmaState } from "../../src/lib/db/goalQueries.js";
 import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
@@ -251,7 +252,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     // ---- DB fetch ----
     const dbTimer = timer();
-    const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes] = await Promise.all([
+    const [stateRes, loadRes, checkinRes, hrvHistRes, dataDaysRes, priorLoadRes, loadHistRes, ewmaSeedRes] = await Promise.all([
       getDailyUserState(userId, date),
       getTrainingLoad7Days(userId, date),
       getDailyCheckin(userId, date),
@@ -259,6 +260,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       getUserDataDays(userId).catch(() => ({ data: 0, error: "fetch_failed" as string | null })),
       getPriorChronicLoad(userId, date).catch(() => ({ data: null as number | null, error: "fetch_failed" as string | null })),
       getTrainingLoadHistory(userId, date, 63).catch(() => ({ data: [] as TrainingLoadRow[], error: "fetch_failed" as string | null })),
+      getLatestEwmaState(userId, date).catch(() => null),
     ]);
     const dbMs = dbTimer.elapsed();
 
@@ -289,6 +291,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       latestDataTimestamp: row?.last_garmin_sync_at ?? null,
       currentTimestamp: generatedAt,
       dailyTssHistory, targetDate: date,
+      ewmaSeed: ewmaSeedRes
+        ? {
+            date: ewmaSeedRes.date,
+            fitness: ewmaSeedRes.fitness_raw,
+            fatigue: ewmaSeedRes.fatigue_raw,
+            data_days: ewmaSeedRes.data_days,
+          }
+        : null,
     };
     const rfOutput = computeReadinessAndFatigue(rfInput);
     const rfMs = rfTimer.elapsed();

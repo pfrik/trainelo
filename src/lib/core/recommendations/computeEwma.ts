@@ -25,9 +25,25 @@ export interface EwmaResult {
   data_days: number; // days of history used
 }
 
+/**
+ * Persisted prior EWMA state (end-of-day values for `date`).
+ * When provided, the recursion continues from `date + 1` instead of
+ * replaying full history from zero — training older than the fetched
+ * window stays embodied in the seed.
+ */
+export interface EwmaSeed {
+  date: string; // YYYY-MM-DD the state represents (end of day)
+  fitness: number; // raw EWMA TSS units
+  fatigue: number; // raw EWMA TSS units
+  /** Days of history embodied in the seed (drives cold-start flags). */
+  data_days: number;
+}
+
 export interface EwmaOptions {
   fatigueTau?: number; // default 7
   fitnessTau?: number; // default 42
+  /** Prior persisted state; ignored if its date is after targetDate. */
+  seed?: EwmaSeed | null;
 }
 
 export interface NormalizedEwmaResult {
@@ -87,30 +103,63 @@ export function computeEwma(
   targetDate: string,
   options?: EwmaOptions,
 ): EwmaResult {
-  if (dailyTss.length === 0) {
-    return { fitness: 0, fatigue: 0, form: 0, data_days: 0 };
-  }
-
   const fatigueTau = options?.fatigueTau ?? 7;
   const fitnessTau = options?.fitnessTau ?? 42;
   const alphaFatigue = 1 - Math.exp(-1 / fatigueTau);
   const alphaFitness = 1 - Math.exp(-1 / fitnessTau);
 
-  // Sort ascending by date
-  const sorted = [...dailyTss].sort(
-    (a, b) => dateToEpoch(a.date) - dateToEpoch(b.date),
-  );
+  const endEpoch = dateToEpoch(targetDate);
 
   // Aggregate duplicate dates (multiple sources on same day)
   const byDate = new Map<string, number>();
-  for (const entry of sorted) {
+  for (const entry of dailyTss) {
     byDate.set(entry.date, (byDate.get(entry.date) ?? 0) + entry.total_tss);
+  }
+
+  // --- Seeded path: continue the recursion from persisted state ---
+  const seed = options?.seed;
+  if (seed && dateToEpoch(seed.date) <= endEpoch) {
+    const seedEpoch = dateToEpoch(seed.date);
+    if (seedEpoch === endEpoch) {
+      return {
+        fitness: seed.fitness,
+        fatigue: seed.fatigue,
+        form: seed.fitness - seed.fatigue,
+        data_days: seed.data_days,
+      };
+    }
+
+    // Walk from the day after the seed through targetDate. Entries on or
+    // before the seed date are ignored — they are embodied in the seed.
+    const walkDays = Math.round((endEpoch - seedEpoch) / MS_PER_DAY);
+    let ewmaFatigue = seed.fatigue;
+    let ewmaFitness = seed.fitness;
+
+    for (let i = 1; i <= walkDays; i++) {
+      const epoch = seedEpoch + i * MS_PER_DAY;
+      const d = new Date(epoch);
+      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      const tss = byDate.get(dateStr) ?? 0;
+      ewmaFatigue = alphaFatigue * tss + (1 - alphaFatigue) * ewmaFatigue;
+      ewmaFitness = alphaFitness * tss + (1 - alphaFitness) * ewmaFitness;
+    }
+
+    return {
+      fitness: ewmaFitness,
+      fatigue: ewmaFatigue,
+      form: ewmaFitness - ewmaFatigue,
+      data_days: seed.data_days + walkDays,
+    };
+  }
+
+  // --- Unseeded path: replay the provided history from zero ---
+  if (dailyTss.length === 0) {
+    return { fitness: 0, fatigue: 0, form: 0, data_days: 0 };
   }
 
   // Determine date range: earliest entry to targetDate
   const dates = Array.from(byDate.keys()).sort();
   const startEpoch = dateToEpoch(dates[0]);
-  const endEpoch = dateToEpoch(targetDate);
 
   if (endEpoch < startEpoch) {
     return { fitness: 0, fatigue: 0, form: 0, data_days: 0 };

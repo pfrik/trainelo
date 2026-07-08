@@ -60,6 +60,105 @@ function mwfPattern(
 }
 
 // ---------------------------------------------------------------------------
+// Seeded computeEwma tests (persisted-state continuation)
+// ---------------------------------------------------------------------------
+
+describe("computeEwma with seed", () => {
+  it("seeded continuation equals full-history replay (piecewise equivalence)", () => {
+    // 60 days of varied load ending 2026-03-19
+    const full = constantLoad(80, 30, "2026-03-01").concat(
+      constantLoad(40, 18, "2026-03-19"),
+    );
+
+    // Ground truth: replay everything from zero
+    const truth = computeEwma(full, "2026-03-19");
+
+    // Piecewise: state at 2026-03-01, then continue with only the tail
+    const mid = computeEwma(full, "2026-03-01");
+    const tail = full.filter((e) => e.date > "2026-03-01");
+    const seeded = computeEwma(tail, "2026-03-19", {
+      seed: {
+        date: "2026-03-01",
+        fitness: mid.fitness,
+        fatigue: mid.fatigue,
+        data_days: mid.data_days,
+      },
+    });
+
+    expect(seeded.fitness).toBeCloseTo(truth.fitness, 8);
+    expect(seeded.fatigue).toBeCloseTo(truth.fatigue, 8);
+    expect(seeded.data_days).toBe(truth.data_days);
+  });
+
+  it("training older than the fetched window stays counted via the seed", () => {
+    // A year of training embodied in the seed, then an empty recent window:
+    // fitness must decay from the seed, not reset to zero.
+    const seeded = computeEwma([], "2026-03-19", {
+      seed: { date: "2026-03-12", fitness: 60, fatigue: 55, data_days: 365 },
+    });
+    expect(seeded.fitness).toBeGreaterThan(0);
+    expect(seeded.fitness).toBeLessThan(60); // decayed, not frozen
+    expect(seeded.data_days).toBe(372);
+  });
+
+  it("fatigue decays faster than fitness from the same seed", () => {
+    const seeded = computeEwma([], "2026-03-19", {
+      seed: { date: "2026-03-05", fitness: 50, fatigue: 50, data_days: 100 },
+    });
+    expect(seeded.fatigue).toBeLessThan(seeded.fitness);
+  });
+
+  it("entries on or before the seed date are ignored (already embodied)", () => {
+    const seed = { date: "2026-03-10", fitness: 30, fatigue: 30, data_days: 50 };
+    const withStale = computeEwma(
+      [
+        { date: "2026-03-01", total_tss: 500 }, // must be ignored
+        { date: "2026-03-10", total_tss: 500 }, // must be ignored
+        { date: "2026-03-15", total_tss: 60 },
+      ],
+      "2026-03-19",
+      { seed },
+    );
+    const withoutStale = computeEwma(
+      [{ date: "2026-03-15", total_tss: 60 }],
+      "2026-03-19",
+      { seed },
+    );
+    expect(withStale).toEqual(withoutStale);
+  });
+
+  it("seed dated on targetDate is returned as-is", () => {
+    const result = computeEwma(
+      [{ date: "2026-03-19", total_tss: 100 }],
+      "2026-03-19",
+      { seed: { date: "2026-03-19", fitness: 42, fatigue: 33, data_days: 200 } },
+    );
+    expect(result.fitness).toBe(42);
+    expect(result.fatigue).toBe(33);
+    expect(result.form).toBe(9);
+    expect(result.data_days).toBe(200);
+  });
+
+  it("seed dated after targetDate is ignored (falls back to replay)", () => {
+    const entries = constantLoad(50, 10, "2026-03-19");
+    const withBadSeed = computeEwma(entries, "2026-03-19", {
+      seed: { date: "2026-04-01", fitness: 99, fatigue: 99, data_days: 999 },
+    });
+    const plain = computeEwma(entries, "2026-03-19");
+    expect(withBadSeed).toEqual(plain);
+  });
+
+  it("cold-start flags clear when the seed carries enough history", () => {
+    const raw = computeEwma([], "2026-03-19", {
+      seed: { date: "2026-03-18", fitness: 45, fatigue: 40, data_days: 90 },
+    });
+    const norm = normalizeEwma(raw);
+    expect(norm.cold_start_fatigue).toBe(false);
+    expect(norm.cold_start_fitness).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // computeEwma tests
 // ---------------------------------------------------------------------------
 

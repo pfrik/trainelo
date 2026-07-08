@@ -402,6 +402,42 @@ export async function upsertEwmaDaily(
   if (error) throw error;
 }
 
+/**
+ * Latest persisted EWMA state strictly before `beforeDate` — the seed for
+ * continuing the recursion without replaying full history. Returns null when
+ * no usable row exists (data_days <= 0 rows predate proper persistence and
+ * would poison the cold-start flags).
+ */
+export async function getLatestEwmaState(
+  userId: string,
+  beforeDate: string,
+): Promise<{
+  date: string;
+  fitness_raw: number;
+  fatigue_raw: number;
+  data_days: number;
+} | null> {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("ewma_daily")
+    .select("date, fitness_raw, fatigue_raw, data_days")
+    .eq("user_id", userId)
+    .lt("date", beforeDate)
+    .gt("data_days", 0)
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    date: String(data.date),
+    fitness_raw: Number(data.fitness_raw),
+    fatigue_raw: Number(data.fatigue_raw),
+    data_days: Number(data.data_days),
+  };
+}
+
 export async function getEwmaHistory(
   userId: string,
   days: number = 90,

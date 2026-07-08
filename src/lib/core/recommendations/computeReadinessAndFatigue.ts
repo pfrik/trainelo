@@ -15,7 +15,7 @@ import type {
 import type { ReasonCode } from "../contracts/index.js";
 import type { ConfidenceBreakdown, BaselineMode } from "./computeConfidence.js";
 import type { HrvHistoryEntry } from "./detectTrends.js";
-import type { DailyTssEntry, NormalizedEwmaResult } from "./computeEwma.js";
+import type { DailyTssEntry, EwmaSeed, NormalizedEwmaResult } from "./computeEwma.js";
 import { computeEwma, normalizeEwma } from "./computeEwma.js";
 import {
   computeDataAvailability,
@@ -86,6 +86,12 @@ export interface ReadinessAndFatigueInput {
   dailyTssHistory?: DailyTssEntry[] | null;
   /** Target date for EWMA alignment (YYYY-MM-DD). */
   targetDate?: string | null;
+  /**
+   * Persisted EWMA state from a prior day (ewma_daily). When provided, the
+   * EWMA continues from this state instead of replaying the fetched window
+   * from zero — training older than the window stays counted.
+   */
+  ewmaSeed?: EwmaSeed | null;
   /** Calibrated personal thresholds (from user_thresholds table). */
   personalThresholds?: PersonalThresholds | null;
   /** Yesterday's load surplus result (from compliance layer). */
@@ -328,14 +334,15 @@ export function computeReadinessAndFatigue(
   const fatigueNorm = clamp01(totalTss / MAX_TSS_REFERENCE);
   let fatigue_score = Math.round(fatigueNorm * 100);
 
-  // --- EWMA fitness/fatigue (when extended history provided) ---
+  // --- EWMA fitness/fatigue (when extended history or persisted seed provided) ---
   let ewma: NormalizedEwmaResult | undefined;
   if (
-    input.dailyTssHistory &&
-    input.dailyTssHistory.length > 0 &&
-    input.targetDate
+    input.targetDate &&
+    ((input.dailyTssHistory && input.dailyTssHistory.length > 0) || input.ewmaSeed)
   ) {
-    const rawEwma = computeEwma(input.dailyTssHistory, input.targetDate);
+    const rawEwma = computeEwma(input.dailyTssHistory ?? [], input.targetDate, {
+      seed: input.ewmaSeed ?? null,
+    });
     ewma = normalizeEwma(rawEwma);
 
     // Replace flat-sum fatigue with EWMA fatigue when not in cold start
