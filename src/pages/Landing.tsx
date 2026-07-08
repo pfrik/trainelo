@@ -10,8 +10,19 @@
 
 import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  CircleCheckBig,
+  Gauge,
+  Moon,
+  PenLine,
+  TriangleAlert,
+  Watch,
+  type LucideIcon,
+} from "lucide-react";
 import { EngineDemo } from "@/components/landing/EngineDemo";
 import { AppWindow } from "@/components/landing/AppWindow";
+import { NightBand } from "@/components/landing/NightBand";
 import {
   DeviceFrame,
   TodayPhoneScreen,
@@ -21,6 +32,7 @@ import {
 } from "@/components/landing/PhoneScreens";
 import { useInView } from "@/hooks/useInView";
 import { DEMO_HRV_WEEK, DEMO_HRV_BASELINE } from "@/lib/landing/demoData";
+import { REQUEST_INVITE_URL } from "@/lib/landing/invite";
 
 // ---------------------------------------------------------------------------
 // Building blocks
@@ -204,7 +216,7 @@ function HrvVisual() {
       </div>
       <HrvSparkline w={196} h={48} />
       <div className="text-[10px] text-slate-400 mt-2">
-        2 ms under your 28-day baseline — worth a gentler day
+        2 ms under your 28-day baseline. Worth a gentler day.
       </div>
     </div>
   );
@@ -242,7 +254,7 @@ function LoadVisual() {
         ))}
       </div>
       <div className="text-[10px] text-slate-400">
-        Fresh enough to absorb quality work — 2 days since rest
+        Fresh enough to absorb quality work. 2 days since rest.
       </div>
     </div>
   );
@@ -288,7 +300,7 @@ function RoadmapCard({
         <span
           className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
             status === "In development"
-              ? "bg-primary/10 border-green-600/40 text-green-700"
+              ? "bg-primary/10 border-primary-ink/40 text-primary-ink"
               : "bg-slate-50 border-slate-200 text-slate-500"
           }`}
         >
@@ -317,12 +329,20 @@ export default function Landing() {
       <nav className="sticky top-4 z-40 max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between bg-white/80 backdrop-blur border border-slate-200 rounded-full pl-6 pr-2 py-2 shadow-sm">
           <Wordmark />
-          <Link
-            to="/auth"
-            className="text-sm font-semibold bg-primary hover:bg-primary-hover text-slate-900 rounded-full px-5 py-2 transition-colors"
-          >
-            Sign in
-          </Link>
+          <div className="flex items-center gap-1">
+            <Link
+              to="/auth"
+              className="text-sm font-semibold text-slate-600 hover:text-slate-900 px-3 py-2 transition-colors"
+            >
+              Sign in
+            </Link>
+            <a
+              href={REQUEST_INVITE_URL}
+              className="text-sm font-semibold bg-primary hover:bg-primary-hover text-slate-900 rounded-full px-5 py-2 transition-colors"
+            >
+              Request an invite
+            </a>
+          </div>
         </div>
       </nav>
 
@@ -331,31 +351,41 @@ export default function Landing() {
         <div className="text-center lg:text-left">
           <span className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-1.5 rounded-full mb-7 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
-            Your morning training coach
+            Now in private beta
           </span>
           <h1 className="font-headline text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05] mb-6">
             The right workout for today.{" "}
-            <span className="text-green-600 block">Backed by evidence.</span>
+            <span className="text-primary-ink block">Backed by evidence.</span>
           </h1>
           <p className="text-lg sm:text-xl text-slate-600 leading-relaxed mb-8 max-w-xl mx-auto lg:mx-0">
-            Trainelo reads your night — sleep, recovery, training load — asks
-            how you feel, and hands you one clear session. Push when you're
+            Trainelo reads your night: sleep, recovery, training load. It asks
+            how you feel, then hands you one clear session. Push when you're
             ready. Back off when you're not.
           </p>
-          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-7">
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-4">
             <a
               href="#try-it"
               className="px-7 py-3.5 rounded-full font-semibold bg-primary hover:bg-primary-hover text-slate-900 transition-colors shadow-sm"
             >
               Try the live demo
             </a>
+            <a
+              href={REQUEST_INVITE_URL}
+              className="px-7 py-3.5 rounded-full font-semibold text-slate-700 bg-white border border-slate-200 hover:border-slate-400 transition-colors"
+            >
+              Request an invite
+            </a>
+          </div>
+          <p className="text-xs text-slate-500 mb-7">
+            Invites go out in small batches while Trainelo is in beta. Already
+            in?{" "}
             <Link
               to="/auth"
-              className="px-7 py-3.5 rounded-full font-semibold text-slate-700 bg-white border border-slate-200 hover:border-slate-400 transition-colors"
+              className="underline underline-offset-4 hover:text-slate-900 transition-colors"
             >
               Sign in
             </Link>
-          </div>
+          </p>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
             <span className="text-xs text-slate-500 mr-1">Works with</span>
             {["Garmin", "Polar", "Suunto", "COROS"].map((brand) => (
@@ -363,12 +393,7 @@ export default function Landing() {
                 key={brand}
                 className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full"
               >
-                <span
-                  className="material-symbols-outlined text-sm text-green-700"
-                  aria-hidden
-                >
-                  watch
-                </span>
+                <Watch className="w-3.5 h-3.5 text-primary-ink" aria-hidden />
                 {brand}
               </span>
             ))}
@@ -380,22 +405,8 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Stat band — real numbers from real use */}
-      <section className="border-y border-slate-200 bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
-          {[
-            ["1,150+", "activities synced"],
-            ["2+ years", "of training history"],
-            ["60 sec", "morning check-in"],
-            ["1", "clear answer, every day"],
-          ].map(([n, label]) => (
-            <div key={label} className="text-center md:text-left">
-              <div className="font-headline text-3xl font-bold text-slate-900">{n}</div>
-              <div className="text-sm text-slate-500 mt-1">{label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Overnight band — the trace draws itself while you scroll */}
+      <NightBand />
 
       {/* Overnight signals */}
       <section id="how-it-works" className="max-w-6xl mx-auto px-6 py-24 scroll-mt-8">
@@ -404,23 +415,22 @@ export default function Landing() {
             Start the day knowing
           </h2>
           <p className="text-slate-600 max-w-2xl mb-12">
-            While you slept, your watch was taking notes. Trainelo scores the
-            three signals that decide what today should look like — then asks
-            you the one thing sensors can't measure:{" "}
+            Trainelo scores the three signals that decide what today should
+            look like, then asks you the one thing sensors can't measure:{" "}
             <span className="text-slate-900 font-semibold">how you feel.</span>
           </p>
         </Reveal>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 mb-14">
           <SignalBlock
             title="Sleep, scored"
-            body="Duration and quality, weighed against your own norm — not a population average."
+            body="Duration and quality, weighed against your own norm rather than a population average."
             delay={0}
           >
             <SleepVisual />
           </SignalBlock>
           <SignalBlock
             title="Your nervous system gets a vote"
-            body="Overnight HRV against your 28-day baseline — the earliest signal that today should be easier."
+            body="Overnight HRV against your 28-day baseline. It's the earliest signal that today should be easier."
             delay={120}
           >
             <HrvVisual />
@@ -435,28 +445,22 @@ export default function Landing() {
         </div>
         <Reveal>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-sm font-semibold text-slate-700">
-            {[
-              ["bedtime", "Synced while you sleep"],
-              ["edit_note", "60-second check-in"],
-              ["task_alt", "One calibrated session"],
-            ].map(([icon, label], i) => (
+            {(
+              [
+                [Moon, "Synced while you sleep"],
+                [PenLine, "60-second check-in"],
+                [CircleCheckBig, "One calibrated session"],
+              ] as Array<[LucideIcon, string]>
+            ).map(([Icon, label], i) => (
               <span key={label} className="flex items-center gap-4">
                 {i > 0 && (
-                  <span
-                    className="material-symbols-outlined text-slate-300 rotate-90 sm:rotate-0"
+                  <ArrowRight
+                    className="w-5 h-5 text-slate-300 rotate-90 sm:rotate-0"
                     aria-hidden
-                  >
-                    arrow_forward
-                  </span>
+                  />
                 )}
                 <span className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm">
-                  <span
-                    className="material-symbols-outlined text-lg text-green-700"
-                    style={{ fontVariationSettings: '"FILL" 1' }}
-                    aria-hidden
-                  >
-                    {icon}
-                  </span>
+                  <Icon className="w-4 h-4 text-primary-ink" aria-hidden />
                   {label}
                 </span>
               </span>
@@ -473,14 +477,14 @@ export default function Landing() {
               Your morning, in three screens
             </h2>
             <p className="text-slate-600 max-w-2xl mb-14">
-              Everything happens before your first coffee — and nothing is
+              Everything happens before your first coffee, and nothing is
               hidden behind a score you have to take on faith.
             </p>
           </Reveal>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-6">
             <ScreenCard
               title="Check in"
-              body="Five taps from bed. Mood, soreness, illness — done in about a minute."
+              body="Five taps from bed. Mood, soreness, illness. Done in about a minute."
               delay={0}
             >
               <CheckinPhoneScreen />
@@ -508,10 +512,10 @@ export default function Landing() {
         <Reveal>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Tell it how you feel.{" "}
-            <span className="text-green-600">Watch it think.</span>
+            <span className="text-primary-ink">Watch it think.</span>
           </h2>
           <p className="text-slate-600 max-w-2xl mb-10">
-            No account needed — this is the real Trainelo engine, running in
+            No account needed. This is the real Trainelo engine, running in
             your browser. Change how the morning feels and watch today's
             workout adapt.
           </p>
@@ -525,15 +529,12 @@ export default function Landing() {
       <section className="border-y border-slate-200 bg-white">
         <div className="max-w-5xl mx-auto px-6 py-24 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
           <Reveal delay={120} className="order-2 lg:order-1">
-            <AppWindow title="Trainelo — Safety check">
+            <AppWindow title="Trainelo · Safety check">
               <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 flex items-start gap-3">
-                <span
-                  className="material-symbols-outlined text-orange-400 text-xl mt-0.5"
-                  style={{ fontVariationSettings: '"FILL" 1' }}
+                <TriangleAlert
+                  className="w-5 h-5 text-orange-400 mt-0.5 shrink-0"
                   aria-hidden
-                >
-                  warning
-                </span>
+                />
                 <div>
                   <span className="text-sm font-bold text-orange-400 uppercase">
                     Moderate caution
@@ -547,13 +548,7 @@ export default function Landing() {
                     </span>
                   </div>
                   <span className="bg-slate-700/50 text-slate-300 text-xs px-2 py-0.5 rounded inline-flex items-center gap-1">
-                    <span
-                      className="material-symbols-outlined text-xs"
-                      style={{ fontVariationSettings: '"FILL" 1' }}
-                      aria-hidden
-                    >
-                      speed
-                    </span>
+                    <Gauge className="w-3 h-3" aria-hidden />
                     Intensity capped
                   </span>
                 </div>
@@ -565,8 +560,8 @@ export default function Landing() {
               Calm under caution
             </h2>
             <p className="text-slate-600 leading-relaxed max-w-lg">
-              When your body waves a flag — a rough night, too many hard days
-              in a row — Trainelo doesn't shout at you. It eases today's
+              When your body waves a flag after a rough night or too many hard
+              days in a row, Trainelo doesn't shout at you. It eases today's
               session and tells you exactly why.{" "}
               <span className="text-slate-900 font-semibold">
                 The plan holds unless real evidence says otherwise.
@@ -583,8 +578,8 @@ export default function Landing() {
             Where Trainelo is heading
           </h2>
           <p className="text-slate-600 max-w-2xl mb-14">
-            Trainelo is used — and built — every day. This is what's on the
-            bench right now.
+            Trainelo is built and used every day. This is what's on the bench
+            right now.
           </p>
         </Reveal>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
@@ -593,25 +588,25 @@ export default function Landing() {
               <DeviceFrame>
                 <TrendsPhoneScreen />
               </DeviceFrame>
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-green-600/40 text-green-700 text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-sm">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-primary-ink/40 text-primary-ink text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-sm">
                 Just shipped
               </span>
             </div>
             <p className="text-sm text-slate-600 text-center max-w-[280px] mt-6">
               <span className="font-bold text-slate-900">Fitness you can see.</span>{" "}
-              Fitness, fatigue and form charted over months — live in the app,
+              Fitness, fatigue and form charted over months, live in the app
               with 15 months of history.
             </p>
           </Reveal>
           <Reveal className="space-y-5">
             <RoadmapCard
               title="Plans that aim at a goal"
-              body="Pick a race or a target. Trainelo lays out the weeks that get you there — and adjusts them as you go."
+              body="Pick a race or a target. Trainelo lays out the weeks that get you there and adjusts them as you go."
               status="In development"
             />
             <RoadmapCard
               title="Daily load targets"
-              body="Not just how ready you are — how much today's training should hold, in one number."
+              body="Not just how ready you are: how much today's training should hold, in one number."
               status="Planned"
             />
             <RoadmapCard
@@ -636,16 +631,24 @@ export default function Landing() {
             </h2>
             <p className="relative text-slate-400 mb-8 max-w-xl mx-auto">
               Connect your watch once. Check in for a minute. Train with the
-              evidence on your side.
+              evidence on your side. Trainelo is in private beta and invites
+              go out in small batches.
             </p>
-            <Link
-              to="/auth"
+            <a
+              href={REQUEST_INVITE_URL}
               className="relative inline-block px-8 py-3.5 rounded-full font-semibold bg-primary hover:bg-primary-hover text-slate-900 transition-colors"
             >
-              Get started
-            </Link>
+              Request an invite
+            </a>
             <p className="relative text-sm text-slate-500 mt-6">
-              Curious how it works under the hood?{" "}
+              Already have an invite?{" "}
+              <Link
+                to="/auth"
+                className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"
+              >
+                Sign in
+              </Link>
+              {" "}· Curious how it works under the hood?{" "}
               <Link
                 to="/engineering"
                 className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"

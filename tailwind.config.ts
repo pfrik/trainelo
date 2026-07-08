@@ -24,6 +24,7 @@ export default {
           DEFAULT: "#22c55e", // Vibrant Green
           foreground: "hsl(var(--primary-foreground))",
           hover: "#16a34a", // Darker Green
+          ink: "#15803d", // Brand green as text/border on light grounds (AA at small sizes)
         },
         "primary-hover": "#16a34a", // Alternative primary hover name
         secondary: {

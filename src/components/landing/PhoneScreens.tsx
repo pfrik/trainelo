@@ -9,6 +9,13 @@
  */
 
 import { type ReactNode } from "react";
+import {
+  BatteryFull,
+  ChevronRight,
+  CircleCheckBig,
+  Signal,
+  Wifi,
+} from "lucide-react";
 import { RecoveryRing } from "@/components/landing/RecoveryRing";
 import { DEMO_RECOMMENDATION } from "@/lib/landing/demoData";
 
@@ -67,14 +74,9 @@ export function DeviceFrame({
           <div className="flex items-center justify-between px-7 pt-[15px] pb-1 text-[11px] font-semibold text-slate-200">
             <span className="tabular-nums">07:04</span>
             <span className="flex items-center gap-1 text-slate-300" aria-hidden>
-              <span className="material-symbols-outlined text-[13px]">signal_cellular_alt</span>
-              <span className="material-symbols-outlined text-[13px]">wifi</span>
-              <span
-                className="material-symbols-outlined text-[15px] rotate-90"
-                style={{ fontVariationSettings: '"FILL" 1' }}
-              >
-                battery_5_bar
-              </span>
+              <Signal className="w-3 h-3" />
+              <Wifi className="w-3 h-3" />
+              <BatteryFull className="w-4 h-4" />
             </span>
           </div>
 
@@ -137,7 +139,7 @@ export function TodayPhoneScreen() {
             Modified
           </span>
           <div className="text-[11px] text-slate-400 leading-snug">
-            A little worn — today builds you up, not down.
+            A little worn. Today builds you up, not down.
           </div>
         </div>
       </Card>
@@ -161,13 +163,7 @@ export function TodayPhoneScreen() {
           ))}
         </div>
         <div className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg font-semibold bg-primary text-slate-900 text-xs">
-          <span
-            className="material-symbols-outlined text-sm"
-            style={{ fontVariationSettings: '"FILL" 1' }}
-            aria-hidden
-          >
-            check_circle
-          </span>
+          <CircleCheckBig className="w-3.5 h-3.5" aria-hidden />
           Confirm session
         </div>
       </Card>
@@ -183,9 +179,7 @@ export function TodayPhoneScreen() {
         </div>
         <span className="text-[11px] font-semibold text-primary flex items-center whitespace-nowrap">
           See why
-          <span className="material-symbols-outlined text-sm" aria-hidden>
-            chevron_right
-          </span>
+          <ChevronRight className="w-3.5 h-3.5" aria-hidden />
         </span>
       </Card>
     </div>
@@ -194,7 +188,7 @@ export function TodayPhoneScreen() {
 
 /** Morning check-in screen: mood, soreness, effort, illness. */
 export function CheckinPhoneScreen() {
-  const moods = ["🥵", "😮‍💨", "😐", "🙂", "😤"];
+  const moods = ["🥵", "😮‍💨", "😐", "🙂", "😁"];
   const selected = 3; // "good"
   return (
     <div className="flex flex-col h-full">
@@ -259,7 +253,7 @@ export function CheckinPhoneScreen() {
       </Card>
 
       <div className="mt-auto flex items-center justify-center w-full py-2.5 rounded-lg font-semibold bg-primary text-slate-900 text-xs">
-        Done — that took 42 seconds
+        Done. That took 42 seconds.
       </div>
     </div>
   );
@@ -286,7 +280,7 @@ export function EvidencePhoneScreen() {
           </span>
         </div>
         <div className="text-[10px] text-slate-500 leading-snug">
-          Your soreness moved the number — capped at what the data supports.
+          Your soreness moved the number, capped at what the data supports.
         </div>
       </Card>
 
@@ -429,7 +423,7 @@ export function TrendsPhoneScreen() {
 
       <Card className="flex items-center justify-between px-3.5 py-2.5 mb-2.5">
         <span className="text-[11px] text-slate-400">Form today</span>
-        <span className="text-[11px] font-bold text-primary">Fresh — ready to peak</span>
+        <span className="text-[11px] font-bold text-primary">Fresh, ready to peak</span>
       </Card>
 
       <div className="mt-auto grid grid-cols-2 gap-2">

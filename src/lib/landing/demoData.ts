@@ -42,7 +42,7 @@ export const DEMO_EVIDENCE: EvidenceSummary = {
   calibration_level: "amber",
   calibration_intensity_multiplier: 0.85,
   calibration_duration_multiplier: 0.9,
-  calibration_headline: "Modified session — soreness noted, HRV slightly below baseline",
+  calibration_headline: "Modified session: soreness noted, HRV slightly below baseline",
   calibration_rationale:
     "Your wearable data supports training, but this morning's check-in reported lingering soreness. Intensity is trimmed so today builds you up instead of digging the hole deeper.",
   calibration_warnings: null,
@@ -63,7 +63,7 @@ export const DEMO_HRV_BASELINE = 51;
 
 /** Hero recommendation card content. */
 export const DEMO_RECOMMENDATION = {
-  title: "Tempo Run — 42 min",
+  title: "Tempo Run · 42 min",
   badge: "Modified",
   rationale:
     "Readiness is moderate: sleep was solid but your check-in reported soreness. Tempo blocks are kept, intensity trimmed 15%.",

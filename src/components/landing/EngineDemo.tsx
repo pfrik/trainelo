@@ -6,6 +6,14 @@
  */
 
 import { useMemo, useState } from "react";
+import {
+  Ban,
+  CircleCheckBig,
+  CircleDot,
+  TrendingUp,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { RecoveryRing } from "@/components/landing/RecoveryRing";
@@ -14,8 +22,9 @@ import {
   type CalibratorInput,
   type Mood5,
 } from "@/lib/core/checkin/calibrator";
+import { REQUEST_INVITE_URL } from "@/lib/landing/invite";
 
-/** Fixed wearable baseline for the demo — a decent night. */
+/** Fixed wearable baseline for the demo: a decent night. */
 const DEMO_WEARABLE = {
   readiness: "green" as const,
   readiness_score: 72,
@@ -27,28 +36,28 @@ const MOODS: Array<{ value: Mood5; label: string; emoji: string }> = [
   { value: "tired", label: "Tired", emoji: "😮‍💨" },
   { value: "okay", label: "Okay", emoji: "😐" },
   { value: "good", label: "Good", emoji: "🙂" },
-  { value: "great", label: "Great", emoji: "😤" },
+  { value: "great", label: "Great", emoji: "😁" },
 ];
 
-const LEVEL_STYLES: Record<string, { badge: string; icon: string; label: string }> = {
+const LEVEL_STYLES: Record<string, { badge: string; icon: LucideIcon; label: string }> = {
   red: {
     badge: "bg-red-500/10 text-red-400 border-red-500/30",
-    icon: "block",
+    icon: Ban,
     label: "Rest / Recovery",
   },
   amber: {
     badge: "bg-orange-500/10 text-orange-400 border-orange-500/30",
-    icon: "radio_button_partial",
+    icon: CircleDot,
     label: "Modified",
   },
   green: {
     badge: "bg-green-500/10 text-green-400 border-green-500/30",
-    icon: "check_circle",
+    icon: CircleCheckBig,
     label: "As Planned",
   },
   upgrade: {
     badge: "bg-green-500/10 text-green-400 border-green-500/30",
-    icon: "trending_up",
+    icon: TrendingUp,
     label: "Push Today",
   },
 };
@@ -98,7 +107,7 @@ export function EngineDemo() {
                 onClick={() => setMood(m.value)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                   mood === m.value
-                    ? "bg-primary/10 border-green-600/60 text-green-700"
+                    ? "bg-primary/10 border-primary-ink/60 text-primary-ink"
                     : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
                 }`}
               >
@@ -130,7 +139,7 @@ export function EngineDemo() {
         </div>
 
         <p className="text-xs text-slate-500 mt-8 leading-relaxed">
-          For this demo, the night is fixed — decent sleep, readiness 72.
+          For this demo, the night is fixed: decent sleep, readiness 72.
           You're the variable.
         </p>
       </div>
@@ -147,13 +156,7 @@ export function EngineDemo() {
             <span
               className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded border uppercase mb-2 ${level.badge}`}
             >
-              <span
-                className="material-symbols-outlined text-sm"
-                style={{ fontVariationSettings: '"FILL" 1' }}
-                aria-hidden
-              >
-                {level.icon}
-              </span>
+              <level.icon className="w-3.5 h-3.5" aria-hidden />
               {level.label}
             </span>
             <div className="text-lg font-bold text-white leading-snug">
@@ -183,23 +186,22 @@ export function EngineDemo() {
 
         {result.signal_contribution.conflict_flag && (
           <div className="mt-4 flex items-start gap-2 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
-            <span
-              className="material-symbols-outlined text-base text-orange-400"
-              style={{ fontVariationSettings: '"FILL" 1' }}
-              aria-hidden
-            >
-              warning
-            </span>
+            <TriangleAlert className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" aria-hidden />
             <p className="text-xs text-orange-200">
               <span className="font-semibold text-orange-400">Signals disagree. </span>
-              The engine stays conservative and says so — out loud.
+              The engine stays conservative and says so, out loud.
             </p>
           </div>
         )}
 
         <p className="text-xs text-slate-500 mt-auto pt-6">
-          Not a mock-up — this is the same engine that plans every Trainelo
-          morning.
+          Want this running on your own mornings?{" "}
+          <a
+            href={REQUEST_INVITE_URL}
+            className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"
+          >
+            Request an invite
+          </a>
         </p>
       </div>
     </div>
