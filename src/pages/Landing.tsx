@@ -594,13 +594,13 @@ export default function Landing() {
                 <TrendsPhoneScreen />
               </DeviceFrame>
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-white border border-green-600/40 text-green-700 text-[11px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-sm">
-                In development
+                Just shipped
               </span>
             </div>
             <p className="text-sm text-slate-600 text-center max-w-[280px] mt-6">
               <span className="font-bold text-slate-900">Fitness you can see.</span>{" "}
-              Fitness, fatigue and form charted over months — watch a training
-              block actually work.
+              Fitness, fatigue and form charted over months — live in the app,
+              with 15 months of history.
             </p>
           </Reveal>
           <Reveal className="space-y-5">
