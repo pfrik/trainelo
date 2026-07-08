@@ -27,6 +27,7 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createLogger, generateRequestId, timer, type Logger } from "../../src/lib/core/observability/log.js";
+import { pingHealthcheck } from "../../src/lib/api/healthcheck.js";
 import {
   computeReadinessAndFatigue,
   type ReadinessAndFatigueInput,
@@ -1041,10 +1042,20 @@ export async function GET(request: Request): Promise<Response> {
 
     log.info("completed", { upserts_ok: upsertsOk, upserts_failed: upsertsFailed, compliance_missed: complianceMissed, duration_ms: durationMs });
 
+    if (!dryRun) {
+      await pingHealthcheck(
+        process.env.HEALTHCHECK_DAILY_RECS_URL,
+        upsertsFailed === 0,
+      );
+    }
+
     return Response.json(response, { headers });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     log.error("fatal error", { error: errorMsg, duration_ms: t.elapsed() });
+    if (!dryRun) {
+      await pingHealthcheck(process.env.HEALTHCHECK_DAILY_RECS_URL, false);
+    }
     return Response.json(
       {
         ok: false,

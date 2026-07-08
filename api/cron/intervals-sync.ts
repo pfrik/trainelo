@@ -22,6 +22,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createLogger, generateRequestId, timer, type Logger } from "../../src/lib/core/observability/log.js";
 import { runIntervalsSync } from "../../src/lib/sync/intervalsSync.js";
+import { pingHealthcheck } from "../../src/lib/api/healthcheck.js";
 
 const DEFAULT_LOOKBACK_DAYS = 3;
 const MAX_LOOKBACK_DAYS = 120;
@@ -129,6 +130,13 @@ export async function GET(request: Request): Promise<Response> {
       duration_ms: durationMs,
     });
 
+    if (!dryRun) {
+      await pingHealthcheck(
+        process.env.HEALTHCHECK_INTERVALS_SYNC_URL,
+        stats.errors.length === 0,
+      );
+    }
+
     return Response.json(
       {
         ok: stats.errors.length === 0,
@@ -145,6 +153,9 @@ export async function GET(request: Request): Promise<Response> {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     log.error("fatal error", { error: errorMsg, duration_ms: t.elapsed() });
+    if (!dryRun) {
+      await pingHealthcheck(process.env.HEALTHCHECK_INTERVALS_SYNC_URL, false);
+    }
     return Response.json(
       { ok: false, error: errorMsg, oldest, newest, dry_run: dryRun },
       { status: 500, headers },
