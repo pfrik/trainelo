@@ -355,12 +355,12 @@ export default function Landing() {
           </span>
           <h1 className="font-headline text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05] mb-6">
             The right workout for today.{" "}
-            <span className="text-primary-ink block">Backed by evidence.</span>
+            <span className="text-primary-ink block">Just show up.</span>
           </h1>
           <p className="text-lg sm:text-xl text-slate-600 leading-relaxed mb-8 max-w-xl mx-auto lg:mx-0">
-            Trainelo reads your night: sleep, recovery, training load. It asks
-            how you feel, then hands you one clear session. Push when you're
-            ready. Back off when you're not.
+            It weighs your recovery, your training load, and how you actually
+            feel, so every session fits your body today. And it always shows
+            you why.
           </p>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-4">
             <a
