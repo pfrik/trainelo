@@ -5,7 +5,8 @@
  * the same pure function the cron pipeline executes every morning.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import {
   Ban,
   CircleCheckBig,
@@ -87,6 +88,19 @@ export function EngineDemo() {
   const [soreness, setSoreness] = useState(3);
   const [illness, setIllness] = useState(false);
   const [touched, setTouched] = useState(false);
+  const outputRef = useRef<HTMLDivElement>(null);
+  const [outputVisible, setOutputVisible] = useState(false);
+
+  useEffect(() => {
+    const el = outputRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setOutputVisible(entry.isIntersecting),
+      { threshold: 0.35 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   const result = useMemo(() => {
     const input: CalibratorInput = {
@@ -126,17 +140,20 @@ export function EngineDemo() {
 
         <div className="mb-8">
           <div className="text-sm font-semibold text-slate-900 mb-3">How do you feel?</div>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Mood">
+          <RadioGroupPrimitive.Root
+            className="flex flex-wrap gap-2"
+            aria-label="Mood"
+            value={mood}
+            onValueChange={(v) => {
+              setMood(v as Mood5);
+              setTouched(true);
+            }}
+          >
             {MOODS.map((m) => (
-              <button
+              <RadioGroupPrimitive.Item
                 key={m.value}
-                role="radio"
-                aria-checked={mood === m.value}
-                onClick={() => {
-                  setMood(m.value);
-                  setTouched(true);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                value={m.value}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
                   mood === m.value
                     ? "bg-primary/10 border-primary-ink/60 text-primary-ink"
                     : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
@@ -144,9 +161,9 @@ export function EngineDemo() {
               >
                 <span aria-hidden>{m.emoji}</span>
                 {m.label}
-              </button>
+              </RadioGroupPrimitive.Item>
             ))}
-          </div>
+          </RadioGroupPrimitive.Root>
           {!touched && (
             <p className="text-xs text-slate-400 mt-2.5 animate-in fade-in-0 duration-500">
               Try{" "}
@@ -221,7 +238,10 @@ export function EngineDemo() {
       </div>
 
       {/* Live output — dark, "the product answers" side */}
-      <div className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-2xl p-6 sm:p-8 flex flex-col">
+      <div
+        ref={outputRef}
+        className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-2xl p-6 sm:p-8 flex flex-col"
+      >
         <div className="flex items-center justify-between mb-6">
           <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
             Today's calibrated session
@@ -361,6 +381,30 @@ export function EngineDemo() {
           </a>
         </p>
       </div>
+
+      {/* Mobile: sticky verdict once you've interacted and the output is off-screen */}
+      {touched && !outputVisible && (
+        <button
+          type="button"
+          aria-label="View today's calibrated session"
+          onClick={() =>
+            outputRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            })
+          }
+          className="lg:hidden fixed inset-x-4 bottom-4 z-40 flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-dark-base px-4 py-3 shadow-2xl animate-in fade-in-0 slide-in-from-bottom-4 duration-300 motion-reduce:animate-none"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className="h-2 w-2 rounded-full bg-primary" aria-hidden />
+            {animFinal}% · {level.label}
+          </span>
+          <span className="flex items-center gap-2 text-xs text-slate-400">
+            {animDuration} min
+            <span className="font-semibold text-primary">View &darr;</span>
+          </span>
+        </button>
+      )}
     </div>
   );
 }
