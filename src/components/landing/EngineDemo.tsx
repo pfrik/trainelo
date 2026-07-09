@@ -21,6 +21,7 @@ import {
   calibrateSession,
   type CalibratorInput,
   type Mood5,
+  type SwapSuggestion,
 } from "@/lib/core/checkin/calibrator";
 import { WAITLIST_URL } from "@/lib/landing/invite";
 
@@ -62,6 +63,18 @@ const LEVEL_STYLES: Record<string, { badge: string; icon: LucideIcon; label: str
   },
 };
 
+/** Human labels for the engine's session-type suggestion. */
+const SWAP_LABELS: Record<SwapSuggestion, string> = {
+  rest: "Full rest",
+  recovery: "Recovery session",
+  easy: "Easy session",
+  mobility: "Mobility",
+  cross_train: "Cross-training",
+  injury_safe: "Injury-safe session",
+  as_planned: "As planned",
+  harder_variant: "Push harder",
+};
+
 export function EngineDemo() {
   const [mood, setMood] = useState<Mood5>("okay");
   const [soreness, setSoreness] = useState(3);
@@ -87,6 +100,7 @@ export function EngineDemo() {
   const level = LEVEL_STYLES[result.level] ?? LEVEL_STYLES.green;
   const intensityPct = Math.round(result.intensity_multiplier * 100);
   const durationMin = Math.round(42 * result.duration_multiplier);
+  const sc = result.signal_contribution;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
@@ -130,12 +144,37 @@ export function EngineDemo() {
             max={10}
             step={1}
             aria-label="Muscle soreness"
+            className="[&>span:first-child]:bg-slate-200 [&>span:first-child>span]:bg-primary-ink [&_[role=slider]]:border-primary-ink [&_[role=slider]]:bg-white"
           />
+          <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
+            <span>None</span>
+            <span>Severe</span>
+          </div>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-900">Feeling ill</span>
-          <Switch checked={illness} onCheckedChange={setIllness} aria-label="Feeling ill" />
+          <label
+            htmlFor="demo-illness"
+            className="text-sm font-semibold text-slate-900 cursor-pointer"
+          >
+            Feeling ill
+          </label>
+          <div className="flex items-center gap-2.5">
+            <span
+              className={`text-sm font-semibold tabular-nums w-7 text-right ${
+                illness ? "text-primary-ink" : "text-slate-400"
+              }`}
+            >
+              {illness ? "Yes" : "No"}
+            </span>
+            <Switch
+              id="demo-illness"
+              checked={illness}
+              onCheckedChange={setIllness}
+              aria-label="Feeling ill"
+              className="border-slate-300 data-[state=unchecked]:bg-slate-200 data-[state=checked]:bg-primary-ink [&>span]:bg-white [&>span]:border [&>span]:border-slate-300 focus-visible:ring-slate-900 focus-visible:ring-offset-white"
+            />
+          </div>
         </div>
 
         <p className="text-xs text-slate-500 mt-8 leading-relaxed">
@@ -150,8 +189,10 @@ export function EngineDemo() {
           Today's calibrated session
         </div>
 
-        <div className="flex items-center gap-6 mb-6">
-          <RecoveryRing score={blended} size={104} />
+        <div className="flex items-center gap-6 mb-4">
+          <div role="img" aria-label={`Readiness ${Math.round(blended)} out of 100`}>
+            <RecoveryRing score={blended} size={104} />
+          </div>
           <div className="min-w-0">
             <span
               className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded border uppercase mb-2 ${level.badge}`}
@@ -159,10 +200,45 @@ export function EngineDemo() {
               <level.icon className="w-3.5 h-3.5" aria-hidden />
               {level.label}
             </span>
-            <div className="text-lg font-bold text-white leading-snug">
+            <div className="text-lg font-bold text-white leading-snug min-h-[2lh]">
               {result.headline}
             </div>
           </div>
+        </div>
+
+        {/* Show the work: what the watch saw + what you reported = today */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mb-4">
+          <span>
+            Baseline{" "}
+            <span className="text-slate-300 font-semibold tabular-nums">
+              {sc.objective_score ?? "—"}
+            </span>
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            your check-in{" "}
+            <span
+              className={`font-semibold tabular-nums ${
+                sc.subjective_delta >= 0 ? "text-primary" : "text-orange-400"
+              }`}
+            >
+              {sc.subjective_delta >= 0
+                ? `+${sc.subjective_delta}`
+                : `−${Math.abs(sc.subjective_delta)}`}
+            </span>
+          </span>
+          <span aria-hidden>&rarr;</span>
+          <span className="text-white font-semibold tabular-nums">
+            {sc.final_score ?? Math.round(blended)} today
+          </span>
+        </div>
+
+        {/* Session type — keeps the red states coherent */}
+        <div className="text-sm text-slate-400 mb-5">
+          Session ·{" "}
+          <span className="text-white font-semibold">
+            {SWAP_LABELS[result.swap_to]}
+          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
@@ -182,17 +258,30 @@ export function EngineDemo() {
           </div>
         </div>
 
-        <p className="text-sm text-slate-400 leading-relaxed">{result.rationale}</p>
+        <p className="text-sm text-slate-400 leading-relaxed min-h-[3lh]">
+          {result.rationale}
+        </p>
 
-        {result.signal_contribution.conflict_flag && (
-          <div className="mt-4 flex items-start gap-2 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
-            <TriangleAlert className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" aria-hidden />
-            <p className="text-xs text-orange-200">
-              <span className="font-semibold text-orange-400">Signals disagree. </span>
-              The engine stays conservative and says so, out loud.
-            </p>
-          </div>
-        )}
+        {/* Conflict slot: always reserved, faded in only when signals disagree */}
+        <div
+          className={`mt-4 flex items-start gap-2 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 transition-opacity duration-200 motion-reduce:transition-none ${
+            result.signal_contribution.conflict_flag
+              ? "opacity-100"
+              : "opacity-0 invisible"
+          }`}
+          aria-hidden={!result.signal_contribution.conflict_flag}
+        >
+          <TriangleAlert className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" aria-hidden />
+          <p className="text-xs text-orange-200">
+            <span className="font-semibold text-orange-400">Signals disagree. </span>
+            The engine stays conservative and says so, out loud.
+          </p>
+        </div>
+
+        {/* Screen-reader announcement of each recalculated result */}
+        <div className="sr-only" aria-live="polite">
+          {`${level.label}. ${SWAP_LABELS[result.swap_to]}. ${intensityPct} percent intensity, ${durationMin} minutes.`}
+        </div>
 
         <p className="text-xs text-slate-500 mt-auto pt-6">
           Want this running on your own mornings?{" "}
