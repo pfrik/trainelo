@@ -12,13 +12,9 @@ import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  CircleCheckBig,
   Gauge,
-  Moon,
-  PenLine,
   TriangleAlert,
   Watch,
-  type LucideIcon,
 } from "lucide-react";
 import { EngineDemo } from "@/components/landing/EngineDemo";
 import { AppWindow } from "@/components/landing/AppWindow";
@@ -153,14 +149,15 @@ function SignalBlock({
   children: ReactNode;
 }) {
   return (
-    <Reveal delay={delay} className="h-full">
-      <div className="flex flex-col h-full">
-        <div className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-xl p-5 mb-5 flex-1">
-          {children}
-        </div>
-        <h3 className="text-lg font-bold text-slate-900 mb-1.5">{title}</h3>
-        <p className="text-sm text-slate-600 leading-relaxed">{body}</p>
+    <Reveal
+      delay={delay}
+      className="h-full md:grid md:grid-rows-subgrid md:row-span-3"
+    >
+      <div className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-xl p-5 mb-5 flex flex-col">
+        {children}
       </div>
+      <h3 className="text-lg font-bold text-slate-900 mb-1.5">{title}</h3>
+      <p className="text-sm text-slate-600 leading-relaxed">{body}</p>
     </Reveal>
   );
 }
@@ -174,7 +171,7 @@ function SleepVisual() {
     { label: "Awake", pct: 10, cls: "bg-slate-800" },
   ];
   return (
-    <div>
+    <div className="h-full flex flex-col justify-between">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
           Sleep
@@ -204,7 +201,7 @@ function SleepVisual() {
 /** HRV visual: overnight rMSSD vs 28-day baseline. */
 function HrvVisual() {
   return (
-    <div>
+    <div className="h-full flex flex-col justify-between">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
           HRV · overnight
@@ -225,7 +222,7 @@ function HrvVisual() {
 /** Training-load visual: fitness vs fatigue bars. */
 function LoadVisual() {
   return (
-    <div>
+    <div className="h-full flex flex-col justify-between">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
           Training load
@@ -420,10 +417,10 @@ export default function Landing() {
             <span className="text-slate-900 font-semibold">how you feel.</span>
           </p>
         </Reveal>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 mb-14">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-x-6 md:gap-y-0 md:grid-rows-[auto_auto_auto] mb-14">
           <SignalBlock
-            title="Sleep, scored"
-            body="Duration and quality, weighed against your own norm rather than a population average."
+            title="Where your recovery happens"
+            body="Sleep duration and quality, weighed against your own norm rather than a population average."
             delay={0}
           >
             <SleepVisual />
@@ -445,26 +442,21 @@ export default function Landing() {
         </div>
         <Reveal>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-sm font-semibold text-slate-700">
-            {(
-              [
-                [Moon, "Synced while you sleep"],
-                [PenLine, "60-second check-in"],
-                [CircleCheckBig, "One calibrated session"],
-              ] as Array<[LucideIcon, string]>
-            ).map(([Icon, label], i) => (
-              <span key={label} className="flex items-center gap-4">
-                {i > 0 && (
-                  <ArrowRight
-                    className="w-5 h-5 text-slate-300 rotate-90 sm:rotate-0"
-                    aria-hidden
-                  />
-                )}
-                <span className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm">
-                  <Icon className="w-4 h-4 text-primary-ink" aria-hidden />
-                  {label}
+            {["Synced while you sleep", "60-second check-in", "One calibrated session"].map(
+              (label, i) => (
+                <span key={label} className="flex items-center gap-4">
+                  {i > 0 && (
+                    <ArrowRight
+                      className="w-5 h-5 text-slate-300 rotate-90 sm:rotate-0"
+                      aria-hidden
+                    />
+                  )}
+                  <span className="bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm">
+                    {label}
+                  </span>
                 </span>
-              </span>
-            ))}
+              ),
+            )}
           </div>
         </Reveal>
       </section>
