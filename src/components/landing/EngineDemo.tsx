@@ -22,7 +22,7 @@ import {
   type CalibratorInput,
   type Mood5,
 } from "@/lib/core/checkin/calibrator";
-import { REQUEST_INVITE_URL } from "@/lib/landing/invite";
+import { WAITLIST_URL } from "@/lib/landing/invite";
 
 /** Fixed wearable baseline for the demo: a decent night. */
 const DEMO_WEARABLE = {
@@ -197,10 +197,10 @@ export function EngineDemo() {
         <p className="text-xs text-slate-500 mt-auto pt-6">
           Want this running on your own mornings?{" "}
           <a
-            href={REQUEST_INVITE_URL}
+            href={WAITLIST_URL}
             className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"
           >
-            Request an invite
+            Join the waitlist
           </a>
         </p>
       </div>

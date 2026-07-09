@@ -1,24 +1,24 @@
 /**
- * Invite-request plumbing for the private beta.
+ * Waitlist plumbing for the private beta.
  *
- * Zero-infrastructure waitlist: "Request an invite" opens a pre-filled
+ * Zero-infrastructure waitlist: "Join the waitlist" opens a pre-filled
  * email instead of hitting an endpoint (the Vercel function budget is
  * spoken for). hello@trainelo.io must forward somewhere real — Porkbun
  * email forwarding is free — before this goes live.
  */
 
-const INVITE_EMAIL = "hello@trainelo.io";
+const WAITLIST_EMAIL = "hello@trainelo.io";
 
-const SUBJECT = "Trainelo invite request";
+const SUBJECT = "Trainelo waitlist";
 
 const BODY = `Hi Pascal,
 
-I'd like an invite to Trainelo.
+I'd like to join the Trainelo waitlist.
 
 My watch:
 What I train for:
 `;
 
-export const REQUEST_INVITE_URL = `mailto:${INVITE_EMAIL}?subject=${encodeURIComponent(
+export const WAITLIST_URL = `mailto:${WAITLIST_EMAIL}?subject=${encodeURIComponent(
   SUBJECT,
 )}&body=${encodeURIComponent(BODY)}`;

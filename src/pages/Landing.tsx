@@ -28,7 +28,7 @@ import {
 } from "@/components/landing/PhoneScreens";
 import { useInView } from "@/hooks/useInView";
 import { DEMO_HRV_WEEK, DEMO_HRV_BASELINE } from "@/lib/landing/demoData";
-import { REQUEST_INVITE_URL } from "@/lib/landing/invite";
+import { WAITLIST_URL } from "@/lib/landing/invite";
 
 // ---------------------------------------------------------------------------
 // Building blocks
@@ -334,10 +334,10 @@ export default function Landing() {
               Sign in
             </Link>
             <a
-              href={REQUEST_INVITE_URL}
+              href={WAITLIST_URL}
               className="text-sm font-semibold bg-primary hover:bg-primary-hover text-slate-900 rounded-full px-5 py-2 transition-colors"
             >
-              Request an invite
+              Join the waitlist
             </a>
           </div>
         </div>
@@ -367,14 +367,14 @@ export default function Landing() {
               Try the live demo
             </a>
             <a
-              href={REQUEST_INVITE_URL}
+              href={WAITLIST_URL}
               className="px-7 py-3.5 rounded-full font-semibold text-slate-700 bg-white border border-slate-200 hover:border-slate-400 transition-colors"
             >
-              Request an invite
+              Join the waitlist
             </a>
           </div>
           <p className="text-xs text-slate-500 mb-7">
-            Invites go out in small batches while Trainelo is in beta. Already
+            Join the waitlist and we'll email you when a spot opens. Already
             in?{" "}
             <Link
               to="/auth"
@@ -623,17 +623,17 @@ export default function Landing() {
             </h2>
             <p className="relative text-slate-400 mb-8 max-w-xl mx-auto">
               Connect your watch once. Check in for a minute. Train with the
-              evidence on your side. Trainelo is in private beta and invites
-              go out in small batches.
+              evidence on your side. Trainelo is in private beta, and the
+              waitlist is open.
             </p>
             <a
-              href={REQUEST_INVITE_URL}
+              href={WAITLIST_URL}
               className="relative inline-block px-8 py-3.5 rounded-full font-semibold bg-primary hover:bg-primary-hover text-slate-900 transition-colors"
             >
-              Request an invite
+              Join the waitlist
             </a>
             <p className="relative text-sm text-slate-500 mt-6">
-              Already have an invite?{" "}
+              Already have access?{" "}
               <Link
                 to="/auth"
                 className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"
