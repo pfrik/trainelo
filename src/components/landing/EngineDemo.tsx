@@ -76,10 +76,17 @@ const SWAP_LABELS: Record<SwapSuggestion, string> = {
   harder_variant: "Push harder",
 };
 
+/** Applied-rule codes worth surfacing as a chip in the demo. */
+const RULE_CHIPS: Record<string, string> = {
+  SORENESS_HIGH_REDUCTION: "Soreness cap applied",
+  RPE_HIGH_REDUCTION: "High RPE cap applied",
+};
+
 export function EngineDemo() {
   const [mood, setMood] = useState<Mood5>("okay");
   const [soreness, setSoreness] = useState(3);
   const [illness, setIllness] = useState(false);
+  const [touched, setTouched] = useState(false);
 
   const result = useMemo(() => {
     const input: CalibratorInput = {
@@ -105,6 +112,9 @@ export function EngineDemo() {
   const animIntensity = Math.round(useAnimatedNumber(intensityPct));
   const animDuration = Math.round(useAnimatedNumber(durationMin));
   const animFinal = Math.round(useAnimatedNumber(sc.final_score ?? blended));
+  const ruleChips = result.applied_rules
+    .map((r) => RULE_CHIPS[r])
+    .filter((label): label is string => Boolean(label));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
@@ -122,7 +132,10 @@ export function EngineDemo() {
                 key={m.value}
                 role="radio"
                 aria-checked={mood === m.value}
-                onClick={() => setMood(m.value)}
+                onClick={() => {
+                  setMood(m.value);
+                  setTouched(true);
+                }}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                   mood === m.value
                     ? "bg-primary/10 border-primary-ink/60 text-primary-ink"
@@ -134,6 +147,13 @@ export function EngineDemo() {
               </button>
             ))}
           </div>
+          {!touched && (
+            <p className="text-xs text-slate-400 mt-2.5 animate-in fade-in-0 duration-500">
+              Try{" "}
+              <span className="font-semibold text-slate-600">"Drained"</span> and
+              watch the engine push back.
+            </p>
+          )}
         </div>
 
         <div className="mb-8">
@@ -141,19 +161,29 @@ export function EngineDemo() {
             <span className="text-sm font-semibold text-slate-900">Muscle soreness</span>
             <span className="text-sm font-bold text-slate-900 tabular-nums">{soreness}/10</span>
           </div>
-          <Slider
-            value={[soreness]}
-            onValueChange={([v]) => setSoreness(v)}
-            min={0}
-            max={10}
-            step={1}
-            aria-label="Muscle soreness"
-            className="[&>span:first-child]:bg-slate-200 [&>span:first-child>span]:bg-primary-ink [&_[role=slider]]:border-primary-ink [&_[role=slider]]:bg-white"
-          />
-          <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
-            <span>None</span>
-            <span>Severe</span>
+          <div className="relative">
+            <Slider
+              value={[soreness]}
+              onValueChange={([v]) => {
+                setSoreness(v);
+                setTouched(true);
+              }}
+              min={0}
+              max={10}
+              step={1}
+              aria-label="Muscle soreness"
+              className="[&>span:first-child]:bg-slate-200 [&>span:first-child>span]:bg-primary-ink [&_[role=slider]]:border-primary-ink [&_[role=slider]]:bg-white"
+            />
+            {/* threshold marker: soreness only bites at 7/10 */}
+            <span
+              className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-3.5 w-px bg-slate-400/80"
+              style={{ left: "70%" }}
+              aria-hidden
+            />
           </div>
+          <p className="text-[11px] text-slate-400 mt-2">
+            Soreness only trims today's plan once it passes 7 out of 10.
+          </p>
         </div>
 
         <div className="flex items-center justify-between">
@@ -174,7 +204,10 @@ export function EngineDemo() {
             <Switch
               id="demo-illness"
               checked={illness}
-              onCheckedChange={setIllness}
+              onCheckedChange={(v) => {
+                setIllness(v);
+                setTouched(true);
+              }}
               aria-label="Feeling ill"
               className="border-slate-300 data-[state=unchecked]:bg-slate-200 data-[state=checked]:bg-primary-ink [&>span]:bg-white [&>span]:border [&>span]:border-slate-300 focus-visible:ring-slate-900 focus-visible:ring-offset-white"
             />
@@ -189,8 +222,17 @@ export function EngineDemo() {
 
       {/* Live output — dark, "the product answers" side */}
       <div className="bg-dark-base rounded-2xl border border-slate-700/60 shadow-2xl p-6 sm:p-8 flex flex-col">
-        <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-6">
-          Today's calibrated session
+        <div className="flex items-center justify-between mb-6">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            Today's calibrated session
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping motion-reduce:hidden" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+            </span>
+            Live
+          </span>
         </div>
 
         <div className="flex items-center gap-6 mb-4">
@@ -275,6 +317,18 @@ export function EngineDemo() {
         >
           {result.rationale}
         </p>
+
+        {/* Applied modifiers — reserved row so the card doesn't jump */}
+        <div className="min-h-[1.75rem] mt-3 flex flex-wrap gap-2">
+          {ruleChips.map((label) => (
+            <span
+              key={label}
+              className="inline-flex items-center text-[11px] font-semibold text-orange-300 bg-orange-500/10 border border-orange-500/25 rounded px-2 py-0.5 animate-in fade-in-0 duration-300 motion-reduce:animate-none"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
 
         {/* Conflict slot: always reserved, faded in only when signals disagree */}
         <div
