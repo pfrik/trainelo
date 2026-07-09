@@ -4,15 +4,21 @@
  * paired with the score text; the ring itself is decorative.
  */
 
+import { useAnimatedNumber } from "@/hooks/useAnimatedNumber";
+
 interface RecoveryRingProps {
   /** Readiness 0-100. */
   score: number;
   /** Diameter in px (default 128). */
   size?: number;
+  /** Tween the displayed number when the score changes (landing demo). */
+  animated?: boolean;
 }
 
-export function RecoveryRing({ score, size = 128 }: RecoveryRingProps) {
+export function RecoveryRing({ score, size = 128, animated = false }: RecoveryRingProps) {
   const safeScore = Math.max(0, Math.min(100, Math.round(score)));
+  const animatedScore = Math.round(useAnimatedNumber(safeScore));
+  const displayScore = animated ? animatedScore : safeScore;
   const stroke = size >= 120 ? 10 : 8;
   const radius = size / 2 - stroke;
   const circumference = 2 * Math.PI * radius;
@@ -51,7 +57,7 @@ export function RecoveryRing({ score, size = 128 }: RecoveryRingProps) {
             size >= 100 ? "text-2xl" : size >= 80 ? "text-lg" : "text-sm"
           } font-black text-white leading-none tabular-nums`}
         >
-          {safeScore}%
+          {displayScore}%
         </span>
         {size >= 80 && (
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">

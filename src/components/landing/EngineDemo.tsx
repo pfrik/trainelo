@@ -24,6 +24,7 @@ import {
   type SwapSuggestion,
 } from "@/lib/core/checkin/calibrator";
 import { WAITLIST_URL } from "@/lib/landing/invite";
+import { useAnimatedNumber } from "@/hooks/useAnimatedNumber";
 
 /** Fixed wearable baseline for the demo: a decent night. */
 const DEMO_WEARABLE = {
@@ -101,6 +102,9 @@ export function EngineDemo() {
   const intensityPct = Math.round(result.intensity_multiplier * 100);
   const durationMin = Math.round(42 * result.duration_multiplier);
   const sc = result.signal_contribution;
+  const animIntensity = Math.round(useAnimatedNumber(intensityPct));
+  const animDuration = Math.round(useAnimatedNumber(durationMin));
+  const animFinal = Math.round(useAnimatedNumber(sc.final_score ?? blended));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
@@ -191,16 +195,20 @@ export function EngineDemo() {
 
         <div className="flex items-center gap-6 mb-4">
           <div role="img" aria-label={`Readiness ${Math.round(blended)} out of 100`}>
-            <RecoveryRing score={blended} size={104} />
+            <RecoveryRing score={blended} size={104} animated />
           </div>
           <div className="min-w-0">
             <span
-              className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded border uppercase mb-2 ${level.badge}`}
+              key={result.level}
+              className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded border uppercase mb-2 animate-in fade-in-0 duration-300 motion-reduce:animate-none ${level.badge}`}
             >
               <level.icon className="w-3.5 h-3.5" aria-hidden />
               {level.label}
             </span>
-            <div className="text-lg font-bold text-white leading-snug min-h-[2lh]">
+            <div
+              key={result.headline}
+              className="text-lg font-bold text-white leading-snug min-h-[2lh] animate-in fade-in-0 duration-300 motion-reduce:animate-none"
+            >
               {result.headline}
             </div>
           </div>
@@ -229,14 +237,17 @@ export function EngineDemo() {
           </span>
           <span aria-hidden>&rarr;</span>
           <span className="text-white font-semibold tabular-nums">
-            {sc.final_score ?? Math.round(blended)} today
+            {animFinal} today
           </span>
         </div>
 
         {/* Session type — keeps the red states coherent */}
         <div className="text-sm text-slate-400 mb-5">
           Session ·{" "}
-          <span className="text-white font-semibold">
+          <span
+            key={result.swap_to}
+            className="text-white font-semibold inline-block animate-in fade-in-0 duration-300 motion-reduce:animate-none"
+          >
             {SWAP_LABELS[result.swap_to]}
           </span>
         </div>
@@ -245,20 +256,23 @@ export function EngineDemo() {
           <div className="bg-slate-800/60 rounded-xl p-4">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Intensity</div>
             <div className="text-xl font-bold text-white tabular-nums">
-              {intensityPct}%
+              {animIntensity}%
               <span className="text-sm font-normal text-slate-500"> of plan</span>
             </div>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-4">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Duration</div>
             <div className="text-xl font-bold text-white tabular-nums">
-              {durationMin}
+              {animDuration}
               <span className="text-sm font-normal text-slate-500"> min</span>
             </div>
           </div>
         </div>
 
-        <p className="text-sm text-slate-400 leading-relaxed min-h-[3lh]">
+        <p
+          key={result.rationale}
+          className="text-sm text-slate-400 leading-relaxed min-h-[3lh] animate-in fade-in-0 duration-300 motion-reduce:animate-none"
+        >
           {result.rationale}
         </p>
 
