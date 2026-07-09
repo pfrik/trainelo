@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { EngineDemo } from "@/components/landing/EngineDemo";
 import { AppWindow } from "@/components/landing/AppWindow";
-import { NightBand } from "@/components/landing/NightBand";
+import { ConfluenceBand } from "@/components/landing/ConfluenceBand";
 import {
   DeviceFrame,
   TodayPhoneScreen,
@@ -405,8 +405,8 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Overnight band — the trace draws itself while you scroll */}
-      <NightBand />
+      {/* Confluence band — watch data + check-in flow into one decision */}
+      <ConfluenceBand />
 
       {/* Overnight signals */}
       <section id="how-it-works" className="max-w-6xl mx-auto px-6 py-24 scroll-mt-8">
