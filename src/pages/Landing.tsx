@@ -8,7 +8,7 @@
  * /engineering. The engine demo runs the real calibration function.
  */
 
-import { type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -409,7 +409,7 @@ export default function Landing() {
       <ConfluenceBand />
 
       {/* Overnight signals */}
-      <section id="how-it-works" className="max-w-6xl mx-auto px-6 py-24 scroll-mt-8">
+      <section id="how-it-works" className="max-w-6xl mx-auto px-6 py-14 sm:py-24 scroll-mt-8">
         <Reveal>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Start the day knowing
@@ -447,17 +447,17 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-sm font-semibold text-slate-700">
             {["Synced while you sleep", "60-second check-in", "One calibrated session"].map(
               (label, i) => (
-                <span key={label} className="flex items-center gap-4">
+                <Fragment key={label}>
                   {i > 0 && (
                     <ArrowRight
-                      className="w-5 h-5 text-slate-300 rotate-90 sm:rotate-0"
+                      className="w-5 h-5 shrink-0 text-slate-300 rotate-90 sm:rotate-0"
                       aria-hidden
                     />
                   )}
                   <span className="bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm">
                     {label}
                   </span>
-                </span>
+                </Fragment>
               ),
             )}
           </div>
@@ -466,7 +466,7 @@ export default function Landing() {
 
       {/* App screens showcase */}
       <section className="border-y border-slate-200 bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-24">
+        <div className="max-w-6xl mx-auto px-6 py-14 sm:py-24">
           <Reveal>
             <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
               Your morning, in three screens
@@ -503,7 +503,7 @@ export default function Landing() {
       </section>
 
       {/* Interactive engine demo */}
-      <section id="try-it" className="max-w-5xl mx-auto px-6 py-24 scroll-mt-8">
+      <section id="try-it" className="max-w-5xl mx-auto px-6 py-14 sm:py-24 scroll-mt-8">
         <Reveal>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Tell it how you feel.{" "}
@@ -522,7 +522,7 @@ export default function Landing() {
 
       {/* 04 — Calm under caution */}
       <section className="border-y border-slate-200 bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-24 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+        <div className="max-w-5xl mx-auto px-6 py-14 sm:py-24 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
           <Reveal delay={120} className="order-2 lg:order-1">
             <AppWindow title="Trainelo · Safety check">
               <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 flex items-start gap-3">
@@ -567,7 +567,7 @@ export default function Landing() {
       </section>
 
       {/* What's next */}
-      <section className="max-w-6xl mx-auto px-6 py-24">
+      <section className="max-w-6xl mx-auto px-6 py-14 sm:py-24">
         <Reveal>
           <h2 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Where Trainelo is heading
@@ -577,8 +577,8 @@ export default function Landing() {
             right now.
           </p>
         </Reveal>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-          <Reveal delay={120} className="flex flex-col items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center lg:pb-20">
+          <Reveal delay={120} className="relative flex flex-col items-center">
             <div className="relative">
               <DeviceFrame>
                 <TrendsPhoneScreen />
@@ -587,7 +587,7 @@ export default function Landing() {
                 Just shipped
               </span>
             </div>
-            <p className="text-sm text-slate-600 text-center max-w-[280px] mt-6">
+            <p className="text-sm text-slate-600 text-center max-w-[280px] mt-6 lg:absolute lg:top-full lg:left-0 lg:right-0 lg:mx-auto lg:mt-0 lg:pt-6">
               <span className="font-bold text-slate-900">Fitness you can see.</span>{" "}
               Fitness, fatigue and form charted over months, live in the app
               with 15 months of history.
@@ -614,7 +614,7 @@ export default function Landing() {
       </section>
 
       {/* Closing CTA band */}
-      <section className="max-w-5xl mx-auto px-6 pb-24">
+      <section className="max-w-5xl mx-auto px-6 pb-14 sm:pb-24">
         <Reveal>
           <div className="relative overflow-hidden bg-dark-base rounded-3xl px-8 py-14 text-center shadow-2xl">
             <div
