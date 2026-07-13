@@ -272,12 +272,11 @@ export function EvidencePhoneScreen() {
       <ScreenHeader kicker="Today's evidence" title="Why this session?" />
 
       <Card className="p-3.5 mb-2.5">
-        <div className="flex items-baseline justify-between mb-1">
+        <div className="flex items-baseline gap-1.5 mb-1">
           <span className="text-[11px] text-slate-400">Readiness</span>
-          <span className="text-[12px] font-bold text-white tabular-nums">
-            72 <span className="text-slate-500 font-normal">wearable</span>{" "}
-            <span className="text-orange-400">→ 64</span>
-          </span>
+          <span className="text-[12px] font-bold text-white tabular-nums">72</span>
+          <span className="text-[11px] text-slate-500">wearable</span>
+          <span className="text-[12px] font-bold text-orange-400 tabular-nums">→ 64</span>
         </div>
         <div className="text-[10px] text-slate-500 leading-snug">
           Your soreness moved the number, capped at what the data supports.
