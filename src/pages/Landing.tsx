@@ -11,8 +11,10 @@
 import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
+  Activity,
   ArrowRight,
   Gauge,
+  LineChart,
   TriangleAlert,
   Watch,
 } from "lucide-react";
@@ -346,18 +348,14 @@ export default function Landing() {
       {/* Hero — split: words left, product right */}
       <header className="relative max-w-6xl mx-auto px-6 pt-12 sm:pt-16 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-8 items-center">
         <div className="text-center lg:text-left">
-          <span className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-1.5 rounded-full mb-7 shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-hidden />
-            Now in private beta
-          </span>
           <h1 className="font-headline text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05] mb-6">
             The right workout for today.{" "}
             <span className="text-primary-ink block">Just show up.</span>
           </h1>
           <p className="text-lg sm:text-xl text-slate-600 leading-relaxed mb-8 max-w-xl mx-auto lg:mx-0">
-            It weighs your recovery, your training load, and how you actually
-            feel, so every session fits your body today. And it always shows
-            you why.
+            For runners, cyclists, and triathletes. It weighs your recovery,
+            your training load, and how you actually feel, so every session
+            fits your body today. And it always shows you why.
           </p>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-4">
             <a
@@ -385,13 +383,18 @@ export default function Landing() {
           </p>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
             <span className="text-xs text-slate-500 mr-1">Works with</span>
-            {["Garmin", "Polar", "Suunto", "COROS"].map((brand) => (
+            {[
+              { name: "Garmin", Icon: Watch },
+              { name: "Polar", Icon: Watch },
+              { name: "Strava", Icon: Activity },
+              { name: "intervals.icu", Icon: LineChart },
+            ].map(({ name, Icon }) => (
               <span
-                key={brand}
+                key={name}
                 className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full"
               >
-                <Watch className="w-3.5 h-3.5 text-primary-ink" aria-hidden />
-                {brand}
+                <Icon className="w-3.5 h-3.5 text-primary-ink" aria-hidden />
+                {name}
               </span>
             ))}
           </div>

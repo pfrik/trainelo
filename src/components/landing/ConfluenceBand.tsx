@@ -107,7 +107,7 @@ export function ConfluenceBand() {
               Your watch + you
             </div>
             <h2 className="font-headline text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              The full picture, in one call.
+              The numbers and the feel, one session.
             </h2>
           </div>
           <p className="text-sm text-slate-400 leading-relaxed sm:max-w-xs sm:text-right">

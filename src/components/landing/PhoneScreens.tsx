@@ -130,10 +130,10 @@ function Card({
 export function TodayPhoneScreen() {
   return (
     <div className="flex flex-col h-full">
-      <ScreenHeader kicker="Tuesday, Jul 7" title="Good morning 👋" />
+      <ScreenHeader kicker="Tuesday, Jul 7" title="Good morning" />
 
       <Card className="flex items-center gap-3.5 p-3.5 mb-3">
-        <RecoveryRing score={64} size={62} />
+        <RecoveryRing score={64} size={78} />
         <div className="min-w-0">
           <span className="inline-block bg-orange-500/15 text-orange-400 border border-orange-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase mb-1">
             Modified
@@ -253,7 +253,7 @@ export function CheckinPhoneScreen() {
       </Card>
 
       <div className="mt-auto flex items-center justify-center w-full py-2.5 rounded-lg font-semibold bg-primary text-slate-900 text-xs">
-        Done. That took 42 seconds.
+        Get today's session
       </div>
     </div>
   );

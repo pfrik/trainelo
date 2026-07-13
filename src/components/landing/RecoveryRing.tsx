@@ -19,7 +19,7 @@ export function RecoveryRing({ score, size = 128, animated = false }: RecoveryRi
   const safeScore = Math.max(0, Math.min(100, Math.round(score)));
   const animatedScore = Math.round(useAnimatedNumber(safeScore));
   const displayScore = animated ? animatedScore : safeScore;
-  const stroke = size >= 120 ? 10 : 8;
+  const stroke = size >= 120 ? 10 : size >= 90 ? 8 : 6;
   const radius = size / 2 - stroke;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - safeScore / 100);
