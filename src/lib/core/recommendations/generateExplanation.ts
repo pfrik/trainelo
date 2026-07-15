@@ -10,6 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { EvidenceSummary, RecommendationCandidate } from "../contracts/recommendation.js";
+import { groundingViolations } from "./groundingCheck.js";
 
 // ============================================================================
 // Client (lazy singleton)
@@ -41,7 +42,7 @@ Rules:
 - If there's a training plan active, mention the phase and how today fits the bigger picture.
 - Use plain language. Say "your body is recovering well" not "your physiological markers indicate adequate recovery."`;
 
-function buildUserPrompt(
+export function buildUserPrompt(
   evidence: EvidenceSummary,
   candidate: RecommendationCandidate,
 ): string {
@@ -61,7 +62,12 @@ function buildUserPrompt(
   if (evidence.fitness_score != null) parts.push(`Fitness: ${evidence.fitness_score}/100`);
   if (evidence.sleep_quality != null) parts.push(`Sleep quality: ${evidence.sleep_quality}/100`);
   if (evidence.hrv_trend) parts.push(`HRV trend: ${evidence.hrv_trend}`);
-  if (evidence.days_since_rest != null) parts.push(`Days since rest: ${evidence.days_since_rest}`);
+  // KNOWN LIMITATION: Haiku still occasionally narrates this as "days trained"
+  // despite the explicit label — a low-harm misread (the recommendation itself
+  // is unaffected). Left clearly labeled rather than tweaked further; the
+  // grounding validator can't catch it because it's a semantic misread, not a
+  // fabricated fact. Documented via the eval scorecard.
+  if (evidence.days_since_rest != null) parts.push(`Days since last rest day: ${evidence.days_since_rest}`);
   if (evidence.confidence != null) parts.push(`Data confidence: ${Math.round(evidence.confidence * 100)}%`);
 
   // EWMA
@@ -118,6 +124,12 @@ function buildUserPrompt(
   if (evidence.anomaly_caution_level && evidence.anomaly_caution_level !== "none") {
     parts.push("");
     parts.push(`ANOMALY: Caution level ${evidence.anomaly_caution_level}`);
+    if (evidence.anomaly_escalation_note) {
+      parts.push(`Reason: ${evidence.anomaly_escalation_note}`);
+    }
+    if (evidence.anomaly_streak_days != null) {
+      parts.push(`Consecutive days flagged: ${evidence.anomaly_streak_days}`);
+    }
     if (evidence.anomaly_restrictions?.length) {
       parts.push(`Restrictions: ${evidence.anomaly_restrictions.join(", ")}`);
     }
@@ -130,9 +142,49 @@ function buildUserPrompt(
 // Public API
 // ============================================================================
 
+/** Single Haiku call with an 8s timeout. Returns trimmed text or null. */
+async function callModel(
+  client: Anthropic,
+  system: string,
+  userContent: string,
+): Promise<string | null> {
+  try {
+    const response = await Promise.race([
+      client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 150,
+        temperature: 0.3,
+        system,
+        messages: [{ role: "user", content: userContent }],
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+
+    if (!response) {
+      console.warn("[llm] timeout - no response within 8s");
+      return null;
+    }
+
+    const text = response.content?.[0];
+    if (text?.type === "text" && text.text.trim()) return text.text.trim();
+
+    console.warn("[llm] no text in response content");
+    return null;
+  } catch (err) {
+    console.error("[llm] API error", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
 /**
  * Generate a coaching explanation for today's recommendation.
- * Returns null if LLM is unavailable, errors, or times out.
+ *
+ * Enforces grounding in CODE, not just the prompt: the deterministic engine
+ * already decided the workout, so the explanation must not assert numbers or
+ * metrics absent from the evidence. Flow: generate → validate → repair once →
+ * fall back. Returns null if the LLM is unavailable, errors, times out, or
+ * can't produce a grounded explanation — callers use the deterministic
+ * rationale as the fallback.
  */
 export async function generateExplanation(
   evidence: EvidenceSummary,
@@ -143,39 +195,21 @@ export async function generateExplanation(
 
   const userPrompt = buildUserPrompt(evidence, topCandidate);
 
-  try {
-    const response = await Promise.race([
-      client.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 150,
-        temperature: 0.3,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
-    ]);
+  // 1. Generate.
+  const first = await callModel(client, SYSTEM_PROMPT, userPrompt);
+  if (!first) return null;
 
-    if (!response) {
-      console.warn("[llm] timeout - no response within 8s");
-      return null;
-    }
+  // 2. Validate against the evidence the model was given.
+  const violations = groundingViolations(first, userPrompt);
+  if (violations.length === 0) return first;
+  console.warn("[llm] grounding violations, repairing:", violations);
 
-    console.log("[llm] response received", {
-      stop_reason: response.stop_reason,
-      content_length: response.content?.length,
-      content_type: response.content?.[0]?.type,
-      model: response.model,
-    });
+  // 3. Repair once — re-validate against the ORIGINAL evidence, not the note.
+  const repairPrompt = `${userPrompt}\n\nYour previous draft referenced things not in the data above: ${violations.join(", ")}. Rewrite the 2-3 sentence explanation using ONLY the facts, numbers, and metrics listed above. Do not mention any value or metric that is not present.`;
+  const repaired = await callModel(client, SYSTEM_PROMPT, repairPrompt);
+  if (repaired && groundingViolations(repaired, userPrompt).length === 0) return repaired;
 
-    const text = response.content?.[0];
-    if (text?.type === "text" && text.text.trim()) {
-      return text.text.trim();
-    }
-
-    console.warn("[llm] no text in response content");
-    return null;
-  } catch (err) {
-    console.error("[llm] API error", err instanceof Error ? err.message : String(err));
-    return null;
-  }
+  // 4. Fall back to the deterministic rationale (handled upstream).
+  console.warn("[llm] still ungrounded after repair; falling back to deterministic rationale");
+  return null;
 }

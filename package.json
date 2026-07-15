@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval:explanation": "tsx -r dotenv/config scripts/eval-explanation.ts dotenv_config_path=.env.local",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.api.json --noEmit"
   },
   "dependencies": {
