@@ -329,12 +329,6 @@ export default function Landing() {
         <div className="flex items-center justify-between bg-white/80 backdrop-blur border border-slate-200 rounded-full pl-6 pr-2 py-2 shadow-sm">
           <Wordmark />
           <div className="flex items-center gap-1">
-            <Link
-              to="/auth"
-              className="text-sm font-semibold text-slate-600 hover:text-slate-900 px-3 py-2 transition-colors"
-            >
-              Sign in
-            </Link>
             <a
               href={WAITLIST_URL}
               className="text-sm font-semibold bg-primary hover:bg-primary-hover text-slate-900 rounded-full px-5 py-2 transition-colors"
@@ -372,14 +366,7 @@ export default function Landing() {
             </a>
           </div>
           <p className="text-xs text-slate-500 mb-7">
-            Join the waitlist and we'll email you when a spot opens. Already
-            in?{" "}
-            <Link
-              to="/auth"
-              className="underline underline-offset-4 hover:text-slate-900 transition-colors"
-            >
-              Sign in
-            </Link>
+            Join the waitlist and we'll email you when a spot opens.
           </p>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
             <span className="text-xs text-slate-500 mr-1">Works with</span>
@@ -636,14 +623,7 @@ export default function Landing() {
               Join the waitlist
             </a>
             <p className="relative text-sm text-slate-500 mt-6">
-              Already have access?{" "}
-              <Link
-                to="/auth"
-                className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"
-              >
-                Sign in
-              </Link>
-              {" "}· Curious how it works under the hood?{" "}
+              Curious how it works under the hood?{" "}
               <Link
                 to="/engineering"
                 className="text-slate-300 underline underline-offset-4 hover:text-white transition-colors"
@@ -662,9 +642,6 @@ export default function Landing() {
           <div className="flex items-center gap-6 text-xs text-slate-500">
             <Link to="/engineering" className="hover:text-slate-900 transition-colors">
               Engineering
-            </Link>
-            <Link to="/auth" className="hover:text-slate-900 transition-colors">
-              Sign in
             </Link>
             <span>Built by Pascal · © {new Date().getFullYear()} Trainelo</span>
           </div>

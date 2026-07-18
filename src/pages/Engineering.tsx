@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import { EvidencePanel } from "@/components/dashboard/EvidencePanel";
 import { AppWindow } from "@/components/landing/AppWindow";
 import { DEMO_EVIDENCE, DEMO_RECOMMENDATION } from "@/lib/landing/demoData";
+import { WAITLIST_URL } from "@/lib/landing/invite";
 
 function Wordmark() {
   return (
@@ -111,12 +112,12 @@ export default function Engineering() {
           <Link to="/" aria-label="Back to the Trainelo homepage">
             <Wordmark />
           </Link>
-          <Link
-            to="/auth"
+          <a
+            href={WAITLIST_URL}
             className="text-sm font-semibold bg-primary hover:bg-primary-hover text-slate-900 rounded-full px-5 py-2 transition-colors"
           >
-            Sign in
-          </Link>
+            Join the waitlist
+          </a>
         </div>
       </nav>
 
